@@ -30,7 +30,7 @@
     },
     "com.unity.collections": {
       "version": "6.5.0",
-      "depth": 2,
+      "depth": 1,
       "source": "builtin",
       "dependencies": {
         "com.unity.burst": "1.8.25",
