@@ -1,0 +1,101 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &8455138650647261021
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -11.335699
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.1
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -0.39659867
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8396996531522321689, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 7d9c99716e0a1a14996f651d5bec3751, type: 2}
+    - target: {fileID: -7773644350329608304, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: m_Name
+      value: roadTJunction
+      objectReference: {fileID: 0}
+    - target: {fileID: -7502710815068979755, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: bd84eb16bfcea7e4dbcb8eb5ed3fa4af, type: 2}
+    - target: {fileID: -6746636006954836519, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: m_Name
+      value: roadStraight
+      objectReference: {fileID: 0}
+    - target: {fileID: -6473027133267004340, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 7d9c99716e0a1a14996f651d5bec3751, type: 2}
+    - target: {fileID: -3214415943614912052, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 5966de3443ea7444da301e815f0cec3e, type: 2}
+    - target: {fileID: -1082038186013772622, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 7d9c99716e0a1a14996f651d5bec3751, type: 2}
+    - target: {fileID: 919132149155446097, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: m_Name
+      value: road_city_modular_pack
+      objectReference: {fileID: 0}
+    - target: {fileID: 4887778280392563773, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: m_Name
+      value: roadCrossroad
+      objectReference: {fileID: 0}
+    - target: {fileID: 6190166689596479719, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: m_Name
+      value: roadCorner
+      objectReference: {fileID: 0}
+    - target: {fileID: 6953354697175260956, guid: 30bb567993c179e4db3393c929882664, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 5966de3443ea7444da301e815f0cec3e, type: 2}
+    m_RemovedComponents: []
+    m_RemovedGameObjects:
+    - {fileID: -8700617353114198275, guid: 30bb567993c179e4db3393c929882664, type: 3}
+    - {fileID: 65702495048144492, guid: 30bb567993c179e4db3393c929882664, type: 3}
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 30bb567993c179e4db3393c929882664, type: 3}
