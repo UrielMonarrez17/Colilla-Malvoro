@@ -14,10 +14,10 @@ public class CityGenerator : MonoBehaviour
     public float cellSize = 5f;
 
     [Header("Listas de Edificios")]
-    [Tooltip("Lista de edificios de historia. Se 'desgastará' al colocar cada uno.")]
+    [Tooltip("Lista de edificios de historia (Únicos). Se 'desgastará' al colocar cada uno.")]
     public List<GameObject> specialBuildings = new List<GameObject>();
 
-    [Tooltip("Lista de edificios decorativos. Se pueden repetir libremente.")]
+    [Tooltip("Lista de edificios decorativos (Reutilizables). Se pueden repetir libremente.")]
     public List<GameObject> normalBuildings = new List<GameObject>();
 
     [Header("Prefabs de Calles / Caminos")]
@@ -27,7 +27,10 @@ public class CityGenerator : MonoBehaviour
     public GameObject shapeXIntersectionConnector; // Intersección en Cruz / X
     public GameObject roadDeadEnd;                  // Callejón / Fin de vía
 
-    [Header("Reglas de Distribución")]
+    [Header("Ajustes de Altura y Distribución")]
+    [Tooltip("Altura Y base global a la que se colocarán las piezas de calle")]
+    public float roadHeightY = 0f;
+
     [Tooltip("Distancia mínima en celdas entre edificios especiales para evitar que queden adyacentes")]
     public int minCellDistanceBetweenSpecials = 4;
 
@@ -64,12 +67,12 @@ public class CityGenerator : MonoBehaviour
     // ===================================================================================
     void PlaceSpecialBuildings()
     {
-        // Copiamos la lista para no alterar la lista original expuesta en el Inspector
+        // Copiamos la lista para no alterar el Asset original en el Inspector
         List<GameObject> availableSpecials = new List<GameObject>(specialBuildings);
 
         while (availableSpecials.Count > 0)
         {
-            // Tomamos el primer edificio y lo Removemos de la lista ("Se desgasta/consume")
+            // Tomamos el primer edificio y lo Removemos de la lista ("Se desgasta / consume")
             GameObject specialPrefab = availableSpecials[0];
             availableSpecials.RemoveAt(0);
 
@@ -84,11 +87,14 @@ public class CityGenerator : MonoBehaviour
                 int randomX = Random.Range(0, mapWidth - bData.gridWidth + 1);
                 int randomY = Random.Range(0, mapLength - bData.gridLength + 1);
 
-                // Comprobamos disponibilidad de celdas y distancia mnima a otros especiales
+                // Comprobamos disponibilidad de celdas y distancia mínima a otros especiales
                 if (CanPlaceBuilding(randomX, randomY, bData.gridWidth, bData.gridLength) &&
                     IsFarFromOtherSpecials(randomX, randomY))
                 {
-                    Vector3 spawnPos = bData.GetCalculatedWorldPosition(randomX, randomY, cellSize);
+                    // Respetamos la Y original del Prefab
+                    float originalY = specialPrefab.transform.position.y;
+                    Vector3 spawnPos = bData.GetCalculatedWorldPosition(randomX, randomY, cellSize, originalY);
+                    
                     Instantiate(specialPrefab, spawnPos, Quaternion.identity, transform);
 
                     MarkGridCells(randomX, randomY, bData.gridWidth, bData.gridLength, 1);
@@ -117,13 +123,16 @@ public class CityGenerator : MonoBehaviour
             {
                 if (grid[x, y] == 0 && Random.value < normalBuildingDensity)
                 {
-                    // Seleccionamos un edificio al azar (NO se destruye ni remueve de la lista)
+                    // Seleccionamos un edificio al azar (NO se remueve, se puede repetir)
                     GameObject normalPrefab = normalBuildings[Random.Range(0, normalBuildings.Count)];
                     BuildingData bData = GetBuildingData(normalPrefab);
 
                     if (CanPlaceBuilding(x, y, bData.gridWidth, bData.gridLength))
                     {
-                        Vector3 spawnPos = bData.GetCalculatedWorldPosition(x, y, cellSize);
+                        // Respetamos la Y original del Prefab
+                        float originalY = normalPrefab.transform.position.y;
+                        Vector3 spawnPos = bData.GetCalculatedWorldPosition(x, y, cellSize, originalY);
+                        
                         Instantiate(normalPrefab, spawnPos, Quaternion.identity, transform);
 
                         MarkGridCells(x, y, bData.gridWidth, bData.gridLength, 2);
@@ -163,60 +172,80 @@ public class CityGenerator : MonoBehaviour
         }
     }
 
-    void SpawnRoadTile(int x, int y)
+
+void SpawnRoadTile(int x, int y)
+{
+    int mask = CalculateNeighborMask(x, y);
+    GameObject selectedRoadPrefab = roadStraight;
+    float yRotation = 0f;
+
+    // Máscara de Bits: 1 = Norte, 2 = Este, 4 = Sur, 8 = Oeste
+    switch (mask)
     {
-        int mask = CalculateNeighborMask(x, y);
-        GameObject selectedRoadPrefab = roadStraight;
-        float yRotation = 0f;
+        // --- Callejones sin salida / Conexión única ---
+        case 1: selectedRoadPrefab = roadDeadEnd; yRotation = 0f; break;   // N
+        case 2: selectedRoadPrefab = roadDeadEnd; yRotation = 90f; break;  // E
+        case 4: selectedRoadPrefab = roadDeadEnd; yRotation = 180f; break; // S
+        case 8: selectedRoadPrefab = roadDeadEnd; yRotation = 270f; break; // W
 
-        // Máscara de Bits: 1 = Norte, 2 = Este, 4 = Sur, 8 = Oeste
-        switch (mask)
-        {
-            // --- Callejones sin salida / Conexión única ---
-            case 1: selectedRoadPrefab = roadDeadEnd; yRotation = 0f; break;   // N
-            case 2: selectedRoadPrefab = roadDeadEnd; yRotation = 90f; break;  // E
-            case 4: selectedRoadPrefab = roadDeadEnd; yRotation = 180f; break; // S
-            case 8: selectedRoadPrefab = roadDeadEnd; yRotation = 270f; break; // W
+        // --- Líneas Rectas ---
+        case 5:  // N + S
+            selectedRoadPrefab = roadStraight; yRotation = 0f; break;
+        case 10: // E + W
+            selectedRoadPrefab = roadStraight; yRotation = 90f; break;
 
-            // --- Líneas Rectas ---
-            case 5:  // N + S
-                selectedRoadPrefab = roadStraight; yRotation = 0f; break;
-            case 10: // E + W
-                selectedRoadPrefab = roadStraight; yRotation = 90f; break;
+        // --- Esquinas ---
+        case 3:  selectedRoadPrefab = roadCorner; yRotation = 0f; break;   // N + E
+        case 6:  selectedRoadPrefab = roadCorner; yRotation = 90f; break;  // E + S
+        case 12: selectedRoadPrefab = roadCorner; yRotation = 180f; break; // S + W
+        case 9:  selectedRoadPrefab = roadCorner; yRotation = 270f; break; // W + N
 
-            // --- Esquinas ---
-            case 3:  selectedRoadPrefab = roadCorner; yRotation = 0f; break;   // N + E
-            case 6:  selectedRoadPrefab = roadCorner; yRotation = 90f; break;  // E + S
-            case 12: selectedRoadPrefab = roadCorner; yRotation = 180f; break; // S + W
-            case 9:  selectedRoadPrefab = roadCorner; yRotation = 270f; break; // W + N
+        // --- Intersecciones en T ---
+        case 7:  selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 0f; break;   // N + E + S
+        case 14: selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 90f; break;  // E + S + W
+        case 13: selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 180f; break; // S + W + N
+        case 11: selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 270f; break; // W + N + E
 
-            // --- Intersecciones en T ---
-            case 7:  selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 0f; break;   // N + E + S
-            case 14: selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 90f; break;  // E + S + W
-            case 13: selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 180f; break; // S + W + N
-            case 11: selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 270f; break; // W + N + E
+        // --- Intersección en X / Cruz ---
+        case 15: // N + E + S + W
+            selectedRoadPrefab = shapeXIntersectionConnector; yRotation = 0f; break;
 
-            // --- Intersección en X / Cruz ---
-            case 15: // N + E + S + W
-                selectedRoadPrefab = shapeXIntersectionConnector; yRotation = 0f; break;
-
-            default:
-                selectedRoadPrefab = roadStraight; yRotation = 0f; break;
-        }
-
-        // Posición centrada en la celda del camino (1x1)
-        Vector3 roadPos = new Vector3((x * cellSize) + (cellSize / 2f), 0f, (y * cellSize) + (cellSize / 2f));
-        Instantiate(selectedRoadPrefab, roadPos, Quaternion.Euler(0f, yRotation, 0f), transform);
+        default:
+            selectedRoadPrefab = roadStraight; yRotation = 0f; break;
     }
 
+    // 1. Respetamos la Y original de la pieza de calle + offset global
+    float finalRoadY = selectedRoadPrefab.transform.position.y + roadHeightY;
+
+    Vector3 roadPos = new Vector3(
+        (x * cellSize) + (cellSize / 2f),
+        finalRoadY,
+        (y * cellSize) + (cellSize / 2f)
+    );
+
+    // 2. Leemos la rotación inicial del Prefab y posible offset manual
+    Quaternion prefabBaseRotation = selectedRoadPrefab.transform.rotation;
+    
+    RoadData roadData = selectedRoadPrefab.GetComponent<RoadData>();
+    if (roadData != null)
+    {
+        yRotation += roadData.rotationOffset;
+    }
+
+    // 3. Multiplicamos la rotación base del Prefab por la rotación calculada de la máscara
+    Quaternion finalRotation = prefabBaseRotation * Quaternion.Euler(0f, yRotation, 0f);
+
+    Instantiate(selectedRoadPrefab, roadPos, finalRotation, transform);
+}
+
     // ===================================================================================
-    // FUNCIONES AUXILIARES DE DISTANCIA Y COMPROBACIÓN
+    // FUNCIONES AUXILIARES DE COMPROBACIÓN
     // ===================================================================================
 
     int CalculateNeighborMask(int x, int y)
     {
         int mask = 0;
-        // Se conecta tanto a otros caminos (3) como a las entradas de edificios (1, 2)
+        // Se conecta tanto a otros caminos (3) como a los edificios adyacentes (1, 2)
         if (y + 1 < mapLength && grid[x, y + 1] != 0) mask += 1; // Norte
         if (x + 1 < mapWidth && grid[x + 1, y] != 0)  mask += 2; // Este
         if (y - 1 >= 0 && grid[x, y - 1] != 0)        mask += 4; // Sur
