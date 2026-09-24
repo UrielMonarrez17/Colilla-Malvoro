@@ -3,196 +3,220 @@ using UnityEngine;
 
 public class CityGenerator : MonoBehaviour
 {
-    [Header("Configuración del Mapa")]
+    [Header("Dimensiones de la Ciudad")]
+    [Tooltip("Número de columnas de la rejilla")]
     public int mapWidth = 20;
+
+    [Tooltip("Número de filas de la rejilla")]
     public int mapLength = 20;
-    public float cellSize = 5f; // Tamaño real en Unity de cada "cuadro" de la malla
+
+    [Tooltip("Distancia real en metros/unidades de Unity entre cada celda")]
+    public float cellSize = 5f;
 
     [Header("Listas de Edificios")]
-    public List<GameObject> specialBuildings; // Se irá desgastando (removiendo)
-    public List<GameObject> normalBuildings;  // Se reutilizará infinitamente
+    [Tooltip("Lista de edificios de historia. Se 'desgastará' al colocar cada uno.")]
+    public List<GameObject> specialBuildings = new List<GameObject>();
 
-    [Header("Conectores de Caminos (Calles)")]
+    [Tooltip("Lista de edificios decorativos. Se pueden repetir libremente.")]
+    public List<GameObject> normalBuildings = new List<GameObject>();
+
+    [Header("Prefabs de Calles / Caminos")]
     public GameObject roadStraight;
     public GameObject roadCorner;
-    public GameObject shapeTIntersectionConnector; // Conector en forma de T
-    public GameObject shapeXIntersectionConnector; // Conector en forma de X (Cruz)
-    public GameObject roadDeadEnd; // Callejón sin salida
+    public GameObject shapeTIntersectionConnector; // Intersección en T
+    public GameObject shapeXIntersectionConnector; // Intersección en Cruz / X
+    public GameObject roadDeadEnd;                  // Callejón / Fin de vía
 
-    [Header("Reglas de Generación")]
-    public float minDistanceBetweenSpecials = 5f; // Distancia en celdas para que no estén juntos
+    [Header("Reglas de Distribución")]
+    [Tooltip("Distancia mínima en celdas entre edificios especiales para evitar que queden adyacentes")]
+    public int minCellDistanceBetweenSpecials = 4;
 
-    // Representación del mapa: 0 = Vacío, 1 = Especial, 2 = Normal, 3 = Camino
+    [Range(0f, 1f)]
+    [Tooltip("Probabilidad de intentar colocar un edificio normal en un espacio vacío")]
+    public float normalBuildingDensity = 0.6f;
+
+    // Matriz del Mapa: 0 = Vacío, 1 = Especial, 2 = Normal, 3 = Camino
     private int[,] grid;
-    private List<Vector2Int> specialBuildingPositions = new List<Vector2Int>();
+    private List<Vector2Int> placedSpecialPositions = new List<Vector2Int>();
 
     void Start()
     {
         grid = new int[mapWidth, mapLength];
-        GenerateMap();
+        GenerateCity();
     }
 
-    void GenerateMap()
+    public void GenerateCity()
     {
+        ClearGrid();
         PlaceSpecialBuildings();
         PlaceNormalBuildings();
         GenerateRoads();
     }
 
-    // --- 1. COLOCAR EDIFICIOS ESPECIALES ---
+    void ClearGrid()
+    {
+        grid = new int[mapWidth, mapLength];
+        placedSpecialPositions.Clear();
+    }
+
+    // ===================================================================================
+    // 1. COLOCAR EDIFICIOS ESPECIALES (Lista desgastable)
+    // ===================================================================================
     void PlaceSpecialBuildings()
     {
-        // Copiamos la lista para poder "desgastarla" sin perder los datos originales en el Inspector
+        // Copiamos la lista para no alterar la lista original expuesta en el Inspector
         List<GameObject> availableSpecials = new List<GameObject>(specialBuildings);
 
-        // Mientras haya edificios especiales en la lista
         while (availableSpecials.Count > 0)
         {
-            // Tomamos el primero y lo eliminamos de la lista ("se desgasta")
-            GameObject buildingToPlace = availableSpecials[0];
+            // Tomamos el primer edificio y lo Removemos de la lista ("Se desgasta/consume")
+            GameObject specialPrefab = availableSpecials[0];
             availableSpecials.RemoveAt(0);
 
-            // Calculamos cuánto espacio físico ocupa en la malla
-            Vector2Int size = GetBuildingGridSize(buildingToPlace);
+            BuildingData bData = GetBuildingData(specialPrefab);
             bool placed = false;
-            int attempts = 0;
+            int maxAttempts = 150;
+            int attempt = 0;
 
-            // Intentamos encontrar un lugar válido (max 100 intentos para evitar bucles infinitos)
-            while (!placed && attempts < 100)
+            while (!placed && attempt < maxAttempts)
             {
-                int randomX = Random.Range(0, mapWidth - size.x);
-                int randomY = Random.Range(0, mapLength - size.y);
+                attempt++;
+                int randomX = Random.Range(0, mapWidth - bData.gridWidth + 1);
+                int randomY = Random.Range(0, mapLength - bData.gridLength + 1);
 
-                if (CanPlaceBuilding(randomX, randomY, size.x, size.y) && 
-                    CheckDistanceToSpecials(randomX, randomY))
+                // Comprobamos disponibilidad de celdas y distancia mnima a otros especiales
+                if (CanPlaceBuilding(randomX, randomY, bData.gridWidth, bData.gridLength) &&
+                    IsFarFromOtherSpecials(randomX, randomY))
                 {
-                    // Lo colocamos y marcamos la malla
-                    Instantiate(buildingToPlace, new Vector3(randomX * cellSize, 0, randomY * cellSize), Quaternion.identity, this.transform);
-                    MarkGrid(randomX, randomY, size.x, size.y, 1); // 1 = Especial
-                    specialBuildingPositions.Add(new Vector2Int(randomX, randomY));
+                    Vector3 spawnPos = bData.GetCalculatedWorldPosition(randomX, randomY, cellSize);
+                    Instantiate(specialPrefab, spawnPos, Quaternion.identity, transform);
+
+                    MarkGridCells(randomX, randomY, bData.gridWidth, bData.gridLength, 1);
+                    placedSpecialPositions.Add(new Vector2Int(randomX, randomY));
                     placed = true;
                 }
-                attempts++;
+            }
+
+            if (!placed)
+            {
+                Debug.LogWarning($"No se encontró un espacio espaciado para el edificio especial: {specialPrefab.name}");
             }
         }
     }
 
-    // --- 2. COLOCAR EDIFICIOS NORMALES ---
+    // ===================================================================================
+    // 2. COLOCAR EDIFICIOS NORMALES (Reutilizables)
+    // ===================================================================================
     void PlaceNormalBuildings()
     {
-        // Recorremos toda la malla buscando espacios libres
+        if (normalBuildings.Count == 0) return;
+
         for (int x = 0; x < mapWidth; x++)
         {
             for (int y = 0; y < mapLength; y++)
             {
-                // Dejamos un margen probabilístico para que queden espacios libres para las calles
-                if (grid[x, y] == 0 && Random.value > 0.4f) 
+                if (grid[x, y] == 0 && Random.value < normalBuildingDensity)
                 {
-                    // Tomamos un edificio normal al azar (NO se borra de la lista, se reutiliza)
+                    // Seleccionamos un edificio al azar (NO se destruye ni remueve de la lista)
                     GameObject normalPrefab = normalBuildings[Random.Range(0, normalBuildings.Count)];
-                    Vector2Int size = GetBuildingGridSize(normalPrefab);
+                    BuildingData bData = GetBuildingData(normalPrefab);
 
-                    if (CanPlaceBuilding(x, y, size.x, size.y))
+                    if (CanPlaceBuilding(x, y, bData.gridWidth, bData.gridLength))
                     {
-                        Instantiate(normalPrefab, new Vector3(x * cellSize, 0, y * cellSize), Quaternion.identity, this.transform);
-                        MarkGrid(x, y, size.x, size.y, 2); // 2 = Normal
+                        Vector3 spawnPos = bData.GetCalculatedWorldPosition(x, y, cellSize);
+                        Instantiate(normalPrefab, spawnPos, Quaternion.identity, transform);
+
+                        MarkGridCells(x, y, bData.gridWidth, bData.gridLength, 2);
                     }
                 }
             }
         }
     }
 
-    // --- 3. CONECTAR CON CAMINOS ---
+    // ===================================================================================
+    // 3. GENERAR Y CONECTAR CAMINOS (Bitmasking para T, X, Rectas, Esquinas)
+    // ===================================================================================
     void GenerateRoads()
     {
-        // Todo lo que quedó vacío (0) será calle (3)
+        // 1. Todo lo que quedó libre (0) se marca como Camino (3)
         for (int x = 0; x < mapWidth; x++)
         {
             for (int y = 0; y < mapLength; y++)
             {
                 if (grid[x, y] == 0)
                 {
-                    grid[x, y] = 3; // Marcamos como camino
+                    grid[x, y] = 3;
                 }
             }
         }
 
-        // Instanciamos los caminos correctos leyendo sus vecinos
+        // 2. Instanciamos las piezas de calle correctas calculando la máscara de vecinos
         for (int x = 0; x < mapWidth; x++)
         {
             for (int y = 0; y < mapLength; y++)
             {
                 if (grid[x, y] == 3)
                 {
-                    InstantiateRoad(x, y);
+                    SpawnRoadTile(x, y);
                 }
             }
         }
     }
 
-    void InstantiateRoad(int x, int y)
+    void SpawnRoadTile(int x, int y)
     {
-        int mask = GetRoadMask(x, y);
-        GameObject roadPrefab = roadStraight; // Por defecto
-        float rotation = 0f;
+        int mask = CalculateNeighborMask(x, y);
+        GameObject selectedRoadPrefab = roadStraight;
+        float yRotation = 0f;
 
-        // Lógica de Bitmasking: 1=Norte, 2=Este, 4=Sur, 8=Oeste. Sumados dan combinaciones únicas.
+        // Máscara de Bits: 1 = Norte, 2 = Este, 4 = Sur, 8 = Oeste
         switch (mask)
         {
-            // Rectas y callejones (simplificado)
-            case 1: case 4: case 5: 
-                roadPrefab = roadStraight; rotation = 90f; break; // Vertical
-            case 2: case 8: case 10: 
-                roadPrefab = roadStraight; rotation = 0f; break; // Horizontal
-            
-            // Intersecciones en T
-            case 7: roadPrefab = shapeTIntersectionConnector; rotation = 0f; break; // N, E, S
-            case 11: roadPrefab = shapeTIntersectionConnector; rotation = -90f; break; // N, E, W
-            case 13: roadPrefab = shapeTIntersectionConnector; rotation = 180f; break; // N, S, W
-            case 14: roadPrefab = shapeTIntersectionConnector; rotation = 90f; break; // E, S, W
-            
-            // Intersecciones en X
-            case 15: roadPrefab = shapeXIntersectionConnector; break; // Todos los lados
+            // --- Callejones sin salida / Conexión única ---
+            case 1: selectedRoadPrefab = roadDeadEnd; yRotation = 0f; break;   // N
+            case 2: selectedRoadPrefab = roadDeadEnd; yRotation = 90f; break;  // E
+            case 4: selectedRoadPrefab = roadDeadEnd; yRotation = 180f; break; // S
+            case 8: selectedRoadPrefab = roadDeadEnd; yRotation = 270f; break; // W
+
+            // --- Líneas Rectas ---
+            case 5:  // N + S
+                selectedRoadPrefab = roadStraight; yRotation = 0f; break;
+            case 10: // E + W
+                selectedRoadPrefab = roadStraight; yRotation = 90f; break;
+
+            // --- Esquinas ---
+            case 3:  selectedRoadPrefab = roadCorner; yRotation = 0f; break;   // N + E
+            case 6:  selectedRoadPrefab = roadCorner; yRotation = 90f; break;  // E + S
+            case 12: selectedRoadPrefab = roadCorner; yRotation = 180f; break; // S + W
+            case 9:  selectedRoadPrefab = roadCorner; yRotation = 270f; break; // W + N
+
+            // --- Intersecciones en T ---
+            case 7:  selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 0f; break;   // N + E + S
+            case 14: selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 90f; break;  // E + S + W
+            case 13: selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 180f; break; // S + W + N
+            case 11: selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 270f; break; // W + N + E
+
+            // --- Intersección en X / Cruz ---
+            case 15: // N + E + S + W
+                selectedRoadPrefab = shapeXIntersectionConnector; yRotation = 0f; break;
+
+            default:
+                selectedRoadPrefab = roadStraight; yRotation = 0f; break;
         }
 
-        GameObject road = Instantiate(roadPrefab, new Vector3(x * cellSize, 0, y * cellSize), Quaternion.Euler(0, rotation, 0), this.transform);
+        // Posición centrada en la celda del camino (1x1)
+        Vector3 roadPos = new Vector3((x * cellSize) + (cellSize / 2f), 0f, (y * cellSize) + (cellSize / 2f));
+        Instantiate(selectedRoadPrefab, roadPos, Quaternion.Euler(0f, yRotation, 0f), transform);
     }
 
     // ===================================================================================
-    // FUNCIONES AUXILIARES (HELPERS) AÑADIDAS PARA QUE LA LÓGICA FUNCIONE
+    // FUNCIONES AUXILIARES DE DISTANCIA Y COMPROBACIÓN
     // ===================================================================================
 
-    // Función auxiliar 1: Convierte el tamaño real del modelo a celdas de la malla
-    Vector2Int GetBuildingGridSize(GameObject prefab)
-    {
-        // Busca el tamaño del modelo 3D sin importar su escala base
-        Renderer rend = prefab.GetComponentInChildren<Renderer>();
-        if (rend != null)
-        {
-            int widthInCells = Mathf.CeilToInt(rend.bounds.size.x / cellSize);
-            int lengthInCells = Mathf.CeilToInt(rend.bounds.size.z / cellSize);
-            return new Vector2Int(Mathf.Max(1, widthInCells), Mathf.Max(1, lengthInCells));
-        }
-        return new Vector2Int(1, 1); // Tamaño mínimo por defecto
-    }
-
-    // Función auxiliar 2: Verifica que haya suficiente separación entre edificios especiales
-    bool CheckDistanceToSpecials(int x, int y)
-    {
-        foreach (Vector2Int pos in specialBuildingPositions)
-        {
-            float dist = Vector2Int.Distance(new Vector2Int(x, y), pos);
-            if (dist < minDistanceBetweenSpecials)
-                return false; // Está demasiado cerca de otro edificio especial
-        }
-        return true;
-    }
-
-    // Función auxiliar 3: Máscara de bits para determinar qué vecinos (N, S, E, O) están ocupados
-    int GetRoadMask(int x, int y)
+    int CalculateNeighborMask(int x, int y)
     {
         int mask = 0;
-        // Asumimos que los caminos conectan tanto con otras calles (3) como con las entradas de los edificios (1, 2)
+        // Se conecta tanto a otros caminos (3) como a las entradas de edificios (1, 2)
         if (y + 1 < mapLength && grid[x, y + 1] != 0) mask += 1; // Norte
         if (x + 1 < mapWidth && grid[x + 1, y] != 0)  mask += 2; // Este
         if (y - 1 >= 0 && grid[x, y - 1] != 0)        mask += 4; // Sur
@@ -200,30 +224,52 @@ public class CityGenerator : MonoBehaviour
         return mask;
     }
 
-    // Función de rutina: Revisa si hay espacio en la malla para un edificio
-    bool CanPlaceBuilding(int startX, int startY, int sizeX, int sizeY)
+    bool IsFarFromOtherSpecials(int gridX, int gridY)
     {
-        if (startX + sizeX > mapWidth || startY + sizeY > mapLength) return false;
-
-        for (int x = startX; x < startX + sizeX; x++)
+        Vector2Int currentPos = new Vector2Int(gridX, gridY);
+        foreach (Vector2Int pos in placedSpecialPositions)
         {
-            for (int y = startY; y < startY + sizeY; y++)
+            float distance = Vector2Int.Distance(currentPos, pos);
+            if (distance < minCellDistanceBetweenSpecials)
             {
-                if (grid[x, y] != 0) return false; // Ya hay algo aquí
+                return false; // Está demasiado cerca de otro edificio especial
             }
         }
         return true;
     }
 
-    // Función de rutina: Marca las celdas de la malla como ocupadas
-    void MarkGrid(int startX, int startY, int sizeX, int sizeY, int type)
+    bool CanPlaceBuilding(int startX, int startY, int width, int length)
     {
-        for (int x = startX; x < startX + sizeX; x++)
+        if (startX + width > mapWidth || startY + length > mapLength) return false;
+
+        for (int x = startX; x < startX + width; x++)
         {
-            for (int y = startY; y < startY + sizeY; y++)
+            for (int y = startY; y < startY + length; y++)
+            {
+                if (grid[x, y] != 0) return false;
+            }
+        }
+        return true;
+    }
+
+    void MarkGridCells(int startX, int startY, int width, int length, int type)
+    {
+        for (int x = startX; x < startX + width; x++)
+        {
+            for (int y = startY; y < startY + length; y++)
             {
                 grid[x, y] = type;
             }
         }
+    }
+
+    BuildingData GetBuildingData(GameObject prefab)
+    {
+        BuildingData bData = prefab.GetComponent<BuildingData>();
+        if (bData == null)
+        {
+            bData = prefab.AddComponent<BuildingData>();
+        }
+        return bData;
     }
 }
