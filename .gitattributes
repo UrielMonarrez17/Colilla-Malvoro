@@ -1,0 +1,128 @@
+# ============================================================
+# Unity - Git Attributes
+# ============================================================
+
+
+# ------------------------------------------------------------
+# DEFAULT TEXT HANDLING
+# ------------------------------------------------------------
+
+# Detect text files automatically.
+* text=auto
+
+
+# ------------------------------------------------------------
+# SOURCE CODE
+# ------------------------------------------------------------
+
+*.cs text diff=csharp
+
+*.shader text
+*.cginc text
+*.compute text
+*.hlsl text
+*.glsl text
+
+*.json text
+*.xml text
+*.txt text
+*.md text
+*.asmdef text
+*.asmref text
+
+
+# ------------------------------------------------------------
+# UNITY SMART MERGE
+# ------------------------------------------------------------
+#
+# These files are serialized by Unity as YAML when
+# Asset Serialization Mode = Force Text.
+#
+# UnityYAMLMerge will be used instead of Git's normal
+# line-by-line merge.
+#
+
+*.unity          text merge=unityyamlmerge
+*.prefab         text merge=unityyamlmerge
+
+*.mat            text merge=unityyamlmerge
+*.anim           text merge=unityyamlmerge
+*.controller     text merge=unityyamlmerge
+*.overrideController text merge=unityyamlmerge
+
+*.physicMaterial     text merge=unityyamlmerge
+*.physicsMaterial2D  text merge=unityyamlmerge
+
+*.mask           text merge=unityyamlmerge
+*.playable       text merge=unityyamlmerge
+*.spriteatlas    text merge=unityyamlmerge
+*.mixer          text merge=unityyamlmerge
+*.guiskin        text merge=unityyamlmerge
+*.flare          text merge=unityyamlmerge
+*.fontsettings   text merge=unityyamlmerge
+
+
+# ------------------------------------------------------------
+# UNITY META FILES
+# ------------------------------------------------------------
+
+*.meta text
+
+
+# ------------------------------------------------------------
+# DO NOT FORCE *.asset THROUGH YAML MERGE
+# ------------------------------------------------------------
+#
+# Many .asset files are YAML, but not every .asset file
+# necessarily contains merge-friendly serialized text.
+#
+# Therefore we intentionally DO NOT do:
+#
+# *.asset merge=unityyamlmerge
+#
+
+
+# ------------------------------------------------------------
+# COMMON BINARY FILES
+# ------------------------------------------------------------
+#
+# Git should not attempt line-based merges on these files.
+#
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.bmp binary
+*.tga binary
+*.tif binary
+*.tiff binary
+*.psd binary
+*.exr binary
+
+*.fbx binary
+*.blend binary
+*.3ds binary
+*.max binary
+*.mb binary
+
+*.wav binary
+*.mp3 binary
+*.ogg binary
+*.aiff binary
+
+*.mp4 binary
+*.mov binary
+*.avi binary
+
+*.ttf binary
+*.otf binary
+
+*.dll binary
+*.so binary
+*.dylib binary
+
+*.zip binary
+*.rar binary
+*.7z binary
+*.unitypackage binary
