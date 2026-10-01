@@ -129,12 +129,12 @@ public class HamsterController : MonoBehaviour
         if (isCrouching) 
         {
             // Reducimos visualmente la escala en Y para que se vea agachado
-            transform.localScale = new Vector3(1f, 0.5f, 1f); 
+            transform.localScale = new Vector3(0.01f, 0.01f*0.5f, 0.01f); 
         }
         else
         {
             // Escala normal
-            transform.localScale = new Vector3(1f, 1f, 1f);
+            transform.localScale = new Vector3(0.01f, 0.01f, 0.01f);
         }
 
         // --- Gestión de Estamina y Sprint (Fix Bug Infinito incluido) ---
