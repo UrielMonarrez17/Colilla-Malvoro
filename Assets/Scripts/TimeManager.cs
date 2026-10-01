@@ -20,7 +20,7 @@ public class TimeManager : MonoBehaviour
 
     [Header("Umbrales del Ciclo (Horas 0-24)")]
     [Range(0f, 24f)]
-    [SerializeField] private float sunriseHour = 18f;
+    [SerializeField] private float sunriseHour = 6f;
 
     [Range(0f, 24f)]
     [SerializeField] private float nightfallHour = 18f;

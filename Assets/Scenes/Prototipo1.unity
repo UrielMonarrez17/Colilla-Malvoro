@@ -1432,7 +1432,7 @@ MonoBehaviour:
   visionAngle: 120
   obstacleMask:
     serializedVersion: 2
-    m_Bits: 8
+    m_Bits: 0
 --- !u!195 &949192833
 NavMeshAgent:
   m_ObjectHideFlags: 0

@@ -46,6 +46,7 @@ public class HamsterController : MonoBehaviour
     private bool isExhausted = false; // Fix del bug de sprint infinito
     private bool isDashing = false;
     private bool isDead = false;
+    public bool IsDead => isDead;
     
     // Propiedad pública para que el EnemyAI lea si estamos agachados
     public bool isCrouching { get; private set; } 
