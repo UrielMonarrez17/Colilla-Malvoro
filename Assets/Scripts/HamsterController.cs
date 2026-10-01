@@ -90,8 +90,8 @@ public class HamsterController : MonoBehaviour
         if (isDead || isDashing) return; // Si estamos muertos o dasheando, no hacemos nada más.
 
         // 1. Capturar Input de movimiento (WASD/Joystick)
-        float horizontal = Input.GetAxisRaw("Horizontal");
-        float vertical = Input.GetAxisRaw("Vertical");
+        float horizontal = FeralInput.Horizontal;
+        float vertical = FeralInput.Vertical;
         // Normalizado para evitar mayor velocidad en diagonal
         moveInput = new Vector3(horizontal, 0f, vertical).normalized;
 
@@ -123,7 +123,7 @@ public class HamsterController : MonoBehaviour
     private void HandleStealthAndSpeedManagement()
     {
         // --- Mecánica de Sigilo (Crouch) ---
-        isCrouching = Input.GetKey(KeyCode.C);
+        isCrouching = FeralInput.Held(KeyCode.C);
         
         if (isCrouching) 
         {
@@ -144,7 +144,7 @@ public class HamsterController : MonoBehaviour
         else if (currentStamina >= minStaminaToSprint) isExhausted = false;
 
         // Reglas para sprintar: Mantener Shift, moverse, NO estar agotado, NO estar agachado
-        bool isTryingToSprint = Input.GetKey(KeyCode.LeftShift) && moveInput != Vector3.zero && !isExhausted && !isCrouching;
+        bool isTryingToSprint = FeralInput.Held(KeyCode.LeftShift) && moveInput != Vector3.zero && !isExhausted && !isCrouching;
 
         // Decidir velocidad base y consumo/regen de estamina
         if (isTryingToSprint)
@@ -175,7 +175,7 @@ public class HamsterController : MonoBehaviour
     /// </summary>
     private void HandleDash()
     {
-        if (Input.GetKeyDown(KeyCode.Space) && Time.time >= nextDashTime && moveInput != Vector3.zero && !isCrouching)
+        if (FeralInput.Pressed(KeyCode.Space) && Time.time >= nextDashTime && moveInput != Vector3.zero && !isCrouching)
         {
             StartCoroutine(DashRoutine());
         }
@@ -202,7 +202,7 @@ public class HamsterController : MonoBehaviour
     /// </summary>
     private void HandleInteraction()
     {
-        if (Input.GetKeyDown(interactKey) && currentInteractable != null)
+        if (FeralInput.Pressed(interactKey) && currentInteractable != null)
         {
             // Usamos TryGetComponent para rendimiento y limpieza
             
