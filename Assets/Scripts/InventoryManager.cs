@@ -6,6 +6,16 @@ public class InventoryManager : MonoBehaviour
     // Singleton: Creamos una instancia estática para acceder fácilmente desde cualquier script
     public static InventoryManager Instance { get; private set; }
 
+    public event System.Action Changed;
+
+    public int GetCount(ItemType item) => inventory.TryGetValue(item, out int count) ? count : 0;
+
+    public void Clear()
+    {
+        foreach (ItemType item in System.Enum.GetValues(typeof(ItemType))) inventory[item] = 0;
+        Changed?.Invoke();
+    }
+
     // Nuestro inventario: asocia cada material con su cantidad
     private Dictionary<ItemType, int> inventory = new Dictionary<ItemType, int>();
 
@@ -15,6 +25,7 @@ public class InventoryManager : MonoBehaviour
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
+            return;
         }
         else
         {
@@ -33,24 +44,27 @@ public class InventoryManager : MonoBehaviour
     // Método para añadir ítems (se llamará desde el LootContainer)
     public void AddItem(ItemType item, int amount = 1)
     {
+        if (amount <= 0 || !inventory.ContainsKey(item)) return;
         inventory[item] += amount;
         Debug.Log($"[Inventario] Añadido +{amount} {item}. Total: {inventory[item]}");
         
-        // TODO: Aquí luego llamaremos a la UI para actualizar los números en pantalla
+        Changed?.Invoke();
     }
 
     // Método para comprobar si tenemos suficientes materiales (se llamará desde la Mesa de Crafteo)
     public bool HasEnoughItem(ItemType item, int amount)
     {
-        return inventory[item] >= amount;
+        return amount >= 0 && GetCount(item) >= amount;
     }
 
     // Método para gastar materiales al construir algo
     public void RemoveItem(ItemType item, int amount)
     {
+        if (amount <= 0 || !inventory.ContainsKey(item)) return;
         if (HasEnoughItem(item, amount))
         {
             inventory[item] -= amount;
+            Changed?.Invoke();
             Debug.Log($"[Inventario] Consumido -{amount} {item}. Restante: {inventory[item]}");
         }
         else
@@ -73,9 +87,14 @@ public class InventoryManager : MonoBehaviour
     void Update()
     {
         // Presiona 'I' para imprimir todo tu inventario en la consola
-        if (Input.GetKeyDown(KeyCode.I))
+        if (FeralInput.Pressed(KeyCode.I))
         {
             DebugPrintInventory();
         }
+    }
+
+    void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
     }
 }
