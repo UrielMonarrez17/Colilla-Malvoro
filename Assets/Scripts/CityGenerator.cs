@@ -21,10 +21,10 @@ public class CityGenerator : MonoBehaviour
     public List<GameObject> normalBuildings = new List<GameObject>();
 
     [Header("Prefabs de Calles / Caminos")]
-    public GameObject roadStraight;
-    public GameObject roadCorner;
-    public GameObject shapeTIntersectionConnector; // Intersección en T
-    public GameObject shapeXIntersectionConnector; // Intersección en Cruz / X
+    public GameObject roadForward;
+    public GameObject roadAngle;
+    public GameObject roadT; // Intersección en T
+    public GameObject roadX; // Intersección en Cruz / X
     public GameObject roadDeadEnd;                  // Callejón / Fin de vía
 
     [Header("Ajustes de Altura y Distribución")]
@@ -176,7 +176,7 @@ public class CityGenerator : MonoBehaviour
 void SpawnRoadTile(int x, int y)
 {
     int mask = CalculateNeighborMask(x, y);
-    GameObject selectedRoadPrefab = roadStraight;
+    GameObject selectedRoadPrefab = roadForward;
     float yRotation = 0f;
 
     // Máscara de Bits: 1 = Norte, 2 = Este, 4 = Sur, 8 = Oeste
@@ -190,28 +190,28 @@ void SpawnRoadTile(int x, int y)
 
         // --- Líneas Rectas ---
         case 5:  // N + S
-            selectedRoadPrefab = roadStraight; yRotation = 0f; break;
+            selectedRoadPrefab = roadForward; yRotation = 0f; break;
         case 10: // E + W
-            selectedRoadPrefab = roadStraight; yRotation = 90f; break;
+            selectedRoadPrefab = roadForward; yRotation = 90f; break;
 
         // --- Esquinas ---
-        case 3:  selectedRoadPrefab = roadCorner; yRotation = 0f; break;   // N + E
-        case 6:  selectedRoadPrefab = roadCorner; yRotation = 90f; break;  // E + S
-        case 12: selectedRoadPrefab = roadCorner; yRotation = 180f; break; // S + W
-        case 9:  selectedRoadPrefab = roadCorner; yRotation = 270f; break; // W + N
+        case 3:  selectedRoadPrefab = roadAngle; yRotation = 0f; break;   // N + E
+        case 6:  selectedRoadPrefab = roadAngle; yRotation = 90f; break;  // E + S
+        case 12: selectedRoadPrefab = roadAngle; yRotation = 180f; break; // S + W
+        case 9:  selectedRoadPrefab = roadAngle; yRotation = 270f; break; // W + N
 
         // --- Intersecciones en T ---
-        case 7:  selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 0f; break;   // N + E + S
-        case 14: selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 90f; break;  // E + S + W
-        case 13: selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 180f; break; // S + W + N
-        case 11: selectedRoadPrefab = shapeTIntersectionConnector; yRotation = 270f; break; // W + N + E
+        case 7:  selectedRoadPrefab = roadT; yRotation = 0f; break;   // N + E + S
+        case 14: selectedRoadPrefab = roadT; yRotation = 90f; break;  // E + S + W
+        case 13: selectedRoadPrefab = roadT; yRotation = 180f; break; // S + W + N
+        case 11: selectedRoadPrefab = roadT; yRotation = 270f; break; // W + N + E
 
         // --- Intersección en X / Cruz ---
         case 15: // N + E + S + W
-            selectedRoadPrefab = shapeXIntersectionConnector; yRotation = 0f; break;
+            selectedRoadPrefab = roadX; yRotation = 0f; break;
 
         default:
-            selectedRoadPrefab = roadStraight; yRotation = 0f; break;
+            selectedRoadPrefab = roadForward; yRotation = 0f; break;
     }
 
     // 1. Respetamos la Y original de la pieza de calle + offset global
