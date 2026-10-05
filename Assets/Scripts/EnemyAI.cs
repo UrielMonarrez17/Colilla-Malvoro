@@ -1,18 +1,21 @@
 using UnityEngine;
 using UnityEngine.AI;
+using System.Collections; // NUEVO: Necesario para usar Corrutinas
 
 [RequireComponent(typeof(NavMeshAgent))]
+[RequireComponent(typeof(Rigidbody))] // NUEVO: Aseguramos tener Rigidbody para la trampa de empuje
 public class EnemyAI : MonoBehaviour
 {
     [Header("Referencias")]
     public Transform player;
     private HamsterController playerController;
     private NavMeshAgent agent;
+    private Rigidbody rbEnemigo; // NUEVO: Referencia a las físicas del enemigo
 
     [Header("Visión y Sigilo")]
     public float visionRadiusNormal = 15f;
     public float visionRadiusCrouched = 5f;
-    public float backDetectionRadius = 2f; // NUEVO: Radio de detección trasera (omite ángulo)
+    public float backDetectionRadius = 2f; // Radio de detección trasera (omite ángulo)
     [Range(0, 360)] 
     public float visionAngle = 90f;
     
@@ -20,10 +23,14 @@ public class EnemyAI : MonoBehaviour
     public LayerMask obstacleMask; 
 
     private bool isChasing = false;
+    private float velocidadOriginalAgent; 
+    private bool isImmobilized = false; // Controla si el enemigo está atrapado en una red// NUEVO: Para guardar la velocidad base
 
     void Start()
     {
         agent = GetComponent<NavMeshAgent>();
+        rbEnemigo = GetComponent<Rigidbody>(); // NUEVO
+        velocidadOriginalAgent = agent.speed; // NUEVO
         
         if (player == null) 
             player = GameObject.FindGameObjectWithTag("Player").transform;
@@ -33,50 +40,45 @@ public class EnemyAI : MonoBehaviour
 
     void Update()
     {
-        // ARREGLO DE ROTACIÓN: Primero verificamos si YA estamos persiguiendo.
+        if (!agent.enabled) return;
+
         if (isChasing)
         {
-            // Si ya estamos persiguiendo, solo nos importa el Raycast y la distancia.
-            // Ignoramos el cono de visión angular.
             if (HasLineOfSight() && Vector3.Distance(transform.position, player.position) <= visionRadiusNormal)
             {
-                agent.isStopped = false;
-                agent.SetDestination(player.position);
+                // ¡NUEVO! Solo le permitimos moverse y actualizar destino si no está atrapado
+                if (!isImmobilized) 
+                {
+                    agent.isStopped = false;
+                    agent.SetDestination(player.position);
+                }
             }
             else
             {
-                // Si el rayo se bloquea por un obstáculo, lo pierde de vista.
                 LosePlayer();
             }
         }
         else
         {
-            // Lógica de detección inicial (igual que antes)
-            if (CanDetectPlayerInitial())
-            {
-                StartChase();
-            }
-            else
-            {
-                LosePlayer();
-            }
+            if (CanDetectPlayerInitial()) StartChase();
+            else LosePlayer();
         }
     }
 
-    // --- NUEVA LÓGICA DE DETECCIÓN ---
+    // --- LÓGICA DE DETECCIÓN ---
 
     private bool CanDetectPlayerInitial()
     {
         float currentVisionRadius = playerController.isCrouching ? visionRadiusCrouched : visionRadiusNormal;
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
 
-        // 1. Detección Trasera (NUEVO)
+        // 1. Detección Trasera
         if (distanceToPlayer <= backDetectionRadius)
         {
             return true; // Lo sintió muy cerca, sin importar el ángulo
         }
 
-        // 2. Detección Frontal (Cono) (Igual que antes)
+        // 2. Detección Frontal (Cono)
         if (distanceToPlayer <= currentVisionRadius)
         {
             Vector3 directionToPlayer = (player.position - transform.position).normalized;
@@ -113,6 +115,84 @@ public class EnemyAI : MonoBehaviour
     private void LosePlayer()
     {
         isChasing = false;
-        agent.isStopped = true;
+        if (agent.enabled) agent.isStopped = true;
+    }
+
+    // ===================================================================================
+    //  SISTEMA DE TRAMPAS (NUEVO)
+    // ===================================================================================
+
+    public void RecibirTrampa(TipoTrampa tipo, Vector3 posicionPuerta)
+    {
+        switch (tipo)
+        {
+            case TipoTrampa.Puas:
+                StartCoroutine(EfectoPuas());
+                break;
+            case TipoTrampa.Red:
+                StartCoroutine(EfectoRed());
+                break;
+            case TipoTrampa.Madera:
+                StartCoroutine(EfectoMadera(posicionPuerta));
+                break;
+        }
+    }
+
+    private IEnumerator EfectoPuas()
+    {
+        Debug.Log("Enemigo pisó Púas. Velocidad reducida.");
+        // Reducción del 45% de velocidad
+        agent.speed = velocidadOriginalAgent * 0.55f; 
+        yield return new WaitForSeconds(4f); // Duración del debuff
+        agent.speed = velocidadOriginalAgent;
+    }
+
+   private IEnumerator EfectoRed()
+    {
+        Debug.Log("Enemigo atrapado en Red.");
+        
+        isImmobilized = true; // Le avisamos al Update que no interfiera
+        agent.isStopped = true; // Detenemos al agente
+        
+        yield return new WaitForSeconds(5f); // Esperamos 5 segundos
+        
+        isImmobilized = false; // Liberamos al enemigo
+        
+        if (agent.enabled && isChasing) 
+        {
+            agent.isStopped = false; 
+        }
+    }
+
+    private IEnumerator EfectoMadera(Vector3 posicionPuerta)
+    {
+        Debug.Log("Enemigo empujado por trampa de Madera.");
+        
+        // 1. Desactivar el NavMeshAgent para permitir físicas de Rigidbody
+        agent.enabled = false;
+        
+        // 2. Habilitamos las físicas
+        rbEnemigo.isKinematic = false;
+
+        // 3. Calcular dirección opuesta a la puerta para el empuje
+        Vector3 direccionEmpuje = (transform.position - posicionPuerta).normalized;
+        direccionEmpuje.y = 0.5f; // Ligero arco hacia arriba
+        
+        // 4. Aplicamos la fuerza
+        rbEnemigo.AddForce(direccionEmpuje * 15f, ForceMode.Impulse);
+
+        // 5. Esperar a que termine de volar/rodar
+        yield return new WaitForSeconds(1.5f);
+        
+        // 6. Restaurar el estado de IA
+        rbEnemigo.linearVelocity = Vector3.zero; // Frenamos inercia
+        rbEnemigo.isKinematic = true; // Volvemos a proteger las físicas del NavMesh
+        agent.enabled = true; // Reactivamos IA
+        
+        // Si estábamos persiguiéndolo antes del golpe, reasignamos el destino
+        if (isChasing)
+        {
+            agent.SetDestination(player.position);
+        }
     }
 }

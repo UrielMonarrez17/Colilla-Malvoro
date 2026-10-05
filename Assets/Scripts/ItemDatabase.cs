@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// Definimos todos los materiales base que el hámster puede recolectar
+// Materiales básicos de recolección
 public enum ItemType
 {
     Madera,
@@ -10,13 +10,20 @@ public enum ItemType
     Goma
 }
 
-// Esta estructura (Struct) nos permite emparejar un ítem con su probabilidad de salir
+// Objetos crafteables y usables
+public enum TipoTrampa 
+{ 
+    Ninguna, 
+    Puas, 
+    Red, 
+    Madera 
+}
+
 [System.Serializable]
 public struct LootDrop
 {
     public ItemType item;
     
     [Range(0f, 100f)]
-    [Tooltip("Probabilidad de que salga este objeto (Ej. 75 para 75%)")]
     public float dropChance; 
 }
