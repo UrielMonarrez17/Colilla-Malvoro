@@ -366,9 +366,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 451a096027fce704995a4dc7d0286ca4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CityGeneratorMathVersion
-  seed: 550771708
-  mapWidth: 100
-  mapLength: 100
+  seed: 676942033
+  mapWidth: 1000
+  mapLength: 1000
   cellSize: 10
   specialBuildings:
   - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
@@ -391,7 +391,7 @@ MonoBehaviour:
   pedestrianPavement: {fileID: 1629306100895237221, guid: d734acbc0b770544e82fd18766968145, type: 3}
   roadHeightY: 0
   minCellDistanceBetweenSpecials: 4
-  normalBuildingDensity: 0.105
+  normalBuildingDensity: 1
 --- !u!4 &1230917354
 Transform:
   m_ObjectHideFlags: 0

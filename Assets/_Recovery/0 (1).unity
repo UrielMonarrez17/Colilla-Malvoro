@@ -366,9 +366,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 451a096027fce704995a4dc7d0286ca4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CityGeneratorMathVersion
-  seed: 550771708
-  mapWidth: 100
-  mapLength: 100
+  seed: 123
+  mapWidth: 30
+  mapLength: 20
   cellSize: 10
   specialBuildings:
   - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
@@ -391,7 +391,7 @@ MonoBehaviour:
   pedestrianPavement: {fileID: 1629306100895237221, guid: d734acbc0b770544e82fd18766968145, type: 3}
   roadHeightY: 0
   minCellDistanceBetweenSpecials: 4
-  normalBuildingDensity: 0.105
+  normalBuildingDensity: 0.664
 --- !u!4 &1230917354
 Transform:
   m_ObjectHideFlags: 0
@@ -651,6 +651,79 @@ MonoBehaviour:
   gridWidth: 10
   gridLength: 10
   heightOffset: 10
+--- !u!1001 &2084815694
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -0.37510848
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 160.9
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 25.6
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7071067
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0.7071068
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -6959063436032388065, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 3d557512c9f069c4199b91c08f79bdfe, type: 2}
+    - target: {fileID: -6166088134226927883, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 3d557512c9f069c4199b91c08f79bdfe, type: 2}
+    - target: {fileID: -4908986807151902146, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 3d557512c9f069c4199b91c08f79bdfe, type: 2}
+    - target: {fileID: -4382693327323326822, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 3d557512c9f069c4199b91c08f79bdfe, type: 2}
+    - target: {fileID: 919132149155446097, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
+      propertyPath: m_Name
+      value: RoadsAndBridgesPreview
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 104f42e5cfa4f2445b25637ab3f1fda5, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -659,4 +732,5 @@ SceneRoots:
   - {fileID: 680866398}
   - {fileID: 1785363579}
   - {fileID: 51589280}
+  - {fileID: 2084815694}
   - {fileID: 1230917354}
