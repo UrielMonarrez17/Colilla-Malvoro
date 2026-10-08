@@ -3,7 +3,7 @@ using UnityEngine.UI;
 using System.Collections; 
 
 [RequireComponent(typeof(Rigidbody))]
-[RequireComponent(typeof(CapsuleCollider))] 
+[RequireComponent(typeof(BoxCollider))] 
 public class HamsterController : MonoBehaviour
 {
     // ===================================================================================
