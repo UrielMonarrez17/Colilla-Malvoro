@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI; 
+using System;
 using System.Collections; 
 
 [RequireComponent(typeof(Rigidbody))]
@@ -45,9 +46,27 @@ public class HamsterController : MonoBehaviour
     private bool isExhausted = false; 
     private bool isDashing = false;
     private bool isDead = false;
+    private bool isAdrenalineActive = false;
+    private Vector3 initialScale;
+
     public bool IsDead => isDead;
+    public bool IsDashing => isDashing;
+    public bool IsExhausted => isExhausted;
+    public bool IsAdrenalineActive => isAdrenalineActive;
+    public int HitsReceived => hitsReceived;
+    public float CurrentSpeedModifier => currentSpeedModifier;
+    public bool IsMoving => moveInput != Vector3.zero;
+    public bool IsSprinting => FeralInput.Held(KeyCode.LeftShift) && moveInput != Vector3.zero && !isExhausted && !isCrouching;
+    public GameObject CurrentInteractable => currentInteractable;
     
     public bool isCrouching { get; private set; } 
+
+    // Eventos para integración con Tutorial y HUD
+    public event Action OnDashUsed;
+    public event Action OnAdrenalineTriggered;
+    public event Action<int, int> OnDamageReceived;
+    public event Action OnPlayerDied;
+    public event Action<TipoTrampa, PuertaTrampa> OnTrapInstalled;
 
     private float nextDashTime = 0f;
     private KeyCode interactKey = KeyCode.F;
@@ -61,30 +80,36 @@ public class HamsterController : MonoBehaviour
     // ===================================================================================
 
     void Start()
-{
-    rb = GetComponent<Rigidbody>();
-    rb.freezeRotation = true; 
-    rb.useGravity = true;
-
-    // Evita el tunneling a velocidades altas o durante el dash
-    rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-    rb.interpolation = RigidbodyInterpolation.Interpolate; // Suaviza el movimiento entre ticks
-
-    currentStamina = maxStamina;
-    currentBaseSpeed = walkSpeed;
-
-    if (staminaSlider != null)
     {
-        staminaSlider.maxValue = maxStamina;
-        staminaSlider.value = currentStamina;
+        rb = GetComponent<Rigidbody>();
+        rb.freezeRotation = true; 
+        rb.useGravity = true;
+
+        // Evita el tunneling a velocidades altas o durante el dash
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+        rb.interpolation = RigidbodyInterpolation.Interpolate; // Suaviza el movimiento entre ticks
+
+        initialScale = transform.localScale;
+        if (initialScale.sqrMagnitude < 0.000001f)
+        {
+            initialScale = new Vector3(0.019348267f, 0.019348267f, 0.019348267f);
+        }
+
+        currentStamina = maxStamina;
+        currentBaseSpeed = walkSpeed;
+
+        if (staminaSlider != null)
+        {
+            staminaSlider.maxValue = maxStamina;
+            staminaSlider.value = currentStamina;
+        }
     }
-}
 
     // ===================================================================================
     //  BUCLE DE ACTUALIZACIÓN (Update)
     // ===================================================================================
 
-   void Update()
+    void Update()
     {
         if (isDead || isDashing) return; 
 
@@ -95,17 +120,17 @@ public class HamsterController : MonoBehaviour
         moveInput = new Vector3(horizontal, 0f, vertical).normalized;
 
         // --- SELECCIÓN DE TRAMPAS CON DEBUGS ---
-        if (Input.GetKeyDown(KeyCode.Alpha1)) 
+        if (FeralInput.Pressed(KeyCode.Alpha1)) 
         { 
             trampaSeleccionada = TipoTrampa.Puas; 
             Debug.Log("👉 Trampa armada en las manos: PÚAS"); 
         }
-        if (Input.GetKeyDown(KeyCode.Alpha2)) 
+        if (FeralInput.Pressed(KeyCode.Alpha2)) 
         { 
             trampaSeleccionada = TipoTrampa.Red; 
             Debug.Log("👉 Trampa armada en las manos: RED"); 
         }
-        if (Input.GetKeyDown(KeyCode.Alpha3)) 
+        if (FeralInput.Pressed(KeyCode.Alpha3)) 
         { 
             trampaSeleccionada = TipoTrampa.Madera; 
             Debug.Log("👉 Trampa armada en las manos: MADERA"); 
@@ -135,13 +160,13 @@ public class HamsterController : MonoBehaviour
         
         if (isCrouching) 
         {
-            // Reducimos visualmente la escala en Y para que se vea agachado
-            transform.localScale = new Vector3(0.01f, 0.01f*0.5f, 0.01f); 
+            // Reducimos visualmente la escala en Y conservando la escala original del modelo
+            transform.localScale = new Vector3(initialScale.x, initialScale.y * 0.5f, initialScale.z); 
         }
         else
         {
-            // Escala normal
-            transform.localScale = new Vector3(0.01f, 0.01f, 0.01f);
+            // Escala normal original
+            transform.localScale = initialScale;
         }
 
         if (currentStamina <= 0f) isExhausted = true;
@@ -182,6 +207,7 @@ public class HamsterController : MonoBehaviour
     {
         isDashing = true;
         nextDashTime = Time.time + dashCooldown;
+        OnDashUsed?.Invoke();
 
         rb.linearVelocity = Vector3.zero; 
         rb.AddForce(moveInput * dashForce, ForceMode.Impulse);
@@ -194,6 +220,12 @@ public class HamsterController : MonoBehaviour
 
     private void HandleInteraction()
     {
+        // Si el objeto interactuable actual se desactivó o destruyó, limpiarlo
+        if (currentInteractable != null && !currentInteractable.activeInHierarchy)
+        {
+            currentInteractable = null;
+        }
+
         if (FeralInput.Pressed(interactKey) && currentInteractable != null)
         {
             if (currentInteractable.TryGetComponent<CraftingTable>(out CraftingTable craftingTable))
@@ -204,7 +236,6 @@ public class HamsterController : MonoBehaviour
             {
                 lootContainer.InteractuarConLoot();
             }
-
             else if (currentInteractable.TryGetComponent<LuluNPC>(out LuluNPC lulu))
             {
                 lulu.InteractuarConLulu();
@@ -223,10 +254,11 @@ public class HamsterController : MonoBehaviour
                 if (puerta.trampaActual == TipoTrampa.Ninguna)
                 {
                     // Verificamos si realmente la tienes en el inventario (¿la crafteaste?)
-                    if (InventoryManager.Instance.HasTrampa(trampaSeleccionada))
+                    if (InventoryManager.Instance != null && InventoryManager.Instance.HasTrampa(trampaSeleccionada))
                     {
                         puerta.InstalarTrampa(trampaSeleccionada);
                         InventoryManager.Instance.RemoveTrampa(trampaSeleccionada);
+                        OnTrapInstalled?.Invoke(trampaSeleccionada, puerta);
                         Debug.Log($"✅ ¡Trampa de {trampaSeleccionada} instalada en la puerta con éxito!");
                     }
                     else
@@ -243,13 +275,13 @@ public class HamsterController : MonoBehaviour
     }
 
     private void Move()
-{
-    float finalSpeed = currentBaseSpeed * currentSpeedModifier;
-    Vector3 targetVelocity = moveInput * finalSpeed;
+    {
+        float finalSpeed = currentBaseSpeed * currentSpeedModifier;
+        Vector3 targetVelocity = moveInput * finalSpeed;
 
-    // Mantenemos la velocidad vertical actual (gravedad/caída) intacta
-    rb.linearVelocity = new Vector3(targetVelocity.x, rb.linearVelocity.y, targetVelocity.z);
-}
+        // Mantenemos la velocidad vertical actual (gravedad/caída) intacta
+        rb.linearVelocity = new Vector3(targetVelocity.x, rb.linearVelocity.y, targetVelocity.z);
+    }
 
     private void Rotate()
     {
@@ -270,12 +302,14 @@ public class HamsterController : MonoBehaviour
 
         hitsReceived++;
         Debug.Log("¡Un enemigo feral te ha tocado! Golpes: " + hitsReceived + "/" + maxHitsAllowed);
+        OnDamageReceived?.Invoke(hitsReceived, maxHitsAllowed);
 
         if (hitsReceived == 1)
         {
             StartCoroutine(AdrenalineRoutine());
             currentStamina = maxStamina; 
             if (staminaSlider != null) staminaSlider.value = currentStamina;
+            OnAdrenalineTriggered?.Invoke();
         }
         else
         {
@@ -292,11 +326,13 @@ public class HamsterController : MonoBehaviour
 
     private IEnumerator AdrenalineRoutine()
     {
+        isAdrenalineActive = true;
         currentSpeedModifier = adrenalineBoostModifier;
         Debug.Log("¡ADRENALINA! Velocidad aumentada temporalmente.");
         
         yield return new WaitForSeconds(adrenalineDuration);
         
+        isAdrenalineActive = false;
         if (!isDead)
         {
             currentSpeedModifier = 1f;
@@ -307,10 +343,41 @@ public class HamsterController : MonoBehaviour
     private void Die()
     {
         isDead = true;
-        Debug.LogError("¡HAS MUERTO! Game Over. (Aquí implementarás el reinicio de escena).");
+        Debug.LogError("¡HAS MUERTO! Game Over.");
         
-        rb.linearVelocity = Vector3.zero;
-        GetComponent<Collider>().enabled = false;
+        if (rb != null) rb.linearVelocity = Vector3.zero;
+        Collider col = GetComponent<Collider>();
+        if (col != null) col.enabled = false;
+        OnPlayerDied?.Invoke();
+    }
+
+    /// <summary>
+    /// Restaura la salud, estamina y posición del hámster (usado al dormir en refugio o reaparecer en checkpoint).
+    /// </summary>
+    public void RespawnOrHeal(Vector3? newPosition = null)
+    {
+        StopAllCoroutines();
+        isDead = false;
+        isDashing = false;
+        isExhausted = false;
+        isAdrenalineActive = false;
+        hitsReceived = 0;
+        currentSpeedModifier = 1f;
+        currentStamina = maxStamina;
+        if (staminaSlider != null) staminaSlider.value = currentStamina;
+
+        Collider col = GetComponent<Collider>();
+        if (col != null) col.enabled = true;
+
+        if (newPosition.HasValue)
+        {
+            if (rb != null)
+            {
+                rb.linearVelocity = Vector3.zero;
+                rb.position = newPosition.Value;
+            }
+            transform.position = newPosition.Value;
+        }
     }
 
     // ===================================================================================
@@ -321,6 +388,14 @@ public class HamsterController : MonoBehaviour
     {
         // Añadimos la detección del Tag "Door" para interactuar con las puertas
         if (other.CompareTag("Interactable") || other.CompareTag("Door"))
+        {
+            currentInteractable = other.gameObject;
+        }
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        if (currentInteractable == null && (other.CompareTag("Interactable") || other.CompareTag("Door")))
         {
             currentInteractable = other.gameObject;
         }

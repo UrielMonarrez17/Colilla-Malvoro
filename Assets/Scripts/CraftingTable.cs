@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 public class CraftingTable : MonoBehaviour
@@ -6,6 +7,10 @@ public class CraftingTable : MonoBehaviour
     public GameObject craftingPanelUI;
 
     private bool isMenuOpen = false;
+    public bool IsMenuOpen => isMenuOpen;
+
+    public static event Action<CraftingTable, bool> OnMenuToggled;
+    public static event Action<TipoTrampa> OnTrapCrafted;
 
     void Start()
     {
@@ -18,7 +23,11 @@ public class CraftingTable : MonoBehaviour
     public void ToggleCraftingMenu()
     {
         isMenuOpen = !isMenuOpen;
-        craftingPanelUI.SetActive(isMenuOpen);
+        if (craftingPanelUI != null)
+        {
+            craftingPanelUI.SetActive(isMenuOpen);
+        }
+        OnMenuToggled?.Invoke(this, isMenuOpen);
     }
 
     public void CloseMenu()
@@ -28,12 +37,15 @@ public class CraftingTable : MonoBehaviour
         {
             craftingPanelUI.SetActive(false);
         }
+        OnMenuToggled?.Invoke(this, false);
     }
 
     // --- LÓGICA DE CRAFTEO ---
 
     public void CraftTrap1()
     {
+        if (InventoryManager.Instance == null) return;
+
         // Trampa de Púas: 1 Madera, 1 Metal
         if (InventoryManager.Instance.HasEnoughItem(ItemType.Madera, 1) && 
             InventoryManager.Instance.HasEnoughItem(ItemType.Metal, 1))
@@ -45,6 +57,7 @@ public class CraftingTable : MonoBehaviour
             // Añadimos la trampa al inventario
             InventoryManager.Instance.AddTrampa(TipoTrampa.Puas);
             Debug.Log("✅ ¡Trampa de Púas crafteada con éxito!");
+            OnTrapCrafted?.Invoke(TipoTrampa.Puas);
         }
         else
         {
@@ -54,6 +67,8 @@ public class CraftingTable : MonoBehaviour
 
     public void CraftTrap2()
     {
+        if (InventoryManager.Instance == null) return;
+
         // Trampa de Red: 1 Goma, 1 Desperdicios
         if (InventoryManager.Instance.HasEnoughItem(ItemType.Goma, 1) && 
             InventoryManager.Instance.HasEnoughItem(ItemType.Desperdicios, 1))
@@ -63,6 +78,7 @@ public class CraftingTable : MonoBehaviour
             
             InventoryManager.Instance.AddTrampa(TipoTrampa.Red);
             Debug.Log("✅ ¡Trampa de Red crafteada con éxito!");
+            OnTrapCrafted?.Invoke(TipoTrampa.Red);
         }
         else
         {
@@ -72,6 +88,8 @@ public class CraftingTable : MonoBehaviour
 
     public void CraftTrap3()
     {
+        if (InventoryManager.Instance == null) return;
+
         // Trampa de Madera: 2 Madera
         if (InventoryManager.Instance.HasEnoughItem(ItemType.Madera, 2))
         {
@@ -79,6 +97,7 @@ public class CraftingTable : MonoBehaviour
             
             InventoryManager.Instance.AddTrampa(TipoTrampa.Madera);
             Debug.Log("✅ ¡Trampa de Madera crafteada con éxito!");
+            OnTrapCrafted?.Invoke(TipoTrampa.Madera);
         }
         else
         {
