@@ -61,20 +61,24 @@ public class HamsterController : MonoBehaviour
     // ===================================================================================
 
     void Start()
-    {
-        rb = GetComponent<Rigidbody>();
-        rb.freezeRotation = true; 
-        rb.useGravity = true; 
-        
-        currentStamina = maxStamina;
-        currentBaseSpeed = walkSpeed;
+{
+    rb = GetComponent<Rigidbody>();
+    rb.freezeRotation = true; 
+    rb.useGravity = true;
 
-        if (staminaSlider != null)
-        {
-            staminaSlider.maxValue = maxStamina;
-            staminaSlider.value = currentStamina;
-        }
+    // Evita el tunneling a velocidades altas o durante el dash
+    rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+    rb.interpolation = RigidbodyInterpolation.Interpolate; // Suaviza el movimiento entre ticks
+
+    currentStamina = maxStamina;
+    currentBaseSpeed = walkSpeed;
+
+    if (staminaSlider != null)
+    {
+        staminaSlider.maxValue = maxStamina;
+        staminaSlider.value = currentStamina;
     }
+}
 
     // ===================================================================================
     //  BUCLE DE ACTUALIZACIÓN (Update)
@@ -200,6 +204,11 @@ public class HamsterController : MonoBehaviour
             {
                 lootContainer.InteractuarConLoot();
             }
+
+            else if (currentInteractable.TryGetComponent<LuluNPC>(out LuluNPC lulu))
+            {
+                lulu.InteractuarConLulu();
+            }
             // --- LÓGICA DE PUERTAS CON DEBUGS ---
             else if (currentInteractable.TryGetComponent<PuertaTrampa>(out PuertaTrampa puerta))
             {
@@ -234,11 +243,13 @@ public class HamsterController : MonoBehaviour
     }
 
     private void Move()
-    {
-        float finalSpeed = currentBaseSpeed * currentSpeedModifier;
-        Vector3 newPosition = rb.position + moveInput * finalSpeed * Time.fixedDeltaTime;
-        rb.MovePosition(newPosition);
-    }
+{
+    float finalSpeed = currentBaseSpeed * currentSpeedModifier;
+    Vector3 targetVelocity = moveInput * finalSpeed;
+
+    // Mantenemos la velocidad vertical actual (gravedad/caída) intacta
+    rb.linearVelocity = new Vector3(targetVelocity.x, rb.linearVelocity.y, targetVelocity.z);
+}
 
     private void Rotate()
     {

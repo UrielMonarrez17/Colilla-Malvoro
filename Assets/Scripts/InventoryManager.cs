@@ -133,4 +133,10 @@ public class InventoryManager : MonoBehaviour
         
         Debug.Log(output);
     }
+
+    // Método para saber la cantidad exacta de un ítem en la mochila
+    public int GetItemCount(ItemType item)
+    {
+        return inventory.ContainsKey(item) ? inventory[item] : 0;
+    }
 }
