@@ -164,37 +164,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a90ab16ad59e4bf3a0704cab97dc6e3d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CityGenerator
-  useSeed: 1
-  seed: 3
-  mapWidth: 20
-  mapLength: 20
-  cellSize: 10
-  blockSize: 6
-  specialBuildings:
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  normalBuildings:
-  - {fileID: 6307648287174884991, guid: bcbe9fd212b1a364b936c34827d0b107, type: 3}
-  - {fileID: 8933974364592397234, guid: b060568a54b6c924abd8725d7b68efcc, type: 3}
-  - {fileID: 1159673734080071651, guid: 83532e369db659c499e2222ecb258582, type: 3}
-  - {fileID: 8192723047899517669, guid: 7ba70a2f6be8cb4498e82fa674c11817, type: 3}
-  - {fileID: 1087492099153203764, guid: b115703a6bd4b6e47b74df1384ee8426, type: 3}
-  - {fileID: 3149756338935192460, guid: 3f35524cbe5005e47a537f0a9f72fcd6, type: 3}
-  roadForward: {fileID: 7879980762663222706, guid: c7ffce7dcdae5a7438c3893dbca2fd71, type: 3}
-  roadAngle: {fileID: 4452075131187004771, guid: 2bf2427616673684e9f50f4b3919a72b, type: 3}
-  roadT: {fileID: 9107833680919219300, guid: 95cb5357500daf7468dfd574662825eb, type: 3}
-  roadX: {fileID: 3399503055853382886, guid: e250a47485e7f0a4390b8873d8c3ed9b, type: 3}
-  roadDeadEnd: {fileID: 7879980762663222706, guid: c7ffce7dcdae5a7438c3893dbca2fd71, type: 3}
-  pedestrianPavement: {fileID: 1629306100895237221, guid: d734acbc0b770544e82fd18766968145, type: 3}
-  roadHeightY: 0
-  minCellDistanceBetweenSpecials: 4
-  normalBuildingDensity: 0.5
 --- !u!4 &51589280
 Transform:
   m_ObjectHideFlags: 0
@@ -366,16 +335,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 451a096027fce704995a4dc7d0286ca4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CityGeneratorMathVersion
-  seed: 550771708
-  mapWidth: 100
-  mapLength: 100
+  seed: 55077170
+  mapWidth: 50
+  mapLength: 50
   cellSize: 10
   specialBuildings:
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
+  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
+  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
+  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
+  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
+  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
+  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
   normalBuildings:
   - {fileID: 6307648287174884991, guid: bcbe9fd212b1a364b936c34827d0b107, type: 3}
   - {fileID: 8933974364592397234, guid: b060568a54b6c924abd8725d7b68efcc, type: 3}
@@ -383,6 +353,8 @@ MonoBehaviour:
   - {fileID: 8192723047899517669, guid: 7ba70a2f6be8cb4498e82fa674c11817, type: 3}
   - {fileID: 1087492099153203764, guid: b115703a6bd4b6e47b74df1384ee8426, type: 3}
   - {fileID: 3149756338935192460, guid: 3f35524cbe5005e47a537f0a9f72fcd6, type: 3}
+  lootPrefab: {fileID: 1970939979639782865, guid: 47fda6a705c797c459a99ee8e74c50e2, type: 3}
+  lootProbability: 1
   roadForward: {fileID: 7879980762663222706, guid: c7ffce7dcdae5a7438c3893dbca2fd71, type: 3}
   roadAngle: {fileID: 4452075131187004771, guid: 2bf2427616673684e9f50f4b3919a72b, type: 3}
   roadT: {fileID: 9107833680919219300, guid: 95cb5357500daf7468dfd574662825eb, type: 3}
@@ -390,8 +362,19 @@ MonoBehaviour:
   roadDeadEnd: {fileID: 7879980762663222706, guid: c7ffce7dcdae5a7438c3893dbca2fd71, type: 3}
   pedestrianPavement: {fileID: 1629306100895237221, guid: d734acbc0b770544e82fd18766968145, type: 3}
   roadHeightY: 0
-  minCellDistanceBetweenSpecials: 4
-  normalBuildingDensity: 0.105
+  settings:
+    minWalkers: 3
+    maxWalkers: 10
+    maxWalkerSteps: 4000
+    turnChancePerSide: 0.276
+    branchChance: 0.175
+    maxRoundaboutCells: 8
+    roundaboutSpacing: 3
+    specialAttempts: 100
+    minCellDistanceBetweenSpecials: 4
+    maxAccessPathLength: 12
+    normalBuildingDensity: 1
+    allowInteriorBuildings: 0
 --- !u!4 &1230917354
 Transform:
   m_ObjectHideFlags: 0
@@ -401,7 +384,7 @@ Transform:
   m_GameObject: {fileID: 1230917352}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 3.28082, y: 0, z: 7.57916}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -555,7 +538,6 @@ GameObject:
   - component: {fileID: 1785363579}
   - component: {fileID: 1785363578}
   - component: {fileID: 1785363580}
-  - component: {fileID: 1785363581}
   m_Layer: 0
   m_Name: cityManager
   m_TagString: Untagged
@@ -575,37 +557,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a90ab16ad59e4bf3a0704cab97dc6e3d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CityGenerator
-  useSeed: 1
-  seed: 12345
-  mapWidth: 20
-  mapLength: 20
-  cellSize: 10
-  blockSize: 6
-  specialBuildings:
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  - {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
-  normalBuildings:
-  - {fileID: 6307648287174884991, guid: bcbe9fd212b1a364b936c34827d0b107, type: 3}
-  - {fileID: 8933974364592397234, guid: b060568a54b6c924abd8725d7b68efcc, type: 3}
-  - {fileID: 1159673734080071651, guid: 83532e369db659c499e2222ecb258582, type: 3}
-  - {fileID: 8192723047899517669, guid: 7ba70a2f6be8cb4498e82fa674c11817, type: 3}
-  - {fileID: 1087492099153203764, guid: b115703a6bd4b6e47b74df1384ee8426, type: 3}
-  - {fileID: 3149756338935192460, guid: 3f35524cbe5005e47a537f0a9f72fcd6, type: 3}
-  roadForward: {fileID: 1190725673893485314, guid: f0c27c2f25dae6243b2ad83a42eba73e, type: 3}
-  roadAngle: {fileID: 1366478678002778911, guid: 529ec7939bf6aef4e8eff86ac68f301e, type: 3}
-  roadT: {fileID: 3333123963865207798, guid: 8e06cf1a8f8266948a5e6aef4089a424, type: 3}
-  roadX: {fileID: 3399503055853382886, guid: e250a47485e7f0a4390b8873d8c3ed9b, type: 3}
-  roadDeadEnd: {fileID: 1190725673893485314, guid: f0c27c2f25dae6243b2ad83a42eba73e, type: 3}
-  pedestrianPavement: {fileID: 0}
-  roadHeightY: 0
-  minCellDistanceBetweenSpecials: 4
-  normalBuildingDensity: 0.6
 --- !u!4 &1785363579
 Transform:
   m_ObjectHideFlags: 0
@@ -636,21 +587,6 @@ MonoBehaviour:
   gridWidth: 10
   gridLength: 10
   heightOffset: 0
---- !u!114 &1785363581
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1785363577}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3047cc96693cec4429adb757a9ea5bc2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BuildingData
-  gridWidth: 10
-  gridLength: 10
-  heightOffset: 10
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
