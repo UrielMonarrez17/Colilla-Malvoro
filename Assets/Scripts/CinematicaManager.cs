@@ -8,9 +8,16 @@ public class CinematicaManager : MonoBehaviour
     public VideoPlayer reproductorVideo;
     public GameObject objetoTutorialManager;
     public HamsterController hamster;
-    private bool cinematicaFinalizada;
+    public GameObject canvasUIRoot;
+
+    private bool cinematicaFinalizada = false;
+    public bool CinematicaTerminada => cinematicaFinalizada;
     private Canvas[] canvases;
     private bool[] canvasStates;
+    private bool videoIniciado = false;
+    private float tiempoEnCinematica = 0f;
+    private bool canvasUIRootWasActive;
+    private bool canvasUIRootStateCaptured;
 
     void Awake()
     {
@@ -26,13 +33,24 @@ public class CinematicaManager : MonoBehaviour
             yield break;
         }
         if (hamster != null) hamster.enabled = false;
-        if (objetoTutorialManager != null) objetoTutorialManager.SetActive(false);
+        if (canvasUIRoot == null)
+        {
+            Canvas mainCanvas = FindAnyObjectByType<Canvas>();
+            if (mainCanvas != null) canvasUIRoot = mainCanvas.gameObject;
+        }
         canvases = FindObjectsByType<Canvas>();
         canvasStates = new bool[canvases.Length];
         for (int i = 0; i < canvases.Length; i++)
         {
             canvasStates[i] = canvases[i].enabled;
             canvases[i].enabled = false;
+        }
+        if (objetoTutorialManager != null) objetoTutorialManager.SetActive(false);
+        if (canvasUIRoot != null)
+        {
+            canvasUIRootWasActive = canvasUIRoot.activeSelf;
+            canvasUIRootStateCaptured = true;
+            canvasUIRoot.SetActive(false);
         }
         reproductorVideo.isLooping = false;
         reproductorVideo.audioOutputMode = VideoAudioOutputMode.Direct;
@@ -61,7 +79,27 @@ public class CinematicaManager : MonoBehaviour
     {
         if (!cinematicaFinalizada && (FeralInput.Pressed(KeyCode.Space) ||
             FeralInput.Pressed(KeyCode.Escape) || FeralInput.Pressed(KeyCode.Return)))
+        {
             IniciarGameplay(reproductorVideo);
+            return;
+        }
+
+        if (cinematicaFinalizada || reproductorVideo == null) return;
+
+        tiempoEnCinematica += Time.unscaledDeltaTime;
+        if (reproductorVideo.isPlaying || reproductorVideo.frame > 0)
+        {
+            videoIniciado = true;
+        }
+
+        if (videoIniciado &&
+            ((reproductorVideo.frameCount > 10 &&
+              reproductorVideo.frame >= (long)reproductorVideo.frameCount - 1) ||
+             (!reproductorVideo.isPlaying && tiempoEnCinematica > 2f &&
+              reproductorVideo.time > 1.0)))
+        {
+            IniciarGameplay(reproductorVideo);
+        }
     }
 
     void OnVideoError(VideoPlayer player, string message)
@@ -90,7 +128,13 @@ public class CinematicaManager : MonoBehaviour
         if (canvases != null)
             for (int i = 0; i < canvases.Length; i++)
                 if (canvases[i] != null) canvases[i].enabled = canvasStates[i];
+        if (canvasUIRoot != null && canvasUIRootStateCaptured)
+            canvasUIRoot.SetActive(canvasUIRootWasActive);
         if (objetoTutorialManager != null) objetoTutorialManager.SetActive(true);
+        if (TutorialPipelineManager.Instance != null)
+        {
+            TutorialPipelineManager.Instance.NotificarFinCinematicaInicial();
+        }
         if (hamster != null) hamster.enabled = true;
         gameObject.SetActive(false);
     }

@@ -49,6 +49,10 @@ public class TutorialPipelineManager : MonoBehaviour
     public TextMeshProUGUI textoMisionUI; 
     public PunteroMision punteroFlecha; 
 
+    [Header("Cinemática Tigre (MP4)")]
+    [Tooltip("Video del tigre amenazante con la leyenda ¡CORRE!. Si se deja vacío se carga Resources/Videos/TigreCorre.")]
+    public VideoClip videoCinematicaTigre;
+
     [Header("Prefabs de Animales y Objetos (Auto-cargados o Asignables)")]
     public GameObject prefabEnemigoTigre;
     public GameObject prefabEnemigoPerro;
@@ -90,6 +94,13 @@ public class TutorialPipelineManager : MonoBehaviour
     private bool trampaInstaladaEnRefugio = false;
     private bool enCinematica = false;
 
+    // --- Barreras y Candados de Secuencia Obligatoria ---
+    private GameObject barreraSalidaMadriguera;
+    private GameObject barreraSprintCallejon;
+    private GameObject barreraEsquinaSigilo;
+    private GameObject barreraEntradaRefugio;
+    private List<Button> botonesRecetasSecundarias = new List<Button>();
+
     // --- Checkpoints para Respawn Seguro ---
     private Vector3 checkpointPosicion = new Vector3(5.0f, 0.85f, 146.0f);
 
@@ -102,6 +113,7 @@ public class TutorialPipelineManager : MonoBehaviour
     private TextMeshProUGUI textoInventarioRapido;
     private TextMeshProUGUI textoEstadoSaludAdrenalina;
     private Image overlayPantalla;
+    private TextMeshProUGUI textoCinematicaCorre;
     private Image marcoResaltadoEstamina;
 
     // --- Audio Procedural Atmosférico y SFX ---
@@ -167,7 +179,20 @@ public class TutorialPipelineManager : MonoBehaviour
     {
         PrepararEscenaYReferencias();
         ConstruirHudTutorial();
+
+        // Si hay una cinemática de video inicial activa, sincronizar y ocultar toda la UI del tutorial
+        CinematicaManager cinManager = FindAnyObjectByType<CinematicaManager>();
+        if (cinManager != null && !cinManager.CinematicaTerminada)
+        {
+            enCinematica = true;
+        }
+
         IniciarFase1Dia1();
+
+        if (enCinematica)
+        {
+            EstablecerVisibilidadUIEnCinematica(true);
+        }
     }
 
     // ===================================================================================
@@ -308,6 +333,7 @@ public class TutorialPipelineManager : MonoBehaviour
             mesaCrafteoRefugio.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
             mesaCrafteoRefugio.gameObject.tag = "Interactable";
             DecorarMesaDeTrabajo(mesaCrafteoRefugio.transform);
+            CachearBotonesSecundariosMesa();
         }
 
         // 7. Reubicar y configurar la PuertaTrampa en el pasillo estrecho de entrada al Refugio
@@ -369,8 +395,13 @@ public class TutorialPipelineManager : MonoBehaviour
         Material matPisoSeguro = new Material(litShader) { color = new Color(0.22f, 0.42f, 0.26f) };
         Material matObstaculoSigilo = new Material(litShader) { color = new Color(0.35f, 0.38f, 0.42f) };
 
-        // Base del Hámster (Madriguera / Zona Segura en X=5, Z=145 dentro de cityManagerMath)
-        CrearBloque3D("Piso_MadrigueraSegura", rootEnv.transform, new Vector3(5.0f, 0.03f, 144.0f), new Vector3(9.2f, 0.05f, 11.5f), matPisoSeguro, false);
+        // Base del Hámster (Madriguera / Zona Segura con piso físico grueso)
+        CrearBloque3D("Piso_MadrigueraSegura", rootEnv.transform, new Vector3(5.0f, -0.25f, 144.0f), new Vector3(9.2f, 0.6f, 11.5f), matPisoSeguro, true);
+
+        // Piso físico sólido de seguridad bajo todo el escenario del tutorial (Anti-caídas al vacío)
+        GameObject pisoAntiCaidas = CrearBloque3D("Piso_SueloTutorial_AntiCaidas", rootEnv.transform, new Vector3(30.0f, -0.5f, 135.0f), new Vector3(75.0f, 1.0f, 50.0f), matPisoSeguro, true);
+        Renderer rAntiCaidas = pisoAntiCaidas.GetComponent<Renderer>();
+        if (rAntiCaidas != null) rAntiCaidas.enabled = false;
         CrearBloque3D("Muro_Refugio_Oeste", rootEnv.transform, new Vector3(0.1f, 1.8f, 136.0f), new Vector3(0.8f, 3.6f, 32.0f), matMuroRefugio, true);
         CrearBloque3D("Muro_CierreSur_Callejon", rootEnv.transform, new Vector3(5.0f, 1.8f, 119.8f), new Vector3(9.6f, 3.6f, 0.8f), matMuroRefugio, true);
 
@@ -393,10 +424,37 @@ public class TutorialPipelineManager : MonoBehaviour
         CrearBloque3D("Muro_Control_Norte", rootEnv.transform, new Vector3(28.8f, 1.8f, 128.4f), new Vector3(0.9f, 3.6f, 3.0f), matMuroRefugio, true);
         CrearBloque3D("Muro_Control_Sur", rootEnv.transform, new Vector3(28.8f, 1.8f, 121.6f), new Vector3(0.9f, 3.6f, 3.0f), matMuroRefugio, true);
 
+        // Posicionar y activar las 5 Paredes Cafés de la escena (Wall a Wall (4)) y cierres perimetrales para impedir que el jugador salga a otra parte de la ciudad
+        ConfigurarParedCafeEscena("Wall (1)", new Vector3(5.0f, 1.8f, 150.2f), new Vector3(10.5f, 3.6f, 0.9f), matMuroRefugio, rootEnv.transform);
+        ConfigurarParedCafeEscena("Wall (4)", new Vector3(45.0f, 1.8f, 152.5f), new Vector3(11.5f, 3.6f, 0.9f), matMuroRefugio, rootEnv.transform);
+        ConfigurarParedCafeEscena("Wall (3)", new Vector3(29.8f, 1.8f, 145.0f), new Vector3(0.9f, 3.6f, 11.5f), matMuroRefugio, rootEnv.transform);
+        ConfigurarParedCafeEscena("Wall",     new Vector3(45.0f, 1.8f, 119.8f), new Vector3(11.5f, 3.6f, 0.9f), matMuroRefugio, rootEnv.transform);
+        ConfigurarParedCafeEscena("Wall (2)", new Vector3(60.2f, 1.8f, 135.0f), new Vector3(0.9f, 3.6f, 32.0f), matMuroRefugio, rootEnv.transform);
+
+        // Cierres cafés perimetrales adicionales en las aceras para un recinto 100% hermético
+        CrearBloque3D("Muro_Perimetro_SurCallejon", rootEnv.transform, new Vector3(20.0f, 1.8f, 119.8f), new Vector3(22.0f, 3.6f, 0.9f), matMuroRefugio, true);
+        CrearBloque3D("Muro_Perimetro_NorteCallejon", rootEnv.transform, new Vector3(20.0f, 1.8f, 130.2f), new Vector3(20.5f, 3.6f, 0.9f), matMuroRefugio, true);
+        CrearBloque3D("Muro_Perimetro_SurEste", rootEnv.transform, new Vector3(55.0f, 1.8f, 119.8f), new Vector3(11.0f, 3.6f, 0.9f), matMuroRefugio, true);
+        CrearBloque3D("Muro_Perimetro_NorteEste", rootEnv.transform, new Vector3(55.0f, 1.8f, 150.2f), new Vector3(11.0f, 3.6f, 0.9f), matMuroRefugio, true);
+
         // Esquina y Obstáculos de Cobertura para la Fase 2 (Sigilo / Romper Línea de Visión en la calle sur Z=125)
         CrearBloque3D("Muro_Esquina_RomperVista", rootEnv.transform, new Vector3(51.5f, 1.6f, 128.5f), new Vector3(2.4f, 3.2f, 2.4f), matObstaculoSigilo, true);
         CrearBloque3D("Cobertura_Sigilo_1", rootEnv.transform, new Vector3(48.5f, 1.0f, 122.4f), new Vector3(3.4f, 2.0f, 1.1f), matObstaculoSigilo, true);
         CrearBloque3D("Cobertura_Sigilo_2", rootEnv.transform, new Vector3(40.5f, 1.0f, 122.4f), new Vector3(3.4f, 2.0f, 1.1f), matObstaculoSigilo, true);
+
+        // Barreras físicas invisibles/de bloqueo para garantizar secuencia estricta sin saltarse ningún paso
+        Material matBarreraInvisible = new Material(litShader) { color = new Color(1f, 0.5f, 0.1f, 0f) };
+        barreraSalidaMadriguera = CrearBloque3D("BarreraSecuencia_SalidaMadriguera", rootEnv.transform, new Vector3(5.0f, 1.8f, 138.2f), new Vector3(4.5f, 3.6f, 0.5f), matBarreraInvisible, true);
+        barreraSalidaMadriguera.GetComponent<Renderer>().enabled = false;
+
+        barreraSprintCallejon = CrearBloque3D("BarreraSecuencia_SprintCallejon", rootEnv.transform, new Vector3(23.5f, 1.8f, 125.0f), new Vector3(0.6f, 3.6f, 10.0f), matBarreraInvisible, true);
+        barreraSprintCallejon.GetComponent<Renderer>().enabled = false;
+
+        barreraEsquinaSigilo = CrearBloque3D("BarreraSecuencia_EsquinaSigilo", rootEnv.transform, new Vector3(55.0f, 1.8f, 132.5f), new Vector3(12.0f, 3.6f, 0.6f), matBarreraInvisible, true);
+        barreraEsquinaSigilo.GetComponent<Renderer>().enabled = false;
+
+        barreraEntradaRefugio = CrearBloque3D("BarreraSecuencia_EntradaRefugio", rootEnv.transform, new Vector3(24.5f, 1.8f, 125.0f), new Vector3(0.6f, 3.6f, 10.0f), matBarreraInvisible, true);
+        barreraEntradaRefugio.GetComponent<Renderer>().enabled = false;
 
         // Waypoints de referencia
         GameObject refugioWp = new GameObject("Waypoint_RefugioSeguro");
@@ -413,6 +471,37 @@ public class TutorialPipelineManager : MonoBehaviour
         esquinaWp.transform.SetParent(rootEnv.transform, false);
         esquinaWp.transform.position = POS_ESQUINA_SIGILO;
         puntoEsquinaSigilo = esquinaWp.transform;
+    }
+
+    private void ConfigurarParedCafeEscena(string wallName, Vector3 pos, Vector3 scale, Material matCafe, Transform fallbackParent)
+    {
+        GameObject w = GameObject.Find(wallName);
+        if (w == null)
+        {
+            Transform[] allTransforms = Resources.FindObjectsOfTypeAll<Transform>();
+            for (int i = 0; i < allTransforms.Length; i++)
+            {
+                if (allTransforms[i] != null && allTransforms[i].name == wallName && allTransforms[i].gameObject.scene.IsValid())
+                {
+                    w = allTransforms[i].gameObject;
+                    break;
+                }
+            }
+        }
+
+        if (w != null)
+        {
+            w.SetActive(true);
+            w.transform.position = pos;
+            w.transform.rotation = Quaternion.identity;
+            w.transform.localScale = scale;
+            Renderer r = w.GetComponent<Renderer>();
+            if (r != null) r.material = matCafe;
+        }
+        else
+        {
+            CrearBloque3D(wallName, fallbackParent, pos, scale, matCafe, true);
+        }
     }
 
     private GameObject CrearBloque3D(string nombre, Transform padre, Vector3 pos, Vector3 escala, Material mat, bool conCollider)
@@ -692,6 +781,11 @@ public class TutorialPipelineManager : MonoBehaviour
             marcoResaltadoEstamina.color = new Color(1f, 0.85f, 0.1f, 0f);
             marcoResaltadoEstamina.raycastTarget = false;
         }
+
+        // 6. Leyenda Cinemática Intimidante: "¡CORRE!"
+        textoCinematicaCorre = CrearTextoTMP("Texto_Cinematica_CORRE", tutorialHudCanvas.transform, font, 86, FontStyles.Bold, new Color(1f, 0.12f, 0.12f, 1f), new Vector2(0f, 30f), new Vector2(900f, 160f));
+        textoCinematicaCorre.text = "¡ C O R R E !";
+        textoCinematicaCorre.gameObject.SetActive(false);
     }
 
     private TextMeshProUGUI CrearTextoTMP(string nombre, Transform padre, TMP_FontAsset font, float size, FontStyles style, Color color, Vector2 pos, Vector2 sizeDelta)
@@ -737,6 +831,13 @@ public class TutorialPipelineManager : MonoBehaviour
 
     void Update()
     {
+        // Rescate físico de emergencia ante caídas accidentales fuera del escenario
+        if (hamster != null && hamster.transform.position.y < -0.6f)
+        {
+            hamster.RespawnOrHeal(checkpointPosicion);
+        }
+
+        AplicarRestriccionesSecuencialesEstrictas();
         ActualizarHudGDD();
         ActualizarPromptContextual();
 
@@ -835,10 +936,7 @@ public class TutorialPipelineManager : MonoBehaviour
             textoMisionUI.text = $"Misión: Mantén [Shift Izquierdo] para correr hacia la salida ({progreso:0}%)";
         }
 
-        bool llegoAlCallejon = hamster != null && puntoSalidaCallejon != null &&
-                               Vector3.Distance(hamster.transform.position, puntoSalidaCallejon.position) < 6.5f;
-
-        if (tiempoCorriendoConShift >= 1.2f || (tiempoCorriendoConShift >= 0.4f && llegoAlCallejon))
+        if (tiempoCorriendoConShift >= 1.2f)
         {
             if (marcoResaltadoEstamina != null)
             {
@@ -990,6 +1088,47 @@ public class TutorialPipelineManager : MonoBehaviour
         StartCoroutine(SecuenciaAnuncioAnochecer());
     }
 
+    public void NotificarFinCinematicaInicial()
+    {
+        enCinematica = false;
+        EstablecerVisibilidadUIEnCinematica(false);
+    }
+
+    private void EstablecerVisibilidadUIEnCinematica(bool enCursoCinematica)
+    {
+        bool mostrarUI = !enCursoCinematica;
+
+        if (textoFaseBanner != null)
+        {
+            textoFaseBanner.gameObject.SetActive(mostrarUI);
+            if (textoFaseBanner.transform.parent != null)
+                textoFaseBanner.transform.parent.gameObject.SetActive(mostrarUI);
+        }
+
+        if (textoSubtituloGuia != null)
+        {
+            textoSubtituloGuia.gameObject.SetActive(mostrarUI);
+        }
+
+        if (textoRelojCiclo != null && textoRelojCiclo.transform.parent != null)
+            textoRelojCiclo.transform.parent.gameObject.SetActive(mostrarUI);
+
+        if (textoPromptContextual != null && textoPromptContextual.transform.parent != null && enCursoCinematica)
+            textoPromptContextual.transform.parent.gameObject.SetActive(false);
+
+        if (textoMisionUI != null)
+            textoMisionUI.gameObject.SetActive(mostrarUI);
+
+        if (hamster != null && hamster.staminaSlider != null)
+            hamster.staminaSlider.gameObject.SetActive(mostrarUI);
+
+        if (panelControlesWASD != null)
+            panelControlesWASD.SetActive(mostrarUI && (currentState == TutorialState.AprenderControles || currentState == TutorialState.AprenderEstamina));
+
+        if (punteroFlecha != null && enCursoCinematica)
+            punteroFlecha.gameObject.SetActive(false);
+    }
+
     private IEnumerator SecuenciaAnuncioAnochecer()
     {
         enCinematica = true;
@@ -1000,6 +1139,7 @@ public class TutorialPipelineManager : MonoBehaviour
             "Observa el cambio gradual de iluminación: los habitantes pacíficos huyen a esconderse y la ciudad se vuelve hostil.",
             puntoRefugioSeguro
         );
+        EstablecerVisibilidadUIEnCinematica(true);
 
         // Retirar a Lulú y a los ciudadanos pacíficos mientras la luz se torna rojiza (16.8h -> 18.0h)
         LuluNPC lulu = FindAnyObjectByType<LuluNPC>();
@@ -1055,6 +1195,7 @@ public class TutorialPipelineManager : MonoBehaviour
     private IEnumerator SecuenciaFase2CinematicaNoche()
     {
         enCinematica = true;
+        EstablecerVisibilidadUIEnCinematica(true);
 
         if (TimeManager.Instance != null)
         {
@@ -1062,9 +1203,8 @@ public class TutorialPipelineManager : MonoBehaviour
         }
 
         ReproducirAmbiente(clipAmbienteNoche);
-        ReproducirSfx(clipSfxAlertaFeral);
 
-        // Colocar al jugador en la vía norte junto a Lulú para que vea cómo el depredador bloquea el retorno directo
+        // Colocar al jugador en la vía norte
         if (hamster != null)
         {
             Vector3 posJugadorNoche = new Vector3(48.0f, 0.85f, 145.0f);
@@ -1074,66 +1214,57 @@ public class TutorialPipelineManager : MonoBehaviour
             hamster.enabled = false;
         }
 
-        // Instanciar el Animal Feral (Tigre o Perro de Assets/PreFabs/Enemies) en la vía principal bloqueando el retorno a la base
+        // Instanciar al Depredador Feral (Tigre) en la vía principal bloqueando el retorno
         SpawnearEnemigosFase2();
 
-        ConfigurarTextosEstado(
-            TutorialState.CinematicaAparicionFeral,
-            "FASE 2: NOCHE 1 — GENERACIÓN DE PRESIÓN Y PELIGRO",
-            "¡PELIGRO! La noche ha caído y un depredador feral bloquea la vía principal a casa",
-            "La iluminación ha caído drásticamente. Un Tigre Feral ha aparecido bloqueando tu camino de regreso al refugio.",
-            enemigoFeralPrincipal != null ? enemigoFeralPrincipal.transform : null
-        );
+        // --- CINEMÁTICA MP4: TIGRE AMENAZANTE MIRANDO A CÁMARA + LEYENDA "¡CORRE!" ---
+        // Congelar al depredador mientras corre el video para que no ataque antes de la persecución
+        NavMeshAgent agFeral = enemigoFeralPrincipal != null ? enemigoFeralPrincipal.GetComponent<NavMeshAgent>() : null;
+        if (enemigoFeralPrincipal != null) enemigoFeralPrincipal.enabled = false;
+        if (agFeral != null && agFeral.enabled && agFeral.isOnNavMesh) agFeral.isStopped = true;
 
-        // paneo cinemático de cámara hacia el enemigo feral que bloquea la vía principal
-        if (cinematicaAnochecer != null)
+        bool videoReproducido = false;
+        yield return StartCoroutine(ReproducirVideoCinematicaTigre(ok => videoReproducido = ok));
+        if (!videoReproducido && cinematicaAnochecer != null)
         {
-            yield return ReproducirVideoAnochecer();
+            yield return StartCoroutine(ReproducirVideoAnochecer(ok => videoReproducido = ok));
         }
-        else if (mainCam != null && enemigoFeralPrincipal != null)
+
+        // Respaldo si el clip no está disponible: destello rojo + leyenda "¡CORRE!" en HUD
+        if (!videoReproducido)
         {
-            if (cameraFollow != null) cameraFollow.enabled = false;
-
-            Vector3 camStartPos = mainCam.transform.position;
-            Vector3 camFeralFocus = enemigoFeralPrincipal.transform.position + new Vector3(0f, 8.5f, -7.5f);
-
-            float t = 0f;
-            while (t < 1f)
+            ReproducirSfx(clipSfxAlertaFeral);
+            if (textoCinematicaCorre != null) textoCinematicaCorre.gameObject.SetActive(true);
+            float hold = 0f;
+            while (hold < 2.2f)
             {
-                t += Time.deltaTime * 1.2f;
-                mainCam.transform.position = Vector3.Lerp(camStartPos, camFeralFocus, Mathf.SmoothStep(0f, 1f, t));
+                hold += Time.deltaTime;
+                if (overlayPantalla != null) overlayPantalla.color = new Color(0.85f, 0.05f, 0.05f, 0.22f + 0.15f * Mathf.Sin(hold * 8f));
                 yield return null;
             }
+            if (textoCinematicaCorre != null) textoCinematicaCorre.gameObject.SetActive(false);
+            if (overlayPantalla != null) overlayPantalla.color = Color.clear;
+        }
 
-            yield return new WaitForSeconds(1.4f);
-
-            // Regresar la cámara al jugador
-            if (hamster != null)
-            {
-                Vector3 camPlayerFocus = hamster.transform.position + (cameraFollow != null ? cameraFollow.offset : new Vector3(0f, 11f, -9f));
-                t = 0f;
-                while (t < 1f)
-                {
-                    t += Time.deltaTime * 1.5f;
-                    mainCam.transform.position = Vector3.Lerp(camFeralFocus, camPlayerFocus, Mathf.SmoothStep(0f, 1f, t));
-                    yield return null;
-                }
-            }
-
+        // Reubicar la cámara detrás del hámster para arrancar la persecución
+        if (mainCam != null && hamster != null)
+        {
+            mainCam.transform.position = hamster.transform.position + (cameraFollow != null ? cameraFollow.offset : new Vector3(0f, 11f, -9f));
             if (cameraFollow != null) cameraFollow.enabled = true;
         }
-        else
-        {
-            yield return new WaitForSeconds(2.0f);
-        }
+
+        if (enemigoFeralPrincipal != null) enemigoFeralPrincipal.enabled = true;
+        if (agFeral != null && agFeral.enabled && agFeral.isOnNavMesh) agFeral.isStopped = false;
+        yield return null; // Dejar que EnemyAI.Start() (que fija Wander) se ejecute antes de ForceChasePlayer
 
         if (hamster != null) hamster.enabled = true;
         enCinematica = false;
+        EstablecerVisibilidadUIEnCinematica(false);
 
         IniciarPasoEscapeDash();
     }
 
-    private IEnumerator ReproducirVideoAnochecer()
+    private IEnumerator ReproducirVideoAnochecer(Action<bool> onDone)
     {
         var host = new GameObject("Cinematica_Anochecer");
         var video = host.AddComponent<VideoPlayer>();
@@ -1145,13 +1276,20 @@ public class TutorialPipelineManager : MonoBehaviour
         video.aspectRatio = VideoAspectRatio.FitInside;
         video.audioOutputMode = VideoAudioOutputMode.Direct;
         bool finished = false;
+        bool error = false;
         video.loopPointReached += _ => finished = true;
-        video.errorReceived += (_, message) => { Debug.LogWarning(message); finished = true; };
+        video.errorReceived += (_, message) =>
+        {
+            Debug.LogWarning(message);
+            error = true;
+            finished = true;
+        };
         if (tutorialHudCanvas != null) tutorialHudCanvas.enabled = false;
         if (enemigoFeralPrincipal != null) enemigoFeralPrincipal.gameObject.SetActive(false);
         video.Prepare();
         float deadline = Time.realtimeSinceStartup + 8f;
         while (!video.isPrepared && !finished && Time.realtimeSinceStartup < deadline) yield return null;
+        bool played = video.isPrepared && !error;
         if (video.isPrepared && !finished)
         {
             video.Play();
@@ -1168,6 +1306,68 @@ public class TutorialPipelineManager : MonoBehaviour
         if (enemigoFeralPrincipal != null) enemigoFeralPrincipal.gameObject.SetActive(true);
         // Allow EnemyAI.Start to initialize before ForceChasePlayer.
         yield return null;
+        onDone(played && !error);
+    }
+
+    private IEnumerator ReproducirVideoCinematicaTigre(Action<bool> onDone)
+    {
+        if (videoCinematicaTigre == null) videoCinematicaTigre = Resources.Load<VideoClip>("Videos/TigreCorre");
+        if (videoCinematicaTigre == null || mainCam == null)
+        {
+            onDone(false);
+            yield break;
+        }
+
+        GameObject vpObj = new GameObject("VideoPlayer_CinematicaTigre");
+        VideoPlayer vp = vpObj.AddComponent<VideoPlayer>();
+        vp.playOnAwake = false;
+        vp.isLooping = false;
+        vp.clip = videoCinematicaTigre;
+        vp.renderMode = VideoRenderMode.CameraNearPlane;
+        vp.targetCamera = mainCam;
+        vp.targetCameraAlpha = 1f;
+        vp.aspectRatio = VideoAspectRatio.FitOutside;
+        vp.audioOutputMode = VideoAudioOutputMode.None;
+        vp.skipOnDrop = true;
+
+        bool terminado = false;
+        bool error = false;
+        vp.loopPointReached += _ => terminado = true;
+        vp.errorReceived += (_, msg) => { Debug.LogWarning($"[Tutorial] Video tigre: {msg}"); error = true; };
+
+        vp.Prepare();
+        float espera = 5f;
+        while (!vp.isPrepared && !error && espera > 0f)
+        {
+            espera -= Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        if (!vp.isPrepared || error)
+        {
+            Destroy(vpObj);
+            onDone(false);
+            yield break;
+        }
+
+        vp.Play();
+        ReproducirSfx(clipSfxAlertaFeral);
+
+        // Esperar al final natural del clip (con margen de seguridad por si no llega loopPointReached)
+        float limite = (float)videoCinematicaTigre.length + 1.5f;
+        float t = 0f;
+        while (!terminado && !error && t < limite)
+        {
+            if (FeralInput.Pressed(KeyCode.Escape) || FeralInput.Pressed(KeyCode.Return))
+                break;
+            t += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        vp.Stop();
+        vp.targetCamera = null;
+        Destroy(vpObj);
+        onDone(!error);
     }
 
     private void SpawnearEnemigosFase2()
@@ -1245,6 +1445,10 @@ public class TutorialPipelineManager : MonoBehaviour
         if (currentState == TutorialState.EscapeDash)
         {
             dashEjecutadoEnPersecucion = true;
+            if (barreraEsquinaSigilo != null)
+            {
+                barreraEsquinaSigilo.SetActive(false);
+            }
         }
     }
 
@@ -1402,6 +1606,7 @@ public class TutorialPipelineManager : MonoBehaviour
             "Has sobrevivido a la Noche 1. Al amanecer, tu salud y estamina se restauran en el refugio.",
             null
         );
+        EstablecerVisibilidadUIEnCinematica(true);
 
         float t = 0f;
         while (t < 2.2f)
@@ -1421,6 +1626,7 @@ public class TutorialPipelineManager : MonoBehaviour
 
         if (overlayPantalla != null) overlayPantalla.color = Color.clear;
         enCinematica = false;
+        EstablecerVisibilidadUIEnCinematica(false);
 
         IniciarFase3Crafting();
     }
@@ -1455,10 +1661,25 @@ public class TutorialPipelineManager : MonoBehaviour
 
     private void HandleCraftingMenuToggled(CraftingTable table, bool isOpen)
     {
+        if (isOpen && currentState != TutorialState.UsarMesaFabricacion && currentState != TutorialState.CrearPrimeraTrampa && currentState != TutorialState.FinTutorial)
+        {
+            table.CloseMenu();
+            return;
+        }
+
         menuCrafteoAbierto = isOpen;
         if (isOpen && table == mesaCrafteoRefugio && currentState == TutorialState.UsarMesaFabricacion)
         {
             IniciarPasoCrearPrimeraTrampa();
+        }
+        else if (!isOpen && currentState == TutorialState.CrearPrimeraTrampa)
+        {
+            bool yaCrafteoPuas = InventoryManager.Instance != null && InventoryManager.Instance.HasTrampa(TipoTrampa.Puas);
+            if (!yaCrafteoPuas && table != null && hamster != null && Vector3.Distance(hamster.transform.position, table.transform.position) < 4.0f)
+            {
+                // Mantener el flujo en la creación obligatoria de la primera trampa
+                textoSubtituloGuia.text = "Debes fabricar la 'Trampa 1 (Púas)' antes de continuar. Presiona [F] en la mesa y haz clic en el botón.";
+            }
         }
     }
 
@@ -1655,6 +1876,11 @@ public class TutorialPipelineManager : MonoBehaviour
         }
 
         GameObject inter = hamster.CurrentInteractable;
+        if (!inter.CompareTag("Interactable") && !inter.CompareTag("Door"))
+        {
+            if (panelPrompt.activeSelf) panelPrompt.SetActive(false);
+            return;
+        }
         string mensaje = "";
 
         if (inter.TryGetComponent<LootContainer>(out LootContainer lc))
@@ -1696,21 +1922,123 @@ public class TutorialPipelineManager : MonoBehaviour
     //  UTILIDADES DE ESTADO Y AUDIO PROCEDURAL
     // ===================================================================================
 
+    private void CachearBotonesSecundariosMesa()
+    {
+        botonesRecetasSecundarias.Clear();
+        if (mesaCrafteoRefugio == null || mesaCrafteoRefugio.craftingPanelUI == null) return;
+        Button[] btns = mesaCrafteoRefugio.craftingPanelUI.GetComponentsInChildren<Button>(true);
+        for (int i = 0; i < btns.Length; i++)
+        {
+            if (btns[i] != null && btns[i].name != "Button")
+            {
+                botonesRecetasSecundarias.Add(btns[i]);
+            }
+        }
+    }
+
+    private void SincronizarPermisosDeEstado(TutorialState estado)
+    {
+        // 1. Barreras físicas para evitar que el jugador avance a zonas antes de completar el requisito del paso actual
+        if (barreraSalidaMadriguera != null)
+            barreraSalidaMadriguera.SetActive(estado == TutorialState.AprenderControles);
+
+        if (barreraSprintCallejon != null)
+            barreraSprintCallejon.SetActive(estado == TutorialState.AprenderControles || estado == TutorialState.AprenderEstamina);
+
+        if (barreraEsquinaSigilo != null)
+            barreraEsquinaSigilo.SetActive(estado == TutorialState.CinematicaAparicionFeral || (estado == TutorialState.EscapeDash && !dashEjecutadoEnPersecucion));
+
+        if (barreraEntradaRefugio != null)
+            barreraEntradaRefugio.SetActive(estado == TutorialState.CinematicaAparicionFeral || estado == TutorialState.EscapeDash || estado == TutorialState.SigiloEsquina);
+
+        // 2. Permisos de interacción ("Interactable" / "Door") estrictos por paso
+        if (contenedorControlBrillante != null)
+        {
+            bool habilitarContControl = (estado == TutorialState.SaquearContenedorControl || estado == TutorialState.FinTutorial);
+            contenedorControlBrillante.gameObject.tag = habilitarContControl ? "Interactable" : "Untagged";
+        }
+
+        if (luluNPC != null)
+        {
+            bool habilitarLulu = (estado == TutorialState.BuscarLulu || estado == TutorialState.RegresarLulu);
+            luluNPC.gameObject.tag = habilitarLulu ? "Interactable" : "Untagged";
+        }
+
+        for (int i = 0; i < contenedoresCiudad.Count; i++)
+        {
+            if (contenedoresCiudad[i] != null)
+            {
+                bool habilitarContCiudad = (estado == TutorialState.RecolectarLoot || estado == TutorialState.FinTutorial);
+                contenedoresCiudad[i].gameObject.tag = habilitarContCiudad ? "Interactable" : "Untagged";
+            }
+        }
+
+        if (mesaCrafteoRefugio != null)
+        {
+            bool habilitarMesa = (estado == TutorialState.UsarMesaFabricacion || estado == TutorialState.CrearPrimeraTrampa || estado == TutorialState.FinTutorial);
+            mesaCrafteoRefugio.gameObject.tag = habilitarMesa ? "Interactable" : "Untagged";
+            if (!habilitarMesa && mesaCrafteoRefugio.IsMenuOpen)
+            {
+                mesaCrafteoRefugio.CloseMenu();
+            }
+        }
+
+        for (int i = 0; i < botonesRecetasSecundarias.Count; i++)
+        {
+            if (botonesRecetasSecundarias[i] != null)
+            {
+                botonesRecetasSecundarias[i].interactable = (estado == TutorialState.FinTutorial);
+            }
+        }
+
+        if (puertaTrampaRefugio != null)
+        {
+            bool habilitarPuertaTrampa = (estado == TutorialState.ColocacionTacticaTrampa || estado == TutorialState.FinTutorial);
+            puertaTrampaRefugio.gameObject.tag = habilitarPuertaTrampa ? "Door" : "Untagged";
+        }
+    }
+
+    private void AplicarRestriccionesSecuencialesEstrictas()
+    {
+        if (hamster == null) return;
+
+        // En ColocacionTacticaTrampa obligar a tener seleccionada la Trampa de Púas [1]
+        if (currentState == TutorialState.ColocacionTacticaTrampa)
+        {
+            hamster.trampaSeleccionada = TipoTrampa.Puas;
+        }
+
+        // Si el objeto en CurrentInteractable perdió su tag por no corresponder al paso actual, impedir que muestre prompt
+        if (hamster.CurrentInteractable != null)
+        {
+            GameObject cur = hamster.CurrentInteractable;
+            if (!cur.CompareTag("Interactable") && !cur.CompareTag("Door"))
+            {
+                // El jugador no puede activarlo fuera de orden
+                if (cur.TryGetComponent<CraftingTable>(out CraftingTable ct) && ct.IsMenuOpen)
+                {
+                    ct.CloseMenu();
+                }
+            }
+        }
+    }
+
     private void ConfigurarTextosEstado(TutorialState nuevoEstado, string tituloFase, string textoMision, string subtituloGuia, Transform nuevoObjetivo)
     {
         currentState = nuevoEstado;
+        SincronizarPermisosDeEstado(nuevoEstado);
 
         if (textoFaseBanner != null) textoFaseBanner.text = tituloFase;
         if (textoSubtituloGuia != null) textoSubtituloGuia.text = subtituloGuia;
         if (textoMisionUI != null)
         {
-            textoMisionUI.gameObject.SetActive(true);
+            textoMisionUI.gameObject.SetActive(!enCinematica);
             textoMisionUI.text = textoMision;
         }
 
         if (punteroFlecha != null)
         {
-            if (nuevoObjetivo != null)
+            if (nuevoObjetivo != null && !enCinematica)
             {
                 punteroFlecha.objetivo = nuevoObjetivo;
                 punteroFlecha.gameObject.SetActive(true);
@@ -1719,6 +2047,11 @@ public class TutorialPipelineManager : MonoBehaviour
             {
                 punteroFlecha.gameObject.SetActive(false);
             }
+        }
+
+        if (enCinematica)
+        {
+            EstablecerVisibilidadUIEnCinematica(true);
         }
     }
 
