@@ -5,37 +5,8 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine.SceneManagement;
 
-[InitializeOnLoad]
 public static class TutorialSceneSetupEditor
 {
-    private const string AUTO_SETUP_KEY = "Feral_TutorialScene_AutoArranged_v2";
-
-    static TutorialSceneSetupEditor()
-    {
-        EditorApplication.delayCall += TryAutoArrangeTutorialScene;
-    }
-
-    private static void TryAutoArrangeTutorialScene()
-    {
-        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
-
-        Scene activeScene = SceneManager.GetActiveScene();
-        if (!activeScene.IsValid() || activeScene.name != "Tutorial") return;
-
-        TutorialPipelineManager manager = Object.FindAnyObjectByType<TutorialPipelineManager>();
-        if (manager == null) return;
-
-        // Verificar si el hámster sigue en la coordenada vieja (-27.12, 0.96, -300.2) o si no se ha aplicado v2
-        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-        bool needsArrange = !SessionState.GetBool(AUTO_SETUP_KEY, false) ||
-                            (playerObj != null && playerObj.transform.position.z < -50f);
-
-        if (needsArrange)
-        {
-            SessionState.SetBool(AUTO_SETUP_KEY, true);
-            ApplyTutorialSceneArrangement(showDialog: false);
-        }
-    }
 
     [MenuItem("Feral/Tutorial/Configurar y Validar Escena Tutorial")]
     public static void SetupTutorialScene()
@@ -45,6 +16,7 @@ public static class TutorialSceneSetupEditor
 
     public static void ApplyTutorialSceneArrangement(bool showDialog)
     {
+        if (SceneManager.GetActiveScene().path != "Assets/Scenes/Tutorial.unity" || Application.isPlaying) return;
         TutorialPipelineManager manager = Object.FindAnyObjectByType<TutorialPipelineManager>();
         if (manager == null)
         {
@@ -59,6 +31,7 @@ public static class TutorialSceneSetupEditor
         }
 
         Undo.RecordObject(manager, "Acomodar y Configurar Escena Tutorial");
+        manager.cinematicaAnochecer = AssetDatabase.LoadAssetAtPath<VideoClip>("Assets/UI/Videos/NightfallFeral.mp4");
 
         // 1. Vincular Prefabs al TutorialPipelineManager
         if (manager.prefabEnemigoTigre == null)
@@ -106,6 +79,7 @@ public static class TutorialSceneSetupEditor
         {
             Undo.RecordObject(mainCam.transform, "Posicionar Main Camera");
             CameraFollow cf = mainCam.GetComponent<CameraFollow>();
+            if (cf != null && manager.hamster != null) cf.target = manager.hamster.transform;
             Vector3 offset = cf != null ? cf.offset : new Vector3(0f, 11f, -9f);
             mainCam.transform.position = TutorialPipelineManager.POS_MADRIGUERA_INICIO + offset;
             mainCam.transform.rotation = Quaternion.Euler(42.189f, 0f, 0f);
@@ -186,6 +160,13 @@ public static class TutorialSceneSetupEditor
             {
                 Undo.RecordObject(vp, "Configurar VideoPlayer Cinematica");
                 vp.isLooping = false;
+                vp.clip = AssetDatabase.LoadAssetAtPath<VideoClip>("Assets/UI/Videos/TestInitialVideo.mp4");
+                vp.targetCamera = mainCam;
+                vp.renderMode = VideoRenderMode.CameraNearPlane;
+                vp.targetCameraAlpha = 1f;
+                vp.playOnAwake = false;
+                cinematica.hamster = manager.hamster;
+                cinematica.objetoTutorialManager = manager.gameObject;
                 vp.audioOutputMode = VideoAudioOutputMode.Direct;
                 EditorUtility.SetDirty(vp);
             }

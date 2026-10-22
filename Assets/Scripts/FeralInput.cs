@@ -59,6 +59,11 @@ public static class FeralInput
             case KeyCode.Space: return keyboard.spaceKey;
             case KeyCode.F: return keyboard.fKey;
             case KeyCode.I: return keyboard.iKey;
+            case KeyCode.Escape: return keyboard.escapeKey;
+            case KeyCode.Return: return keyboard.enterKey;
+            case KeyCode.Alpha1: return keyboard.digit1Key;
+            case KeyCode.Alpha2: return keyboard.digit2Key;
+            case KeyCode.Alpha3: return keyboard.digit3Key;
             default: return null;
         }
     }

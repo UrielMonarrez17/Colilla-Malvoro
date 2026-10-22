@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.AI;
+using UnityEngine.Video;
 using TMPro;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -55,6 +56,7 @@ public class TutorialPipelineManager : MonoBehaviour
     public GameObject prefabCiudadanoCiervo;
     public GameObject prefabPuertaControl;
     public GameObject prefabContenedorLoot;
+    public VideoClip cinematicaAnochecer;
 
     [Header("Referencias de Gameplay (Auto-detectadas o Asignables)")]
     public HamsterController hamster;
@@ -347,10 +349,16 @@ public class TutorialPipelineManager : MonoBehaviour
         return null;
     }
 
-    private void ConstruirArquitecturaRefugioYCallejon()
+    public void ConstruirArquitecturaRefugioYCallejon()
     {
         GameObject existingEnv = GameObject.Find("Tutorial_EntornoGuiado");
-        if (existingEnv != null) Destroy(existingEnv);
+        if (existingEnv != null)
+        {
+            puntoRefugioSeguro = existingEnv.transform.Find("Waypoint_RefugioSeguro");
+            puntoSalidaCallejon = existingEnv.transform.Find("Waypoint_SalidaCallejon");
+            puntoEsquinaSigilo = existingEnv.transform.Find("Waypoint_EsquinaSigilo");
+            return;
+        }
 
         GameObject rootEnv = new GameObject("Tutorial_EntornoGuiado");
         Shader litShader = Shader.Find("Universal Render Pipeline/Lit");
@@ -419,7 +427,11 @@ public class TutorialPipelineManager : MonoBehaviour
         if (!conCollider)
         {
             Collider c = go.GetComponent<Collider>();
-            if (c != null) Destroy(c);
+            if (c != null)
+            {
+                if (Application.isPlaying) Destroy(c);
+                else DestroyImmediate(c);
+            }
         }
         return go;
     }
@@ -446,6 +458,9 @@ public class TutorialPipelineManager : MonoBehaviour
         if (litShader == null) litShader = Shader.Find("Standard");
 
         // 1. Puerta / Barrera de Control que bloquea temporalmente la salida hacia la ciudad
+        puertaControlCallejon = GameObject.Find("PuertaControl_Ciudad");
+        if (puertaControlCallejon == null)
+        {
         puertaControlCallejon = new GameObject("PuertaControl_Ciudad");
         puertaControlCallejon.transform.position = POS_PUERTA_CONTROL;
 
@@ -456,6 +471,7 @@ public class TutorialPipelineManager : MonoBehaviour
         barreraMesh.transform.localPosition = new Vector3(0f, 1.3f, 0f);
         barreraMesh.transform.localScale = new Vector3(0.45f, 2.6f, 4.2f);
         barreraMesh.GetComponent<Renderer>().material = matBarrera;
+        }
 
         // 2. Contenedor Resplandeciente al lado de la puerta de control (reutiliza "GarbageCollector" de la escena si existe)
         GameObject existingCont = GameObject.Find("GarbageCollector");
@@ -771,10 +787,10 @@ public class TutorialPipelineManager : MonoBehaviour
         if (FeralInput.Held(KeyCode.S) || FeralInput.Pressed(KeyCode.S)) pulsoS = true;
         if (FeralInput.Held(KeyCode.D) || FeralInput.Pressed(KeyCode.D)) pulsoD = true;
 
-        string checkW = pulsoW ? "<color=#55FF55>[W✓]</color>" : "[W]";
-        string checkA = pulsoA ? "<color=#55FF55>[A✓]</color>" : "[A]";
-        string checkS = pulsoS ? "<color=#55FF55>[S✓]</color>" : "[S]";
-        string checkD = pulsoD ? "<color=#55FF55>[D✓]</color>" : "[D]";
+        string checkW = pulsoW ? "<color=#55FF55>[W]</color>" : "[W]";
+        string checkA = pulsoA ? "<color=#55FF55>[A]</color>" : "[A]";
+        string checkS = pulsoS ? "<color=#55FF55>[S]</color>" : "[S]";
+        string checkD = pulsoD ? "<color=#55FF55>[D]</color>" : "[D]";
 
         if (textoMisionUI != null)
         {
@@ -1070,7 +1086,11 @@ public class TutorialPipelineManager : MonoBehaviour
         );
 
         // paneo cinemático de cámara hacia el enemigo feral que bloquea la vía principal
-        if (mainCam != null && enemigoFeralPrincipal != null)
+        if (cinematicaAnochecer != null)
+        {
+            yield return ReproducirVideoAnochecer();
+        }
+        else if (mainCam != null && enemigoFeralPrincipal != null)
         {
             if (cameraFollow != null) cameraFollow.enabled = false;
 
@@ -1111,6 +1131,43 @@ public class TutorialPipelineManager : MonoBehaviour
         enCinematica = false;
 
         IniciarPasoEscapeDash();
+    }
+
+    private IEnumerator ReproducirVideoAnochecer()
+    {
+        var host = new GameObject("Cinematica_Anochecer");
+        var video = host.AddComponent<VideoPlayer>();
+        video.playOnAwake = false;
+        video.clip = cinematicaAnochecer;
+        video.isLooping = false;
+        video.renderMode = VideoRenderMode.CameraNearPlane;
+        video.targetCamera = mainCam;
+        video.aspectRatio = VideoAspectRatio.FitInside;
+        video.audioOutputMode = VideoAudioOutputMode.Direct;
+        bool finished = false;
+        video.loopPointReached += _ => finished = true;
+        video.errorReceived += (_, message) => { Debug.LogWarning(message); finished = true; };
+        if (tutorialHudCanvas != null) tutorialHudCanvas.enabled = false;
+        if (enemigoFeralPrincipal != null) enemigoFeralPrincipal.gameObject.SetActive(false);
+        video.Prepare();
+        float deadline = Time.realtimeSinceStartup + 8f;
+        while (!video.isPrepared && !finished && Time.realtimeSinceStartup < deadline) yield return null;
+        if (video.isPrepared && !finished)
+        {
+            video.Play();
+            deadline = Time.realtimeSinceStartup + (float)video.length + 3f;
+            while (!finished && Time.realtimeSinceStartup < deadline)
+            {
+                if (FeralInput.Pressed(KeyCode.Escape) || FeralInput.Pressed(KeyCode.Return)) break;
+                yield return null;
+            }
+        }
+        video.Stop();
+        Destroy(host);
+        if (tutorialHudCanvas != null) tutorialHudCanvas.enabled = true;
+        if (enemigoFeralPrincipal != null) enemigoFeralPrincipal.gameObject.SetActive(true);
+        // Allow EnemyAI.Start to initialize before ForceChasePlayer.
+        yield return null;
     }
 
     private void SpawnearEnemigosFase2()
@@ -1201,7 +1258,7 @@ public class TutorialPipelineManager : MonoBehaviour
     {
         if (textoSubtituloGuia != null)
         {
-            textoSubtituloGuia.text = "⚡ ¡RESPUESTA DE ADRENALINA ACTIVADA! Estamina restaurada al 100% y +30% de velocidad temporal para escapar.";
+            textoSubtituloGuia.text = " ¡RESPUESTA DE ADRENALINA ACTIVADA! Estamina restaurada al 100% y +30% de velocidad temporal para escapar.";
         }
 
         if (overlayPantalla != null)
@@ -1228,11 +1285,11 @@ public class TutorialPipelineManager : MonoBehaviour
 
         if (textoMisionUI != null)
         {
-            string estadoDash = dashEjecutadoEnPersecucion ? "<color=#55FF55>[Dash ✓]</color>" : "Presiona [Espacio] (Dash)";
+            string estadoDash = dashEjecutadoEnPersecucion ? "<color=#55FF55>[Dash ]</color>" : "Presiona [Espacio] (Dash)";
             textoMisionUI.text = $"Misión: {estadoDash} y dobla la esquina sur ({distEsquina:0.0}m)";
         }
 
-        if (dashEjecutadoEnPersecucion && (distEsquina < 8.5f || hamster.transform.position.z < 133.5f))
+        if (dashEjecutadoEnPersecucion && distEsquina < 4f)
         {
             IniciarPasoSigiloEsquina();
         }
@@ -1275,7 +1332,8 @@ public class TutorialPipelineManager : MonoBehaviour
     {
         if (hamster == null) return;
 
-        if (hamster.isCrouching)
+        if (hamster.isCrouching && hamster.IsMoving && hamster.transform.position.z < 125f &&
+            (enemigoFeralPrincipal == null || enemigoFeralPrincipal.CurrentState == EnemyAI.EnemyState.Wander))
         {
             tiempoAgachadoEnSigilo += Time.deltaTime;
         }
@@ -1289,7 +1347,7 @@ public class TutorialPipelineManager : MonoBehaviour
         }
 
         bool cercaDeEntradaRefugio = hamster.transform.position.x <= 26.0f;
-        if (tiempoAgachadoEnSigilo >= 2.0f || (tiempoAgachadoEnSigilo >= 0.8f && cercaDeEntradaRefugio))
+        if (tiempoAgachadoEnSigilo >= 2.0f && cercaDeEntradaRefugio)
         {
             IniciarPasoLlegadaRefugio();
         }
@@ -1398,7 +1456,7 @@ public class TutorialPipelineManager : MonoBehaviour
     private void HandleCraftingMenuToggled(CraftingTable table, bool isOpen)
     {
         menuCrafteoAbierto = isOpen;
-        if (isOpen && currentState == TutorialState.UsarMesaFabricacion)
+        if (isOpen && table == mesaCrafteoRefugio && currentState == TutorialState.UsarMesaFabricacion)
         {
             IniciarPasoCrearPrimeraTrampa();
         }
@@ -1417,6 +1475,7 @@ public class TutorialPipelineManager : MonoBehaviour
 
     private void HandleTrapCrafted(TipoTrampa tipo)
     {
+        if (tipo != TipoTrampa.Puas) return;
         ReproducirSfx(clipSfxCrafteo);
 
         if (mesaCrafteoRefugio != null)
@@ -1458,6 +1517,8 @@ public class TutorialPipelineManager : MonoBehaviour
 
     private void HandleTrapInstalledOnDoor(PuertaTrampa puerta, TipoTrampa tipo)
     {
+        if (currentState != TutorialState.ColocacionTacticaTrampa ||
+            puerta != puertaTrampaRefugio || tipo != TipoTrampa.Puas) return;
         if (trampaInstaladaEnRefugio) return;
         trampaInstaladaEnRefugio = true;
         ReproducirSfx(clipSfxCrafteo);
@@ -1470,31 +1531,17 @@ public class TutorialPipelineManager : MonoBehaviour
         ConfigurarTextosEstado(
             TutorialState.DemostracionTrampaActiva,
             "FASE 3: ¡TRAMPA INSTALADA EN LA ENTRADA!",
-            $"¡Excelente! Has colocado la trampa de {tipo} en el pasillo del refugio. Observa cómo protege la entrada...",
-            "Un intruso de prueba intentará cruzar el pasillo estrecho hacia tu refugio y activará tu trampa.",
+            $"¡Excelente! Has colocado la trampa de {tipo} en el pasillo del refugio. La entrada está preparada para la siguiente noche.",
+            "La trampa se activará cuando un enemigo cruce el pasillo.",
             puerta != null ? puerta.transform : null
         );
-
-        // Hacer que un enemigo de prueba camine por el pasillo hacia la trampa recién colocada para dar feedback inmediato
-        if (enemigoFeralPrincipal != null && puerta != null)
-        {
-            NavMeshAgent ag = enemigoFeralPrincipal.GetComponent<NavMeshAgent>();
-            Vector3 testStart = AjustarANavMesh(new Vector3(5.0f, 0.15f, 128.0f));
-            if (ag != null && ag.enabled)
-            {
-                ag.Warp(testStart);
-                ag.speed = 5.5f;
-                ag.isStopped = false;
-                ag.SetDestination(puerta.transform.position + new Vector3(0f, 0f, 3.0f));
-            }
-        }
 
         yield return new WaitForSeconds(3.5f);
 
         ReproducirSfx(clipSfxAmanecer);
         ConfigurarTextosEstado(
             TutorialState.FinTutorial,
-            "🎉 ¡TUTORIAL COMPLETADO CON ÉXITO!",
+            " ¡TUTORIAL COMPLETADO CON ÉXITO!",
             "Misión: ¡Estás listo para sobrevivir en FERAL! Explora, recolecta de día y defiende tu refugio de noche.",
             "Has dominado Movimiento (WASD), Carrera y Estamina (Shift), Looting (F), Ciclo Día/Noche, Dash (Espacio), Adrenalina, Sigilo (C) y Crafteo/Trampas (1-3 + F).",
             null
@@ -1520,7 +1567,7 @@ public class TutorialPipelineManager : MonoBehaviour
     {
         if (textoSubtituloGuia != null)
         {
-            textoSubtituloGuia.text = "⚠️ Has recibido demasiados golpes. Reapareciendo en el punto de control seguro...";
+            textoSubtituloGuia.text = " Has recibido demasiados golpes. Reapareciendo en el punto de control seguro...";
         }
 
         if (overlayPantalla != null)
@@ -1560,8 +1607,8 @@ public class TutorialPipelineManager : MonoBehaviour
             int h = TimeManager.Instance.CurrentHour;
             int m = TimeManager.Instance.CurrentMinute;
             bool esDia = TimeManager.Instance.CurrentCycleState == TimeManager.CycleState.Day;
-            string icono = esDia ? "☀️ DÍA" : "🌙 NOCHE FERAL";
-            if (esDia && h >= 16) icono = "🌇 ATARDECER";
+            string icono = esDia ? " DÍA" : " NOCHE FERAL";
+            if (esDia && h >= 16) icono = " ATARDECER";
             textoRelojCiclo.text = $"{icono} — {h:D2}:{m:D2}";
             textoRelojCiclo.color = esDia ? new Color(1f, 0.88f, 0.35f) : new Color(1f, 0.38f, 0.38f);
         }
@@ -1572,7 +1619,7 @@ public class TutorialPipelineManager : MonoBehaviour
             int met = InventoryManager.Instance.GetItemCount(ItemType.Metal);
             int desp = InventoryManager.Instance.GetItemCount(ItemType.Desperdicios);
             int trPuas = InventoryManager.Instance.trampasInventory.ContainsKey(TipoTrampa.Puas) ? InventoryManager.Instance.trampasInventory[TipoTrampa.Puas] : 0;
-            textoInventarioRapido.text = $"🪵 Madera: {mad} | ⚙️ Metal: {met} | 🗑️ Desp: {desp}\n🪤 Trampa Púas [1]: {trPuas}";
+            textoInventarioRapido.text = $" Madera: {mad} |  Metal: {met} |  Desp: {desp}\n Trampa Púas [1]: {trPuas}";
         }
 
         if (hamster != null && textoEstadoSaludAdrenalina != null)
@@ -1580,17 +1627,17 @@ public class TutorialPipelineManager : MonoBehaviour
             int vidasRestantes = Mathf.Max(0, hamster.maxHitsAllowed - hamster.HitsReceived);
             if (hamster.IsAdrenalineActive)
             {
-                textoEstadoSaludAdrenalina.text = "⚡ ¡ADRENALINA ACTIVA! (+30% Vel)";
+                textoEstadoSaludAdrenalina.text = " ¡ADRENALINA ACTIVA! (+30% Vel)";
                 textoEstadoSaludAdrenalina.color = new Color(1f, 0.65f, 0.15f);
             }
             else if (hamster.isCrouching)
             {
-                textoEstadoSaludAdrenalina.text = $"🕵️ MODO SIGILO (C) | ❤️ Salud: {vidasRestantes}/{hamster.maxHitsAllowed}";
+                textoEstadoSaludAdrenalina.text = $" MODO SIGILO (C) |  Salud: {vidasRestantes}/{hamster.maxHitsAllowed}";
                 textoEstadoSaludAdrenalina.color = new Color(0.35f, 0.95f, 0.7f);
             }
             else
             {
-                textoEstadoSaludAdrenalina.text = $"❤️ Salud: {vidasRestantes}/{hamster.maxHitsAllowed} | Vel: {(hamster.CurrentSpeedModifier * 100f):0}%";
+                textoEstadoSaludAdrenalina.text = $" Salud: {vidasRestantes}/{hamster.maxHitsAllowed} | Vel: {(hamster.CurrentSpeedModifier * 100f):0}%";
                 textoEstadoSaludAdrenalina.color = vidasRestantes >= 2 ? new Color(0.5f, 0.95f, 0.55f) : new Color(1f, 0.4f, 0.4f);
             }
         }

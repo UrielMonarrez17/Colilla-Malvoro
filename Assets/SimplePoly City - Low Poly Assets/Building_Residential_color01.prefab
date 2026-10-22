@@ -157,6 +157,7 @@ GameObject:
   - component: {fileID: 5924482052067845911}
   - component: {fileID: -4150151949673652436}
   - component: {fileID: 7281154565070479665}
+  - component: {fileID: 7932161145873542731}
   m_Layer: 0
   m_Name: Building_Residential_color01
   m_TagString: Untagged
@@ -266,3 +267,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CitySocket
   frontSocket: {fileID: 1286280344767268555}
+--- !u!65 &7932161145873542731
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3149756338935192460}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 16.229427, y: 19.239716, z: 12.664907}
+  m_Center: {x: -0.00013637543, y: 9.619858, z: 0.057648655}

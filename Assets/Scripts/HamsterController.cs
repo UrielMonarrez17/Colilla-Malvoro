@@ -299,6 +299,8 @@ public class HamsterController : MonoBehaviour
     public void ReceiveDamage()
     {
         if (isDead) return;
+        // The first hit teaches adrenaline; give the player its full escape window.
+        if (TutorialPipelineManager.Instance != null && isAdrenalineActive) return;
 
         hitsReceived++;
         Debug.Log("¡Un enemigo feral te ha tocado! Golpes: " + hitsReceived + "/" + maxHitsAllowed);
