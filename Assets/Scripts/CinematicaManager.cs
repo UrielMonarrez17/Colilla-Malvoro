@@ -10,8 +10,10 @@ public class CinematicaManager : MonoBehaviour
     public VideoPlayer reproductorVideo;
     public GameObject objetoTutorialManager; // Arrastra tu TutorialManager aquí
     public HamsterController hamster; // Arrastra a tu jugador aquí
+    public GameObject canvasUIRoot;
 
     private bool cinematicaFinalizada = false;
+    public bool CinematicaTerminada => cinematicaFinalizada;
     private bool videoIniciado = false;
     private float tiempoEnCinematica = 0f;
     private double ultimoTiempoVideo = -1.0;
@@ -46,9 +48,16 @@ public class CinematicaManager : MonoBehaviour
             return;
         }
 
-        // 1. Congelamos al hámster y ocultamos el tutorial mientras corre el video inicial
+        if (canvasUIRoot == null)
+        {
+            Canvas mainCanvas = FindAnyObjectByType<Canvas>();
+            if (mainCanvas != null) canvasUIRoot = mainCanvas.gameObject;
+        }
+
+        // 1. Congelamos al hámster y ocultamos el tutorial y toda la UI mientras corre el video inicial
         if (hamster != null) hamster.enabled = false;
         if (objetoTutorialManager != null) objetoTutorialManager.SetActive(false);
+        if (canvasUIRoot != null) canvasUIRoot.SetActive(false);
 
         // 2. Suscribir eventos de finalización, inicio y error del reproductor
         reproductorVideo.started += OnVideoStarted;
@@ -72,15 +81,13 @@ public class CinematicaManager : MonoBehaviour
 
         tiempoEnCinematica += Time.unscaledDeltaTime;
 
-        // Permitir saltar la cinemática inicial con Espacio, Escape o Enter
-        bool skipPressed = FeralInput.Pressed(KeyCode.Space) ||
-                           Input.GetKeyDown(KeyCode.Escape) ||
+        // Permitir saltar la cinemática inicial únicamente con Escape o Enter si el usuario lo decide conscientemente
+        bool skipPressed = Input.GetKeyDown(KeyCode.Escape) ||
                            Input.GetKeyDown(KeyCode.Return);
 #if ENABLE_INPUT_SYSTEM
         if (Keyboard.current != null)
         {
-            skipPressed |= Keyboard.current.spaceKey.wasPressedThisFrame ||
-                           Keyboard.current.escapeKey.wasPressedThisFrame ||
+            skipPressed |= Keyboard.current.escapeKey.wasPressedThisFrame ||
                            Keyboard.current.enterKey.wasPressedThisFrame;
         }
 #endif
@@ -101,49 +108,21 @@ public class CinematicaManager : MonoBehaviour
             videoIniciado = true;
         }
 
+        // Si el reproductor terminó naturalmente de reproducir el video
         if (videoIniciado)
         {
-            // 1. Detección por duración del clip (corrige videos H.264 con timestamps sesgados donde loopPointReached no se dispara)
-            if (reproductorVideo.length > 0.5 && reproductorVideo.time >= reproductorVideo.length - 0.12)
+            // Si el video llegó al final por conteo de frames o dejó de reproducir habiendo avanzado
+            if (reproductorVideo.frameCount > 10 && reproductorVideo.frame >= (long)reproductorVideo.frameCount - 1)
             {
                 IniciarGameplay(reproductorVideo);
                 return;
             }
 
-            // 2. Detección por conteo de frames
-            if (reproductorVideo.frameCount > 5 && reproductorVideo.frame >= (long)reproductorVideo.frameCount - 2)
+            if (!reproductorVideo.isPlaying && tiempoEnCinematica > 2.0f && reproductorVideo.time > 1.0)
             {
                 IniciarGameplay(reproductorVideo);
                 return;
             }
-
-            // 3. Detección si el reproductor dejó de reproducir o se congeló en el último frame
-            if (!reproductorVideo.isPlaying && tiempoEnCinematica > 1.0f)
-            {
-                IniciarGameplay(reproductorVideo);
-                return;
-            }
-
-            double tActual = reproductorVideo.time;
-            if (tiempoEnCinematica > 1.2f && Mathf.Abs((float)(tActual - ultimoTiempoVideo)) < 0.0005f)
-            {
-                tiempoSinAvanzar += Time.unscaledDeltaTime;
-                if (tiempoSinAvanzar >= 0.55f)
-                {
-                    IniciarGameplay(reproductorVideo);
-                    return;
-                }
-            }
-            else
-            {
-                tiempoSinAvanzar = 0f;
-            }
-            ultimoTiempoVideo = tActual;
-        }
-        else if (tiempoEnCinematica > 4.0f)
-        {
-            // Si el video no pudo iniciar tras 4 segundos, iniciar gameplay para no bloquear al jugador
-            IniciarGameplay(reproductorVideo);
         }
     }
 
@@ -180,8 +159,13 @@ public class CinematicaManager : MonoBehaviour
             reproductorVideo.gameObject.SetActive(false);
         }
 
-        // 4. Encendemos el tutorial y los controles del hámster
+        // 4. Encendemos la UI, el tutorial y los controles del hámster
+        if (canvasUIRoot != null) canvasUIRoot.SetActive(true);
         if (objetoTutorialManager != null) objetoTutorialManager.SetActive(true);
+        if (TutorialPipelineManager.Instance != null)
+        {
+            TutorialPipelineManager.Instance.NotificarFinCinematicaInicial();
+        }
         if (hamster != null) hamster.enabled = true;
 
         Debug.Log("🎬 Cinemática terminada y ocultada correctamente. ¡A jugar!");
