@@ -7,7 +7,6 @@ public class CitySocket : MonoBehaviour
 
     void OnDrawGizmosSelected()
     {
-        // Esto dibujará una línea roja en el editor para que veas fácilmente hacia dónde mira el edificio
         if (frontSocket != null)
         {
             Gizmos.color = Color.red;
