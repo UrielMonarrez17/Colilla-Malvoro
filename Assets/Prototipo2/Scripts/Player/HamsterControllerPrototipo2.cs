@@ -19,8 +19,8 @@ namespace Prototipo2
         [Tooltip("Costo de estamina por salto.")]
         public float jumpStaminaCost = 10f;
 
-        [Tooltip("Distancia de detección del suelo.")]
-        public float groundCheckDistance = 0.35f;
+        [Tooltip("Distancia de detección del suelo desde las patas.")]
+        public float groundCheckDistance = 0.14f;
 
         [Tooltip("Capas consideradas suelo.")]
         public LayerMask groundLayers = ~0;
@@ -30,15 +30,13 @@ namespace Prototipo2
         public float groundSnapForce = 12f;
 
         [Header("Controles de Dash")]
-        [Tooltip("Permite realizar Dash en el aire con la tecla de Dash o con doble Espacio.")]
-        public bool airDashAllowed = true;
         public KeyCode dashKeyPrimary = KeyCode.Q;
         public KeyCode dashKeySecondary = KeyCode.LeftControl;
         public bool rightClickDash = true;
 
         // Estado interno de físicas
         private bool isGrounded = true;
-        private bool hasAirDashed = false;
+        private bool isJumping = false;
         private Vector3 groundNormal = Vector3.up;
         private Rigidbody protoRb;
         private Vector3 protoMoveInput;
@@ -55,6 +53,7 @@ namespace Prototipo2
         private GameObject protoCurrentInteractable;
 
         public bool IsGrounded => isGrounded;
+        public bool IsJumping => isJumping;
 
         private void Awake()
         {
@@ -123,34 +122,54 @@ namespace Prototipo2
 
         private void UpdateGroundStatus()
         {
-            // SphereCast hacia abajo desde el centro del hámster
-            Vector3 origin = transform.position + Vector3.up * 0.20f;
-            float radius = 0.12f;
+            // Origen ubicado justo en la base inferior del cuerpo (nivel de las patas)
+            // En escala 0.0042, el centro de la cápsula está en Y=0.0075m y las patas en Y=-0.076m
+            Vector3 origin = transform.position + Vector3.up * 0.02f;
+            float radius = 0.06f;
 
-            if (Physics.SphereCast(origin, radius, Vector3.down, out RaycastHit hit, groundCheckDistance, groundLayers, QueryTriggerInteraction.Ignore))
+            RaycastHit[] hits = Physics.SphereCastAll(origin, radius, Vector3.down, groundCheckDistance, groundLayers, QueryTriggerInteraction.Ignore);
+            bool foundGround = false;
+
+            foreach (var hit in hits)
             {
-                isGrounded = true;
+                if (hit.collider == null) continue;
+                // Excluir colisionadores del propio hámster o sus hijos
+                if (hit.collider.transform == transform || hit.collider.transform.IsChildOf(transform)) continue;
+                // Excluir triggers (zonas de interacción, etc.)
+                if (hit.collider.isTrigger) continue;
+
+                foundGround = true;
                 groundNormal = hit.normal;
-                hasAirDashed = false;
+                break;
+            }
+
+            // Si está subiendo por impulso de salto, no considerarlo en el suelo hasta que comience a descender
+            if (isJumping && protoRb.linearVelocity.y > 0.1f)
+            {
+                isGrounded = false;
             }
             else
             {
-                isGrounded = false;
-                groundNormal = Vector3.up;
+                isGrounded = foundGround;
+                // Solo restablecer isJumping a false cuando realmente haya tocado el suelo en caída
+                if (isGrounded && protoRb.linearVelocity.y <= 0.15f)
+                {
+                    isJumping = false;
+                }
             }
         }
 
         private void ApplyCustomGravity()
         {
-            // Si está en el aire, aplicar aceleración gravitatoria extra para que caiga con peso contundente
+            // Gravedad extra si está en el aire (para peso y caída contundente a escala miniatura)
             if (!isGrounded)
             {
                 float extraG = Mathf.Abs(Physics.gravity.y) * (customGravityMultiplier - 1f);
                 protoRb.AddForce(Vector3.down * extraG, ForceMode.Acceleration);
             }
-            else if (enableGroundSnapping && !protoIsDashing && protoRb.linearVelocity.y <= 0.1f)
+            else if (enableGroundSnapping && !protoIsDashing && !isJumping && protoRb.linearVelocity.y <= 0.1f)
             {
-                // Ground Snapping: mantiene al personaje adherido a rampas y aceras sin salir despegado
+                // Ground Snapping: mantiene al personaje adherido a rampas y aceras al correr sin salir despegado
                 if (protoMoveInput != Vector3.zero)
                 {
                     protoRb.AddForce(Vector3.down * groundSnapForce, ForceMode.Acceleration);
@@ -201,27 +220,16 @@ namespace Prototipo2
             bool spacePressed = FeralInput.Pressed(KeyCode.Space) || Input.GetKeyDown(KeyCode.Space);
             bool dashTriggered = IsDashInputTriggered();
 
-            // CASO A: Salto en el suelo con [ESPACIO]
-            if (spacePressed && isGrounded && Time.time >= nextJumpTime && !FeralInput.Held(KeyCode.C))
+            // SALTO: Únicamente 1 salto permitido. Solo si está en el suelo (isGrounded) y NO está ya saltando (isJumping == false)
+            if (spacePressed && isGrounded && !isJumping && Time.time >= nextJumpTime && !FeralInput.Held(KeyCode.C))
             {
                 PerformJump();
                 return;
             }
 
-            // CASO B: Air Dash en el aire con [ESPACIO] si ya está en salto
-            if (spacePressed && !isGrounded && airDashAllowed && !hasAirDashed && Time.time >= protoNextDashTime && protoMoveInput != Vector3.zero)
-            {
-                hasAirDashed = true;
-                StartCoroutine(DashRoutineProto());
-                return;
-            }
-
-            // CASO C: Dash dedicado con [Q], [Click Derecho] o [LeftControl]
+            // DASH: Exclusivo con [Q], [Click Derecho] o [LeftControl] (nunca con Espacio)
             if (dashTriggered && Time.time >= protoNextDashTime && protoMoveInput != Vector3.zero && !FeralInput.Held(KeyCode.C))
             {
-                if (!isGrounded && !airDashAllowed) return;
-                if (!isGrounded) hasAirDashed = true;
-
                 StartCoroutine(DashRoutineProto());
             }
         }
@@ -244,9 +252,10 @@ namespace Prototipo2
         private void PerformJump()
         {
             isGrounded = false;
-            nextJumpTime = Time.time + 0.2f;
+            isJumping = true; // Bloquea saltos subsiguientes hasta aterrizar en el suelo
+            nextJumpTime = Time.time + 0.25f;
 
-            // Impulso vertical limpio preservando el avance horizontal
+            // Impulso vertical limpio hacia arriba
             protoRb.linearVelocity = new Vector3(protoRb.linearVelocity.x, jumpForce, protoRb.linearVelocity.z);
 
             currentStamina = Mathf.Max(0, currentStamina - jumpStaminaCost);
@@ -258,7 +267,7 @@ namespace Prototipo2
             protoIsDashing = true;
             protoNextDashTime = Time.time + dashCooldown;
 
-            // Mantener componente vertical para no congelar gravedad en seco
+            // Mantener componente vertical sin congelar gravedad en seco
             float preservedY = Mathf.Max(protoRb.linearVelocity.y * 0.35f, 0.5f);
             protoRb.linearVelocity = new Vector3(0, preservedY, 0);
             protoRb.AddForce(protoMoveInput * dashForce, ForceMode.Impulse);
