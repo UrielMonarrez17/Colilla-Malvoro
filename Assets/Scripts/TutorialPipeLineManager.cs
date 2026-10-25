@@ -1517,19 +1517,18 @@ public class TutorialPipelineManager : MonoBehaviour
     {
         if (hamster == null) return;
 
-        if (hamster.isCrouching && hamster.IsMoving && hamster.transform.position.z < 125f &&
-            (enemigoFeralPrincipal == null || enemigoFeralPrincipal.CurrentState == EnemyAI.EnemyState.Wander))
+        bool estaAgachado = hamster.isCrouching || FeralInput.Held(KeyCode.C);
+        if (estaAgachado && hamster.IsMoving)
         {
             tiempoAgachadoEnSigilo += Time.deltaTime;
         }
 
         float progresoSigilo = Mathf.Clamp01(tiempoAgachadoEnSigilo / 2.0f) * 100f;
-        float radioActual = enemigoFeralPrincipal != null ? enemigoFeralPrincipal.GetCurrentEffectiveVisionRadius() : (hamster.isCrouching ? 4.5f : 15f);
+        float radioActual = enemigoFeralPrincipal != null ? enemigoFeralPrincipal.GetCurrentEffectiveVisionRadius() : (estaAgachado ? 4.5f : 15f);
 
         ActualizarTextoMision($"Misión: Avanza manteniendo [C] (Agachado: {progresoSigilo:0}% | Radio detección enemigo: {radioActual:0.0}m)");
 
-        bool cercaDeEntradaRefugio = hamster.transform.position.x <= 26.0f;
-        if (tiempoAgachadoEnSigilo >= 2.0f && cercaDeEntradaRefugio)
+        if (tiempoAgachadoEnSigilo >= 2.0f)
         {
             IniciarPasoLlegadaRefugio();
         }
@@ -1554,7 +1553,7 @@ public class TutorialPipelineManager : MonoBehaviour
             ? Vector3.Distance(hamster.transform.position, puntoRefugioSeguro.position)
             : 99f;
 
-        if ((hamster.transform.position.x <= 9.5f && hamster.transform.position.z >= 137.5f) || distRefugio <= 5.5f)
+        if (distRefugio <= 6.0f || (hamster.transform.position.x <= 228.0f && hamster.transform.position.z >= 242.0f))
         {
             StartCoroutine(SecuenciaAmanecerDia2());
         }
