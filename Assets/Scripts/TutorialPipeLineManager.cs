@@ -131,9 +131,9 @@ public class TutorialPipelineManager : MonoBehaviour
     public static readonly Vector3 POS_MADRIGUERA_INICIO = new Vector3(225.0f, 0.85f, 246.0f);
     public static readonly Vector3 POS_MESA_REFUGIO      = new Vector3(222.3f, 0.55f, 244.5f);
     public static readonly Vector3 POS_PUERTA_TRAMPA_REF = new Vector3(225.0f, 0.10f, 237.5f);
-    public static readonly Vector3 POS_SALIDA_CALLEJON   = new Vector3(242.5f, 0.45f, 225.0f);
-    public static readonly Vector3 POS_PUERTA_CONTROL    = new Vector3(248.8f, 0.10f, 225.0f);
-    public static readonly Vector3 POS_CONTENEDOR_BRILLO = new Vector3(245.8f, 0.35f, 227.6f);
+    public static readonly Vector3 POS_SALIDA_CALLEJON   = new Vector3(225.0f, 0.45f, 235.0f);
+    public static readonly Vector3 POS_PUERTA_CONTROL    = new Vector3(225.0f, 0.10f, 230.0f);
+    public static readonly Vector3 POS_CONTENEDOR_BRILLO = new Vector3(227.5f, 0.35f, 232.0f);
     public static readonly Vector3 POS_LULU_CIUDAD       = new Vector3(265.0f, 0.15f, 248.0f);
     public static readonly Vector3 POS_VIA_FERAL_SPAWN   = new Vector3(255.0f, 0.15f, 242.0f);
     public static readonly Vector3 POS_ESQUINA_SIGILO    = new Vector3(275.0f, 0.35f, 226.0f);
@@ -447,13 +447,13 @@ public class TutorialPipelineManager : MonoBehaviour
         barreraSalidaMadriguera = CrearBloque3D("BarreraSecuencia_SalidaMadriguera", rootEnv.transform, new Vector3(225.0f, 1.8f, 238.2f), new Vector3(4.5f, 3.6f, 0.5f), matBarreraInvisible, true);
         barreraSalidaMadriguera.GetComponent<Renderer>().enabled = false;
 
-        barreraSprintCallejon = CrearBloque3D("BarreraSecuencia_SprintCallejon", rootEnv.transform, new Vector3(243.5f, 1.8f, 225.0f), new Vector3(0.6f, 3.6f, 10.0f), matBarreraInvisible, true);
+        barreraSprintCallejon = CrearBloque3D("BarreraSecuencia_SprintCallejon", rootEnv.transform, new Vector3(225.0f, 1.8f, 233.0f), new Vector3(6.0f, 3.6f, 0.6f), matBarreraInvisible, true);
         barreraSprintCallejon.GetComponent<Renderer>().enabled = false;
 
         barreraEsquinaSigilo = CrearBloque3D("BarreraSecuencia_EsquinaSigilo", rootEnv.transform, new Vector3(275.0f, 1.8f, 232.5f), new Vector3(12.0f, 3.6f, 0.6f), matBarreraInvisible, true);
         barreraEsquinaSigilo.GetComponent<Renderer>().enabled = false;
 
-        barreraEntradaRefugio = CrearBloque3D("BarreraSecuencia_EntradaRefugio", rootEnv.transform, new Vector3(244.5f, 1.8f, 225.0f), new Vector3(0.6f, 3.6f, 10.0f), matBarreraInvisible, true);
+        barreraEntradaRefugio = CrearBloque3D("BarreraSecuencia_EntradaRefugio", rootEnv.transform, new Vector3(244.5f, 1.8f, 225.0f), new Vector3(6.0f, 3.6f, 0.6f), matBarreraInvisible, true);
         barreraEntradaRefugio.GetComponent<Renderer>().enabled = false;
 
         // Waypoints de referencia
@@ -550,16 +550,24 @@ public class TutorialPipelineManager : MonoBehaviour
         puertaControlCallejon = GameObject.Find("PuertaControl_Ciudad");
         if (puertaControlCallejon == null)
         {
-        puertaControlCallejon = new GameObject("PuertaControl_Ciudad");
+            puertaControlCallejon = new GameObject("PuertaControl_Ciudad");
+        }
         puertaControlCallejon.transform.position = POS_PUERTA_CONTROL;
-
-        Material matBarrera = new Material(litShader) { color = new Color(0.85f, 0.25f, 0.15f) };
-        GameObject barreraMesh = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        barreraMesh.name = "RejaControl";
-        barreraMesh.transform.SetParent(puertaControlCallejon.transform, false);
-        barreraMesh.transform.localPosition = new Vector3(0f, 1.3f, 0f);
-        barreraMesh.transform.localScale = new Vector3(0.45f, 2.6f, 4.2f);
-        barreraMesh.GetComponent<Renderer>().material = matBarrera;
+        Transform existingReja = puertaControlCallejon.transform.Find("RejaControl");
+        if (existingReja != null)
+        {
+            existingReja.localPosition = new Vector3(0f, 1.3f, 0f);
+            existingReja.localScale = new Vector3(5.5f, 2.6f, 0.45f);
+        }
+        else
+        {
+            Material matBarrera = new Material(litShader) { color = new Color(0.85f, 0.25f, 0.15f) };
+            GameObject barreraMesh = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            barreraMesh.name = "RejaControl";
+            barreraMesh.transform.SetParent(puertaControlCallejon.transform, false);
+            barreraMesh.transform.localPosition = new Vector3(0f, 1.3f, 0f);
+            barreraMesh.transform.localScale = new Vector3(5.5f, 2.6f, 0.45f);
+            barreraMesh.GetComponent<Renderer>().material = matBarrera;
         }
 
         // 2. Contenedor Resplandeciente al lado de la puerta de control (reutiliza "GarbageCollector" de la escena si existe)
@@ -1954,7 +1962,7 @@ public class TutorialPipelineManager : MonoBehaviour
         // 2. Permisos de interacción ("Interactable" / "Door") estrictos por paso
         if (contenedorControlBrillante != null)
         {
-            bool habilitarContControl = (estado == TutorialState.SaquearContenedorControl || estado == TutorialState.FinTutorial);
+            bool habilitarContControl = (estado == TutorialState.SaquearContenedorControl || estado == TutorialState.AprenderEstamina || estado == TutorialState.FinTutorial);
             contenedorControlBrillante.gameObject.tag = habilitarContControl ? "Interactable" : "Untagged";
         }
 
@@ -2064,7 +2072,7 @@ public class TutorialPipelineManager : MonoBehaviour
     {
         audioAmbienteSource = gameObject.AddComponent<AudioSource>();
         audioAmbienteSource.loop = true;
-        audioAmbienteSource.volume = 0.22f;
+        audioAmbienteSource.volume = 0.18f;
         audioAmbienteSource.spatialBlend = 0f;
 
         audioSfxSource = gameObject.AddComponent<AudioSource>();
@@ -2072,11 +2080,22 @@ public class TutorialPipelineManager : MonoBehaviour
         audioSfxSource.volume = 0.45f;
         audioSfxSource.spatialBlend = 0f;
 
-        clipAmbienteDia = GenerarClipProcedural("Amb_Dia", 2.0f, (t) =>
-            Mathf.Sin(t * 2f * Mathf.PI * 220f) * 0.15f + Mathf.Sin(t * 2f * Mathf.PI * 330f) * 0.12f);
+#if UNITY_EDITOR
+        clipAmbienteDia = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Musica_Tutorial_Dia.mp3");
+        clipAmbienteNoche = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Musica_Tutorial_Noche.mp3");
+#endif
+        if (clipAmbienteDia == null)
+            clipAmbienteDia = Resources.Load<AudioClip>("Audio/Musica_Tutorial_Dia");
+        if (clipAmbienteNoche == null)
+            clipAmbienteNoche = Resources.Load<AudioClip>("Audio/Musica_Tutorial_Noche");
 
-        clipAmbienteNoche = GenerarClipProcedural("Amb_NocheAmenazante", 2.5f, (t) =>
-            Mathf.Sin(t * 2f * Mathf.PI * 65f) * 0.35f + Mathf.Sin(t * 2f * Mathf.PI * 98f + Mathf.Sin(t * 4f)) * 0.25f);
+        if (clipAmbienteDia == null)
+            clipAmbienteDia = GenerarClipProcedural("Amb_Dia", 4.0f, (t) =>
+                Mathf.Sin(t * 2f * Mathf.PI * 130f) * 0.04f + Mathf.Sin(t * 2f * Mathf.PI * 196f) * 0.03f);
+
+        if (clipAmbienteNoche == null)
+            clipAmbienteNoche = GenerarClipProcedural("Amb_NocheAmenazante", 4.0f, (t) =>
+                Mathf.Sin(t * 2f * Mathf.PI * 55f) * 0.06f + Mathf.Sin(t * 2f * Mathf.PI * 82f) * 0.04f);
 
         clipSfxLoot = GenerarClipProcedural("Sfx_Loot", 0.35f, (t) =>
             Mathf.Sin(t * 2f * Mathf.PI * (520f + t * 600f)) * (1f - t / 0.35f) * 0.5f);
