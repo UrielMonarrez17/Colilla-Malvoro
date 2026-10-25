@@ -107,6 +107,7 @@ public class TutorialPipelineManager : MonoBehaviour
     // --- UI Dinámica de Apoyo (HUD, Prompts, Resaltados, Banner de Fase) ---
     private Canvas tutorialHudCanvas;
     private TextMeshProUGUI textoFaseBanner;
+    private TextMeshProUGUI textoMisionBanner;
     private TextMeshProUGUI textoSubtituloGuia;
     private TextMeshProUGUI textoPromptContextual;
     private TextMeshProUGUI textoRelojCiclo;
@@ -633,18 +634,59 @@ public class TutorialPipelineManager : MonoBehaviour
 
     private void ConstruirHudTutorial()
     {
-        Canvas existingCanvas = textoMisionUI != null ? textoMisionUI.GetComponentInParent<Canvas>() : FindAnyObjectByType<Canvas>();
+        Canvas existingCanvas = null;
+        if (textoMisionUI != null)
+        {
+            existingCanvas = textoMisionUI.GetComponentInParent<Canvas>(true);
+        }
+        if (existingCanvas == null)
+        {
+            GameObject uiObj = GameObject.Find("UI");
+            if (uiObj != null)
+            {
+                existingCanvas = uiObj.GetComponent<Canvas>();
+            }
+        }
+        if (existingCanvas == null)
+        {
+            Canvas[] allCanvases = UnityEngine.Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include);
+            if (allCanvases.Length > 0)
+            {
+                existingCanvas = allCanvases[0];
+            }
+        }
+
         if (existingCanvas != null)
         {
             tutorialHudCanvas = existingCanvas;
+            tutorialHudCanvas.gameObject.SetActive(true);
         }
         else
         {
             GameObject cObj = new GameObject("TutorialHUD_Canvas");
             tutorialHudCanvas = cObj.AddComponent<Canvas>();
             tutorialHudCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            cObj.AddComponent<CanvasScaler>();
+            CanvasScaler cs = cObj.AddComponent<CanvasScaler>();
+            cs.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            cs.referenceResolution = new Vector2(1920f, 1080f);
             cObj.AddComponent<GraphicRaycaster>();
+        }
+
+        if (textoMisionUI == null && tutorialHudCanvas != null)
+        {
+            Transform mTrans = tutorialHudCanvas.transform.Find("Misions");
+            if (mTrans != null)
+            {
+                textoMisionUI = mTrans.GetComponent<TextMeshProUGUI>();
+            }
+        }
+        if (textoMisionUI != null)
+        {
+            textoMisionUI.gameObject.SetActive(true);
+            if (textoMisionUI.transform.parent != null)
+            {
+                textoMisionUI.transform.parent.gameObject.SetActive(true);
+            }
         }
 
         TMP_FontAsset font = textoMisionUI != null ? textoMisionUI.font : null;
@@ -669,13 +711,14 @@ public class TutorialPipelineManager : MonoBehaviour
         bpRect.anchorMax = new Vector2(0.5f, 1f);
         bpRect.pivot = new Vector2(0.5f, 1f);
         bpRect.anchoredPosition = new Vector2(0f, -12f);
-        bpRect.sizeDelta = new Vector2(760f, 88f);
+        bpRect.sizeDelta = new Vector2(820f, 112f);
         Image bpImg = bannerPanel.GetComponent<Image>();
-        bpImg.color = new Color(0.08f, 0.10f, 0.14f, 0.86f);
+        bpImg.color = new Color(0.08f, 0.10f, 0.14f, 0.92f);
         bpImg.raycastTarget = false;
 
-        textoFaseBanner = CrearTextoTMP("Texto_FaseBanner", bannerPanel.transform, font, 20, FontStyles.Bold, new Color(1f, 0.84f, 0.28f), new Vector2(0f, 22f), new Vector2(730f, 34f));
-        textoSubtituloGuia = CrearTextoTMP("Texto_SubtituloGuia", bannerPanel.transform, font, 15, FontStyles.Normal, new Color(0.92f, 0.95f, 0.98f), new Vector2(0f, -16f), new Vector2(730f, 44f));
+        textoFaseBanner = CrearTextoTMP("Texto_FaseBanner", bannerPanel.transform, font, 18, FontStyles.Bold, new Color(1f, 0.84f, 0.28f), new Vector2(0f, 36f), new Vector2(800f, 28f));
+        textoMisionBanner = CrearTextoTMP("Texto_MisionBanner", bannerPanel.transform, font, 16, FontStyles.Bold, new Color(0.35f, 1f, 0.65f), new Vector2(0f, 6f), new Vector2(800f, 28f));
+        textoSubtituloGuia = CrearTextoTMP("Texto_SubtituloGuia", bannerPanel.transform, font, 13, FontStyles.Normal, new Color(0.88f, 0.92f, 0.96f), new Vector2(0f, -26f), new Vector2(800f, 34f));
 
         // 3. Prompt Contextual de Interacción / Acción en la parte inferior central (ej. "Presiona [F] para saquear")
         GameObject promptPanel = new GameObject("Panel_PromptContextual", typeof(RectTransform), typeof(Image));
@@ -837,10 +880,7 @@ public class TutorialPipelineManager : MonoBehaviour
         string checkS = pulsoS ? "<color=#55FF55>[S]</color>" : "[S]";
         string checkD = pulsoD ? "<color=#55FF55>[D]</color>" : "[D]";
 
-        if (textoMisionUI != null)
-        {
-            textoMisionUI.text = $"Misión: Muévete por la madriguera {checkW} {checkA} {checkS} {checkD}";
-        }
+        ActualizarTextoMision($"Misión: Muévete por la madriguera {checkW} {checkA} {checkS} {checkD}");
 
         if (pulsoW && pulsoA && pulsoS && pulsoD)
         {
@@ -875,10 +915,7 @@ public class TutorialPipelineManager : MonoBehaviour
         }
 
         float progreso = Mathf.Clamp01(tiempoCorriendoConShift / 1.2f) * 100f;
-        if (textoMisionUI != null)
-        {
-            textoMisionUI.text = $"Misión: Mantén [Shift Izquierdo] para correr hacia la salida ({progreso:0}%)";
-        }
+        ActualizarTextoMision($"Misión: Mantén [Shift Izquierdo] para correr hacia la salida ({progreso:0}%)");
 
         if (tiempoCorriendoConShift >= 1.2f)
         {
@@ -982,10 +1019,7 @@ public class TutorialPipelineManager : MonoBehaviour
         int desperdiciosActuales = InventoryManager.Instance.GetItemCount(ItemType.Desperdicios);
         int desperdiciosMostrados = Mathf.Clamp(desperdiciosActuales, 0, 3);
 
-        if (textoMisionUI != null)
-        {
-            textoMisionUI.text = $"Misión: Recolecta 3 Desperdicios con [F] ({desperdiciosMostrados}/3)";
-        }
+        ActualizarTextoMision($"Misión: Recolecta 3 Desperdicios con [F] ({desperdiciosMostrados}/3)");
 
         // Actualizar la flecha al contenedor no saqueado más cercano
         if (punteroFlecha != null && desperdiciosActuales < 3)
@@ -1047,6 +1081,11 @@ public class TutorialPipelineManager : MonoBehaviour
             textoFaseBanner.gameObject.SetActive(mostrarUI);
             if (textoFaseBanner.transform.parent != null)
                 textoFaseBanner.transform.parent.gameObject.SetActive(mostrarUI);
+        }
+
+        if (textoMisionBanner != null)
+        {
+            textoMisionBanner.gameObject.SetActive(mostrarUI);
         }
 
         if (textoSubtituloGuia != null)
@@ -1431,11 +1470,9 @@ public class TutorialPipelineManager : MonoBehaviour
             ? Vector3.Distance(hamster.transform.position, puntoEsquinaSigilo.position)
             : 99f;
 
-        if (textoMisionUI != null)
-        {
-            string estadoDash = dashEjecutadoEnPersecucion ? "<color=#55FF55>[Dash ]</color>" : "Presiona [Espacio] (Dash)";
-            textoMisionUI.text = $"Misión: {estadoDash} y dobla la esquina sur ({distEsquina:0.0}m)";
-        }
+        string estadoDash = dashEjecutadoEnPersecucion ? "<color=#55FF55>[Dash ]</color>" : "Presiona [Espacio] (Dash)";
+            ActualizarTextoMision($"Misión: {estadoDash} y dobla la esquina sur ({distEsquina:0.0}m)");
+        
 
         if (dashEjecutadoEnPersecucion && distEsquina < 4f)
         {
@@ -1489,10 +1526,7 @@ public class TutorialPipelineManager : MonoBehaviour
         float progresoSigilo = Mathf.Clamp01(tiempoAgachadoEnSigilo / 2.0f) * 100f;
         float radioActual = enemigoFeralPrincipal != null ? enemigoFeralPrincipal.GetCurrentEffectiveVisionRadius() : (hamster.isCrouching ? 4.5f : 15f);
 
-        if (textoMisionUI != null)
-        {
-            textoMisionUI.text = $"Misión: Avanza manteniendo [C] (Agachado: {progresoSigilo:0}% | Radio detección enemigo: {radioActual:0.0}m)";
-        }
+        ActualizarTextoMision($"Misión: Avanza manteniendo [C] (Agachado: {progresoSigilo:0}% | Radio detección enemigo: {radioActual:0.0}m)");
 
         bool cercaDeEntradaRefugio = hamster.transform.position.x <= 26.0f;
         if (tiempoAgachadoEnSigilo >= 2.0f && cercaDeEntradaRefugio)
@@ -1967,6 +2001,24 @@ public class TutorialPipelineManager : MonoBehaviour
         }
     }
 
+    private void ActualizarTextoMision(string nuevoTexto)
+    {
+        if (textoMisionUI != null)
+        {
+            textoMisionUI.gameObject.SetActive(!enCinematica);
+            textoMisionUI.text = nuevoTexto;
+            if (textoMisionUI.transform.parent != null)
+            {
+                textoMisionUI.transform.parent.gameObject.SetActive(!enCinematica);
+            }
+        }
+        if (textoMisionBanner != null)
+        {
+            textoMisionBanner.gameObject.SetActive(!enCinematica);
+            textoMisionBanner.text = nuevoTexto;
+        }
+    }
+
     private void ConfigurarTextosEstado(TutorialState nuevoEstado, string tituloFase, string textoMision, string subtituloGuia, Transform nuevoObjetivo)
     {
         currentState = nuevoEstado;
@@ -1974,11 +2026,7 @@ public class TutorialPipelineManager : MonoBehaviour
 
         if (textoFaseBanner != null) textoFaseBanner.text = tituloFase;
         if (textoSubtituloGuia != null) textoSubtituloGuia.text = subtituloGuia;
-        if (textoMisionUI != null)
-        {
-            textoMisionUI.gameObject.SetActive(!enCinematica);
-            textoMisionUI.text = textoMision;
-        }
+        ActualizarTextoMision(textoMision);
 
         if (punteroFlecha != null)
         {

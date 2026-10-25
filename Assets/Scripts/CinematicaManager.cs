@@ -38,7 +38,7 @@ public class CinematicaManager : MonoBehaviour
             Canvas mainCanvas = FindAnyObjectByType<Canvas>();
             if (mainCanvas != null) canvasUIRoot = mainCanvas.gameObject;
         }
-        canvases = FindObjectsByType<Canvas>();
+        canvases = Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include);
         canvasStates = new bool[canvases.Length];
         for (int i = 0; i < canvases.Length; i++)
         {
@@ -127,9 +127,9 @@ public class CinematicaManager : MonoBehaviour
         }
         if (canvases != null)
             for (int i = 0; i < canvases.Length; i++)
-                if (canvases[i] != null) canvases[i].enabled = canvasStates[i];
-        if (canvasUIRoot != null && canvasUIRootStateCaptured)
-            canvasUIRoot.SetActive(canvasUIRootWasActive);
+                if (canvases[i] != null) canvases[i].enabled = true;
+        if (canvasUIRoot != null)
+            canvasUIRoot.SetActive(true);
         if (objetoTutorialManager != null) objetoTutorialManager.SetActive(true);
         if (TutorialPipelineManager.Instance != null)
         {
