@@ -132,8 +132,8 @@ public class TutorialPipelineManager : MonoBehaviour
     public static readonly Vector3 POS_MESA_REFUGIO      = new Vector3(222.3f, 0.55f, 244.5f);
     public static readonly Vector3 POS_PUERTA_TRAMPA_REF = new Vector3(225.0f, 0.10f, 237.5f);
     public static readonly Vector3 POS_SALIDA_CALLEJON   = new Vector3(225.0f, 0.45f, 235.0f);
-    public static readonly Vector3 POS_PUERTA_CONTROL    = new Vector3(225.0f, 0.10f, 230.0f);
-    public static readonly Vector3 POS_CONTENEDOR_BRILLO = new Vector3(227.5f, 0.35f, 232.0f);
+    public static readonly Vector3 POS_PUERTA_CONTROL    = new Vector3(230.0f, 0.10f, 235.0f);
+    public static readonly Vector3 POS_CONTENEDOR_BRILLO = new Vector3(228.0f, 0.35f, 237.5f);
     public static readonly Vector3 POS_LULU_CIUDAD       = new Vector3(265.0f, 0.15f, 248.0f);
     public static readonly Vector3 POS_VIA_FERAL_SPAWN   = new Vector3(255.0f, 0.15f, 242.0f);
     public static readonly Vector3 POS_ESQUINA_SIGILO    = new Vector3(275.0f, 0.35f, 226.0f);
@@ -446,9 +446,11 @@ public class TutorialPipelineManager : MonoBehaviour
         Material matBarreraInvisible = new Material(litShader) { color = new Color(1f, 0.5f, 0.1f, 0f) };
         barreraSalidaMadriguera = CrearBloque3D("BarreraSecuencia_SalidaMadriguera", rootEnv.transform, new Vector3(225.0f, 1.8f, 238.2f), new Vector3(4.5f, 3.6f, 0.5f), matBarreraInvisible, true);
         barreraSalidaMadriguera.GetComponent<Renderer>().enabled = false;
+        barreraSalidaMadriguera.SetActive(false); // Iniciar desbloqueada para permitir movimiento natural
 
         barreraSprintCallejon = CrearBloque3D("BarreraSecuencia_SprintCallejon", rootEnv.transform, new Vector3(225.0f, 1.8f, 233.0f), new Vector3(6.0f, 3.6f, 0.6f), matBarreraInvisible, true);
         barreraSprintCallejon.GetComponent<Renderer>().enabled = false;
+        barreraSprintCallejon.SetActive(false); // Iniciar desbloqueada
 
         barreraEsquinaSigilo = CrearBloque3D("BarreraSecuencia_EsquinaSigilo", rootEnv.transform, new Vector3(275.0f, 1.8f, 232.5f), new Vector3(12.0f, 3.6f, 0.6f), matBarreraInvisible, true);
         barreraEsquinaSigilo.GetComponent<Renderer>().enabled = false;
@@ -553,11 +555,33 @@ public class TutorialPipelineManager : MonoBehaviour
             puertaControlCallejon = new GameObject("PuertaControl_Ciudad");
         }
         puertaControlCallejon.transform.position = POS_PUERTA_CONTROL;
+        puertaControlCallejon.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+
         Transform existingReja = puertaControlCallejon.transform.Find("RejaControl");
         if (existingReja != null)
         {
-            existingReja.localPosition = new Vector3(0f, 1.3f, 0f);
-            existingReja.localScale = new Vector3(5.5f, 2.6f, 0.45f);
+            Destroy(existingReja.gameObject);
+        }
+
+        GameObject barrierPrefab = null;
+#if UNITY_EDITOR
+        barrierPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/Prefab/Props/Props_Traffic Control Barrier Fence.prefab");
+#endif
+        if (barrierPrefab != null)
+        {
+            GameObject b1 = Instantiate(barrierPrefab, puertaControlCallejon.transform);
+            b1.name = "RejaControl";
+            b1.transform.localPosition = new Vector3(-1.4f, 0f, 0f);
+            b1.transform.localRotation = Quaternion.identity;
+            b1.transform.localScale = new Vector3(1f, 1.3f, 1f);
+            if (b1.GetComponent<Collider>() == null) b1.AddComponent<BoxCollider>();
+
+            GameObject b2 = Instantiate(barrierPrefab, puertaControlCallejon.transform);
+            b2.name = "RejaControl_2";
+            b2.transform.localPosition = new Vector3(1.4f, 0f, 0f);
+            b2.transform.localRotation = Quaternion.identity;
+            b2.transform.localScale = new Vector3(1f, 1.3f, 1f);
+            if (b2.GetComponent<Collider>() == null) b2.AddComponent<BoxCollider>();
         }
         else
         {
@@ -566,7 +590,7 @@ public class TutorialPipelineManager : MonoBehaviour
             barreraMesh.name = "RejaControl";
             barreraMesh.transform.SetParent(puertaControlCallejon.transform, false);
             barreraMesh.transform.localPosition = new Vector3(0f, 1.3f, 0f);
-            barreraMesh.transform.localScale = new Vector3(5.5f, 2.6f, 0.45f);
+            barreraMesh.transform.localScale = new Vector3(0.45f, 2.6f, 6.0f);
             barreraMesh.GetComponent<Renderer>().material = matBarrera;
         }
 
@@ -1948,10 +1972,10 @@ public class TutorialPipelineManager : MonoBehaviour
     {
         // 1. Barreras físicas para evitar que el jugador avance a zonas antes de completar el requisito del paso actual
         if (barreraSalidaMadriguera != null)
-            barreraSalidaMadriguera.SetActive(estado == TutorialState.AprenderControles);
+            barreraSalidaMadriguera.SetActive(false);
 
         if (barreraSprintCallejon != null)
-            barreraSprintCallejon.SetActive(estado == TutorialState.AprenderControles || estado == TutorialState.AprenderEstamina);
+            barreraSprintCallejon.SetActive(false);
 
         if (barreraEsquinaSigilo != null)
             barreraEsquinaSigilo.SetActive(estado == TutorialState.CinematicaAparicionFeral || (estado == TutorialState.EscapeDash && !dashEjecutadoEnPersecucion));
