@@ -9,6 +9,7 @@ using TMPro;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
+using UnityEngine.SceneManagement;
 
 public class TutorialPipelineManager : MonoBehaviour
 {
@@ -273,7 +274,7 @@ public class TutorialPipelineManager : MonoBehaviour
         if (pcg != null)
         {
             // Desactivamos los cubos Enemy primitivos que estaban a cientos de metros o apuntando al hámster inactivo
-            EnemyAI[] enemigosSueltos = FindObjectsByType<EnemyAI>();
+            EnemyAI[] enemigosSueltos = FindObjectsByType<EnemyAI>(FindObjectsSortMode.None);
             for (int i = 0; i < enemigosSueltos.Length; i++)
             {
                 if (enemigosSueltos[i] != null && enemigosSueltos[i].name.StartsWith("Enemy"))
@@ -291,7 +292,7 @@ public class TutorialPipelineManager : MonoBehaviour
         }
         if (hamster == null)
         {
-            HamsterController[] allHamsters = FindObjectsByType<HamsterController>();
+            HamsterController[] allHamsters = FindObjectsByType<HamsterController>(FindObjectsSortMode.None);
             for (int i = 0; i < allHamsters.Length; i++)
             {
                 if (allHamsters[i].gameObject.activeInHierarchy)
@@ -368,7 +369,7 @@ public class TutorialPipelineManager : MonoBehaviour
 
     private Light FindDirectionalLight()
     {
-        Light[] lights = FindObjectsByType<Light>();
+        Light[] lights = FindObjectsByType<Light>(FindObjectsSortMode.None);
         for (int i = 0; i < lights.Length; i++)
         {
             if (lights[i].type == LightType.Directional) return lights[i];
@@ -649,7 +650,7 @@ public class TutorialPipelineManager : MonoBehaviour
         }
         if (existingCanvas == null)
         {
-            Canvas[] allCanvases = UnityEngine.Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include);
+            Canvas[] allCanvases = UnityEngine.Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             if (allCanvases.Length > 0)
             {
                 existingCanvas = allCanvases[0];
@@ -1739,9 +1740,9 @@ public class TutorialPipelineManager : MonoBehaviour
         ReproducirSfx(clipSfxAmanecer);
         ConfigurarTextosEstado(
             TutorialState.FinTutorial,
-            " ¡TUTORIAL COMPLETADO CON ÉXITO!",
-            "Misión: ¡Estás listo para sobrevivir en FERAL! Explora, recolecta de día y defiende tu refugio de noche.",
-            "Has dominado Movimiento (WASD), Carrera y Estamina (Shift), Looting (F), Ciclo Día/Noche, Dash (Espacio), Adrenalina, Sigilo (C) y Crafteo/Trampas (1-3 + F).",
+            "¡TUTORIAL COMPLETADO!",
+            "¡TUTORIAL COMPLETADO! Presiona [ESPACIO] o [ENTER] para entrar a la Ciudad (o espera 4 segundos)...",
+            "Has dominado todos los fundamentos. La ciudad de FERAL te espera...",
             null
         );
 
@@ -1750,6 +1751,30 @@ public class TutorialPipelineManager : MonoBehaviour
             TimeManager.Instance.pauseAutoAdvance = false;
             TimeManager.Instance.SetDayDuration(6f);
         }
+
+        StartCoroutine(TransicionarAPrototipo2Routine());
+    }
+
+    private IEnumerator TransicionarAPrototipo2Routine()
+    {
+        float timer = 4.0f;
+        while (timer > 0f)
+        {
+            if (FeralInput.Pressed(KeyCode.Space) || FeralInput.Pressed(KeyCode.Return) ||
+                Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+            {
+                break;
+            }
+            timer -= Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        if (textoSubtituloGuia != null)
+        {
+            textoSubtituloGuia.text = "Cargando Prototipo2...";
+        }
+
+        SceneManager.LoadScene("Prototipo2");
     }
 
     // ===================================================================================
