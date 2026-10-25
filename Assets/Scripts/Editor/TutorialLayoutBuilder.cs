@@ -8,7 +8,7 @@ using Unity.AI.Navigation;
 public static class TutorialLayoutBuilder
 {
     const string Folder = "Assets/Scenes/Tutorial/GuidedLayout";
-    static Material ground, marking;
+    static Material marking;
 
     public static void BuildBatch()
     {
@@ -26,73 +26,58 @@ public static class TutorialLayoutBuilder
         var manager = Object.FindAnyObjectByType<TutorialPipelineManager>();
         manager.ConstruirArquitecturaRefugioYCallejon();
         var root = GameObject.Find("Tutorial_EntornoGuiado").transform;
-        ground = MaterialAsset("Piso", new Color(.18f, .24f, .23f));
         marking = MaterialAsset("Ruta", new Color(.92f, .67f, .22f));
 
         var fencePrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/Prefab/Props/Props_Fence.prefab");
         var barrierPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/Prefab/Props/Props_Traffic Control Barrier Fence.prefab");
 
-        // 1. Suelo base continuo
-        Block(root, "SueloContinuo", new Vector3(250, -.22f, 245), new Vector3(65, .2f, 50), ground);
-
-        // 2. Limpieza de muros cafés viejos si existían
-        string[] oldCubes = new string[] {
+        // 1. Limpieza de cubos/objetos invisibles obsoletos
+        string[] oldObjects = new string[] {
+            "SueloContinuo", "Piso_SueloTutorial_AntiCaidas",
+            "Muro_Control_Norte", "Muro_Control_Sur", "Muro_Esquina_RomperVista",
+            "BarreraSecuencia_SalidaMadriguera", "BarreraSecuencia_SprintCallejon",
+            "BarreraSecuencia_EsquinaSigilo", "BarreraSecuencia_EntradaRefugio",
             "Cierre_Norte_Base", "Cierre_Oeste_Base", "Cierre_Este_Base",
             "Cierre_EntreCasas_1", "Cierre_EntreCasas_2",
-            "Ciudad_LimiteSur", "Ciudad_LimiteNorte", "Ciudad_LimiteEste", "Ciudad_LimiteOeste",
-            "Muro_Perimetro_SurCallejon", "Muro_Perimetro_NorteCallejon",
-            "Muro_Perimetro_SurEste", "Muro_Perimetro_NorteEste"
+            "Ciudad_LimiteSur", "Ciudad_LimiteNorte", "Ciudad_LimiteEste", "Ciudad_LimiteOeste"
         };
-        foreach (var cName in oldCubes)
+        foreach (var cName in oldObjects)
         {
             var tr = root.Find(cName);
             if (tr != null) Object.DestroyImmediate(tr.gameObject);
         }
 
-        // 3. Delimitación Estética con Vallas (Props_Fence) en lugar de muros cafés
-        // Cierres de la Madriguera y callejón
-        ColocarFilaVallas(root, fencePrefab, "Valla_Base_Norte", new Vector3(220.5f, 0f, 252f), 3, new Vector3(3.2f, 0f, 0f), Quaternion.identity);
-        ColocarFilaVallas(root, fencePrefab, "Valla_Base_Oeste", new Vector3(219.5f, 0f, 237f), 4, new Vector3(0f, 0f, 3.2f), Quaternion.Euler(0f, 90f, 0f));
-        ColocarFilaVallas(root, fencePrefab, "Valla_Base_Este",  new Vector3(230.5f, 0f, 239f), 4, new Vector3(0f, 0f, 3.2f), Quaternion.Euler(0f, 90f, 0f));
+        // 2. Coberturas de sigilo estéticas
+        var cob1 = root.Find("Cobertura_Sigilo_1");
+        if (cob1 != null) cob1.position = new Vector3(268.5f, 1f, 224.3f);
+        var cob2 = root.Find("Cobertura_Sigilo_2");
+        if (cob2 != null) cob2.position = new Vector3(260.5f, 1f, 224.3f);
 
-        // Cierre de pasadizos entre casas
-        ColocarFilaVallas(root, fencePrefab, "Valla_EntreCasas_1", new Vector3(239.5f, 0f, 241f), 3, new Vector3(0f, 0f, 3.2f), Quaternion.Euler(0f, 90f, 0f));
-        ColocarFilaVallas(root, fencePrefab, "Valla_EntreCasas_2", new Vector3(249.5f, 0f, 241f), 3, new Vector3(0f, 0f, 3.2f), Quaternion.Euler(0f, 90f, 0f));
-
-        // Límites del circuito (Sur, Norte, Este) con vallas de tráfico y cercas
-        ColocarFilaVallas(root, barrierPrefab, "Barrera_LimiteSur", new Vector3(225f, 0f, 222f), 15, new Vector3(3.5f, 0f, 0f), Quaternion.identity);
-        ColocarFilaVallas(root, barrierPrefab, "Barrera_LimiteNorte", new Vector3(230f, 0f, 272f), 14, new Vector3(3.5f, 0f, 0f), Quaternion.identity);
-        ColocarFilaVallas(root, fencePrefab, "Valla_LimiteEste", new Vector3(281.5f, 0f, 224f), 15, new Vector3(0f, 0f, 3.2f), Quaternion.Euler(0f, 90f, 0f));
-        ColocarFilaVallas(root, fencePrefab, "Valla_LimiteOeste", new Vector3(219f, 0f, 223f), 4, new Vector3(0f, 0f, 3.2f), Quaternion.Euler(0f, 90f, 0f));
-
-        // 4. Coberturas de sigilo en el circuito
-        root.Find("Cobertura_Sigilo_1").position = new Vector3(268.5f, 1, 224.3f);
-        root.Find("Cobertura_Sigilo_2").position = new Vector3(260.5f, 1, 224.3f);
-
-        // 5. Guías visuales amarillas por el callejón desde la madriguera hacia el cruce
+        // 3. Guías visuales amarillas por el callejón desde la madriguera hacia la calle
         for (int i = 0; i < 6; i++)
             Block(root, "Guia_Callejon_" + i, new Vector3(225f, .035f, 242f - i * 2.0f), new Vector3(.35f, .03f, 1.0f), marking, false);
 
-        // 6. Configurar puerta de control (PuertaControl_Ciudad) con Props_Traffic Control Barrier Fence
+        // 4. Puerta de Control (PuertaControl_Ciudad) con Props_Traffic Control Barrier Fence
+        // Bloqueo horizontal transversal de la calle en X = 251.0 (después del contenedor en X = 246.34)
         var gate = GameObject.Find("PuertaControl_Ciudad");
         if (gate != null)
         {
             gate.transform.position = TutorialPipelineManager.POS_PUERTA_CONTROL;
-            gate.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+            gate.transform.rotation = Quaternion.identity;
 
-            var oldReja = gate.transform.Find("RejaControl");
-            if (oldReja != null) Object.DestroyImmediate(oldReja.gameObject);
-            var oldReja2 = gate.transform.Find("RejaControl_2");
-            if (oldReja2 != null) Object.DestroyImmediate(oldReja2.gameObject);
+            while (gate.transform.childCount > 0)
+                Object.DestroyImmediate(gate.transform.GetChild(0).gameObject);
 
             if (barrierPrefab != null)
             {
-                ColocarPropLocal(gate.transform, barrierPrefab, "RejaControl", new Vector3(0f, 0f, -1.8f), Quaternion.Euler(0f, 90f, 0f));
-                ColocarPropLocal(gate.transform, barrierPrefab, "RejaControl_2", new Vector3(0f, 0f, 1.8f), Quaternion.Euler(0f, 90f, 0f));
+                for (int i = -1; i <= 1; i++)
+                {
+                    ColocarPropLocal(gate.transform, barrierPrefab, "RejaControl_" + (i + 1), new Vector3(0f, 0f, i * 3.3f), Quaternion.identity);
+                }
             }
         }
 
-        // 7. Configurar contenedor resplandeciente en la esquina antes del cruce
+        // 5. Configurar contenedor resplandeciente en su posición asignada
         var gc = GameObject.Find("GarbageCollector");
         if (gc != null)
         {
@@ -100,12 +85,13 @@ public static class TutorialLayoutBuilder
             var lc = gc.GetComponent<LootContainer>();
             if (lc != null)
             {
+                lc.puertaDesbloqueable = gate;
                 lc.esContenedorResplandeciente = true;
                 lc.ConfigurarEfectoResplandor();
             }
         }
 
-        // 8. Asegurar que la puerta del refugio permita el paso al abrir su hoja y deshabilitar colisionador de bloqueo de Frame
+        // 6. Asegurar que la puerta del refugio permita el paso al abrir su hoja y deshabilitar colisionador de bloqueo de Frame
         var door = manager.puertaTrampaRefugio;
         if (door != null)
         {
@@ -125,7 +111,7 @@ public static class TutorialLayoutBuilder
             }
         }
 
-        // 9. Guardar materiales de entorno
+        // 7. Guardar materiales de entorno
         foreach (var renderer in root.GetComponentsInChildren<Renderer>())
         {
             var mat = renderer.sharedMaterial;
@@ -133,7 +119,7 @@ public static class TutorialLayoutBuilder
                 renderer.sharedMaterial = MaterialAsset("Entorno_" + ColorUtility.ToHtmlStringRGB(mat.color), mat.color);
         }
 
-        // 10. Hornear NavMesh del Tutorial para los enemigos
+        // 8. Hornear NavMesh del Tutorial limpio sin artefactos
         foreach (var old in Object.FindObjectsByType<NavMeshSurface>())
         {
             old.RemoveData();
@@ -143,11 +129,11 @@ public static class TutorialLayoutBuilder
         if (surface == null) surface = root.gameObject.AddComponent<NavMeshSurface>();
         surface.enabled = true;
         surface.collectObjects = CollectObjects.Volume;
-        surface.center = new Vector3(250, 3, 245);
-        surface.size = new Vector3(72, 10, 60);
+        surface.center = new Vector3(250f, 3f, 245f);
+        surface.size = new Vector3(75f, 12f, 65f);
         surface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
         surface.overrideVoxelSize = true;
-        surface.voxelSize = .1f;
+        surface.voxelSize = .08f;
 
         if (gate != null) gate.SetActive(false);
         Physics.SyncTransforms();
@@ -156,16 +142,6 @@ public static class TutorialLayoutBuilder
 
         EditorUtility.SetDirty(root.gameObject);
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
-    }
-
-    static void ColocarFilaVallas(Transform parent, GameObject prefab, string baseName, Vector3 startPos, int count, Vector3 step, Quaternion rot)
-    {
-        if (prefab == null) return;
-        for (int i = 0; i < count; i++)
-        {
-            Vector3 pos = startPos + step * i;
-            ColocarProp(parent, prefab, $"{baseName}_{i}", pos, rot);
-        }
     }
 
     static void ColocarPropLocal(Transform parent, GameObject prefab, string name, Vector3 localPos, Quaternion localRot)
@@ -178,23 +154,7 @@ public static class TutorialLayoutBuilder
         if (obj.GetComponent<Collider>() == null && obj.GetComponentInChildren<Collider>() == null)
         {
             var bc = obj.AddComponent<BoxCollider>();
-            bc.size = new Vector3(3.6f, 2.05f, 0.4f);
-            bc.center = new Vector3(0f, 1f, 0f);
-        }
-    }
-
-    static void ColocarProp(Transform parent, GameObject prefab, string name, Vector3 pos, Quaternion rot)
-    {
-        var existing = parent.Find(name);
-        GameObject obj = existing != null ? existing.gameObject : (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
-        obj.name = name;
-        obj.transform.position = pos;
-        obj.transform.rotation = rot;
-        // Asegurar que tenga BoxCollider para que impida físicamente el paso
-        if (obj.GetComponent<Collider>() == null && obj.GetComponentInChildren<Collider>() == null)
-        {
-            var bc = obj.AddComponent<BoxCollider>();
-            bc.size = new Vector3(3.2f, 2f, 0.4f);
+            bc.size = new Vector3(0.4f, 2.05f, 3.6f);
             bc.center = new Vector3(0f, 1f, 0f);
         }
     }

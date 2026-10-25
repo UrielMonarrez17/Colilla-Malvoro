@@ -132,8 +132,8 @@ public class TutorialPipelineManager : MonoBehaviour
     public static readonly Vector3 POS_MESA_REFUGIO      = new Vector3(222.3f, 0.55f, 244.5f);
     public static readonly Vector3 POS_PUERTA_TRAMPA_REF = new Vector3(225.0f, 0.10f, 237.5f);
     public static readonly Vector3 POS_SALIDA_CALLEJON   = new Vector3(225.0f, 0.45f, 235.0f);
-    public static readonly Vector3 POS_PUERTA_CONTROL    = new Vector3(230.0f, 0.10f, 235.0f);
-    public static readonly Vector3 POS_CONTENEDOR_BRILLO = new Vector3(228.0f, 0.35f, 237.5f);
+    public static readonly Vector3 POS_PUERTA_CONTROL    = new Vector3(251.0f, 0.10f, 235.0f);
+    public static readonly Vector3 POS_CONTENEDOR_BRILLO = new Vector3(246.34f, 0.35f, 237.60f);
     public static readonly Vector3 POS_LULU_CIUDAD       = new Vector3(265.0f, 0.15f, 248.0f);
     public static readonly Vector3 POS_VIA_FERAL_SPAWN   = new Vector3(255.0f, 0.15f, 242.0f);
     public static readonly Vector3 POS_ESQUINA_SIGILO    = new Vector3(275.0f, 0.35f, 226.0f);
@@ -398,10 +398,7 @@ public class TutorialPipelineManager : MonoBehaviour
         // Base del Hámster (Madriguera / Zona Segura con piso físico grueso)
         CrearBloque3D("Piso_MadrigueraSegura", rootEnv.transform, new Vector3(225.0f, -0.25f, 244.0f), new Vector3(9.2f, 0.6f, 11.5f), matPisoSeguro, true);
 
-        // Piso físico sólido de seguridad bajo todo el escenario del tutorial (Anti-caídas al vacío)
-        GameObject pisoAntiCaidas = CrearBloque3D("Piso_SueloTutorial_AntiCaidas", rootEnv.transform, new Vector3(250.0f, -0.5f, 235.0f), new Vector3(75.0f, 1.0f, 50.0f), matPisoSeguro, true);
-        Renderer rAntiCaidas = pisoAntiCaidas.GetComponent<Renderer>();
-        if (rAntiCaidas != null) rAntiCaidas.enabled = false;
+        // Suelo natural provisto por la ciudad
         CrearBloque3D("Muro_Refugio_Oeste", rootEnv.transform, new Vector3(220.1f, 1.8f, 236.0f), new Vector3(0.8f, 3.6f, 32.0f), matMuroRefugio, true);
         CrearBloque3D("Muro_CierreSur_Callejon", rootEnv.transform, new Vector3(225.0f, 1.8f, 219.8f), new Vector3(9.6f, 3.6f, 0.8f), matMuroRefugio, true);
 
@@ -420,9 +417,7 @@ public class TutorialPipelineManager : MonoBehaviour
         luzRef.range = 12f;
         luzRef.intensity = 2.5f;
 
-        // Zona de Control (Muros laterales junto a la puerta bloqueada en X = 28.8, Z = 125.0)
-        CrearBloque3D("Muro_Control_Norte", rootEnv.transform, new Vector3(248.8f, 1.8f, 228.4f), new Vector3(0.9f, 3.6f, 3.0f), matMuroRefugio, true);
-        CrearBloque3D("Muro_Control_Sur", rootEnv.transform, new Vector3(248.8f, 1.8f, 221.6f), new Vector3(0.9f, 3.6f, 3.0f), matMuroRefugio, true);
+        // Zona de Control delimitada por casas y barreras de tráfico
 
         // Posicionar y activar las 5 Paredes Cafés de la escena (Wall a Wall (4)) y cierres perimetrales para impedir que el jugador salga a otra parte de la ciudad
         ConfigurarParedCafeEscena("Wall (1)", new Vector3(225.0f, 1.8f, 250.2f), new Vector3(10.5f, 3.6f, 0.9f), matMuroRefugio, rootEnv.transform);
