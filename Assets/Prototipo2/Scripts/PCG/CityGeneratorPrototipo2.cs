@@ -73,6 +73,7 @@ namespace Prototipo2
             }
         }
 
+        [ContextMenu("Generar Ciudad Completa en Editor")]
         public void GenerateCity()
         {
             ClearCity();
@@ -204,6 +205,11 @@ namespace Prototipo2
             PlayerSpawnPoint = new Vector3(bestCell.x * cellSize + cellSize * 0.5f, roadHeightY + 0.5f, bestCell.y * cellSize + cellSize * 0.5f);
             CraftTableSpawnPoint = PlayerSpawnPoint + new Vector3(2.0f, 0f, 1.5f);
 
+            // Marcador jerarquico explicito para el Spawn del Hamster y Refugio
+            GameObject shelterMarker = new GameObject("SPAWN_HAMSTER_REFUGIO");
+            shelterMarker.transform.SetParent(transform, false);
+            shelterMarker.transform.position = PlayerSpawnPoint;
+
             // Mover el hámster si está asignado
             if (hamsterTransform == null)
             {
@@ -268,6 +274,33 @@ namespace Prototipo2
         {
             if (lootPrefab == null) return;
 
+            GameObject dropRoot = new GameObject("SPAWNERS_DROPS");
+            dropRoot.transform.SetParent(transform, false);
+
+            int spawnerIndex = 1;
+
+            // 1. Spawners en callejones sin salida (DeadEnds) - Ubicaciones privilegiadas de botín
+            foreach (Vector3 deadEndPos in DeadEndPoints)
+            {
+                if (Vector3.Distance(deadEndPos, PlayerSpawnPoint) < 6.0f) continue;
+
+                Vector3 dropPos = deadEndPos + new Vector3(rng.Range(-1.5f, 1.5f), 0, rng.Range(-1.5f, 1.5f));
+                dropPos.y = roadHeightY;
+
+                GameObject spawnerObj = new GameObject($"DropSpawner_Alley_{spawnerIndex++}");
+                spawnerObj.transform.SetParent(dropRoot.transform, false);
+                spawnerObj.transform.position = dropPos;
+
+                DropSpawner spawner = spawnerObj.AddComponent<DropSpawner>();
+                spawner.lootContainerPrefab = lootPrefab;
+                spawner.spawnChance = 0.95f;
+                spawner.guaranteedItems = new List<ItemType> { ItemType.Desperdicios, ItemType.Madera };
+                spawner.SpawnDrop();
+
+                LootSpawnPoints.Add(dropPos);
+            }
+
+            // 2. Spawners en fachadas y esquinas de edificios
             CitySocket[] spawnedBuildings = GetComponentsInChildren<CitySocket>();
             foreach (CitySocket socket in spawnedBuildings)
             {
@@ -276,9 +309,9 @@ namespace Prototipo2
 
                 float z = socket.frontSocket.localPosition.z;
                 Vector3[] localOffsets = {
-                    new Vector3(z, 0, 0),
-                    new Vector3(-z, 0, 0),
-                    new Vector3(0, 0, -z)
+                    new Vector3(z * 0.9f, 0, 0),
+                    new Vector3(-z * 0.9f, 0, 0),
+                    new Vector3(0, 0, -z * 0.9f)
                 };
 
                 for (int i = 0; i < localOffsets.Length; i++)
@@ -296,9 +329,18 @@ namespace Prototipo2
                     int gridY = Mathf.FloorToInt(worldPos.z / cellSize);
                     Vector2Int cell = new Vector2Int(gridX, gridY);
 
-                    if (grid.InBounds(cell) && grid.Get(cell) == CellType.Empty)
+                    if (grid.InBounds(cell))
                     {
-                        GameObject spawnedLoot = Instantiate(lootPrefab, worldPos, Quaternion.identity, transform);
+                        GameObject spawnerObj = new GameObject($"DropSpawner_Building_{spawnerIndex++}");
+                        spawnerObj.transform.SetParent(dropRoot.transform, false);
+                        spawnerObj.transform.position = worldPos;
+
+                        DropSpawner spawner = spawnerObj.AddComponent<DropSpawner>();
+                        spawner.lootContainerPrefab = lootPrefab;
+                        spawner.spawnChance = 0.85f;
+                        spawner.guaranteedItems = new List<ItemType> { ItemType.Desperdicios, ItemType.Metal };
+                        spawner.SpawnDrop();
+
                         LootSpawnPoints.Add(worldPos);
                         break;
                     }
@@ -310,14 +352,14 @@ namespace Prototipo2
         {
             if (enemyPrefabs == null || enemyPrefabs.Count == 0) return;
 
-            // Recolectar candidatos de spawn: Loops, Intersecciones y Dead Ends
-            List<Vector3> candidatePoints = new List<Vector3>();
+            GameObject enemyRoot = new GameObject("SPAWNERS_ENEMIGOS");
+            enemyRoot.transform.SetParent(transform, false);
 
+            List<Vector3> candidatePoints = new List<Vector3>();
             candidatePoints.AddRange(LoopCenterPoints);
             candidatePoints.AddRange(IntersectionPoints);
             candidatePoints.AddRange(DeadEndPoints);
 
-            // Filtrar candidatos para garantizar al menos minEnemyDistanceFromSpawn respecto al jugador
             List<Vector3> safeEnemySpawns = new List<Vector3>();
             foreach (Vector3 pt in candidatePoints)
             {
@@ -327,7 +369,6 @@ namespace Prototipo2
                 }
             }
 
-            // Desordenar candidatos (Fisher-Yates)
             for (int i = 0; i < safeEnemySpawns.Count; i++)
             {
                 int r = rng.Range(i, safeEnemySpawns.Count);
@@ -338,20 +379,29 @@ namespace Prototipo2
             for (int i = 0; i < countToSpawn; i++)
             {
                 Vector3 spawnPos = safeEnemySpawns[i];
-                spawnPos.y = roadHeightY + 0.1f;
+                spawnPos.y = roadHeightY;
 
-                // Elegir prefab de enemigo al azar (Tigre, Perro o Herbívoro Feral)
                 int prefabIdx = rng.Range(0, enemyPrefabs.Count);
                 GameObject chosenPrefab = enemyPrefabs[prefabIdx];
                 if (chosenPrefab != null)
                 {
-                    GameObject enemyInstance = Instantiate(chosenPrefab, spawnPos, Quaternion.Euler(0, rng.Range(0, 360), 0), transform);
-                    enemyInstance.name = $"EnemyFeral_{i}_{chosenPrefab.name}";
+                    GameObject spawnerObj = new GameObject($"EnemySpawner_{i + 1}_{chosenPrefab.name}");
+                    spawnerObj.transform.SetParent(enemyRoot.transform, false);
+                    spawnerObj.transform.position = spawnPos;
+                    spawnerObj.transform.rotation = Quaternion.Euler(0, rng.Range(0, 360), 0);
+
+                    EnemySpawner spawner = spawnerObj.AddComponent<EnemySpawner>();
+                    spawner.enemyPrefab = chosenPrefab;
+                    spawner.patrolRadius = 9f;
+                    spawner.spawnOnlyAtNight = false; // Spawnea inmediatamente para que esté activo en la demo
+                    spawner.SpawnEnemy();
+
                     EnemySpawnPoints.Add(spawnPos);
                 }
             }
         }
 
+        [ContextMenu("Limpiar Ciudad")]
         public void ClearCity()
         {
             for (int i = transform.childCount - 1; i >= 0; i--)

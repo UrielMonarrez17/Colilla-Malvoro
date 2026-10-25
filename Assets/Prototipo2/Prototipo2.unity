@@ -467,7 +467,7 @@ Transform:
   m_GameObject: {fileID: 360065396}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 102, y: 0.77, z: 56}
+  m_LocalPosition: {x: 102, y: 0.308, z: 56}
   m_LocalScale: {x: 0.0042, y: 0.0042, z: 0.0042}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -644,16 +644,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Prototipo2::DirectionalNightFog
   playerTransform: {fileID: 360065397}
+  targetCamera: {fileID: 647071768}
+  fogShader: {fileID: 4800000, guid: a72b98e1cd3f48a1b559ef17e33a101f, type: 3}
+  dayFogColor: {r: 0.65, g: 0.72, b: 0.8, a: 0.35}
+  nightFogColor: {r: 0.04, g: 0.06, b: 0.11, a: 0.95}
+  fogDensity: 0.022
+  directionalForwardBoost: 1.6
+  nearDistance: 2
+  farDistance: 35
+  fogTransitionSpeed: 1.8
   controlGlobalFog: 1
-  dayFogDensity: 0.006
-  nightFogDensity: 0.045
-  dayFogColor: {r: 0.65, g: 0.72, b: 0.8, a: 1}
-  nightFogColor: {r: 0.04, g: 0.05, b: 0.09, a: 1}
-  fogTransitionSpeed: 1.5
-  enableForwardSuspenseCone: 1
-  coneDistance: 6
-  coneRadius: 3.5
-  nightParticleAlpha: 0.65
 --- !u!1 &365914791
 GameObject:
   m_ObjectHideFlags: 0
@@ -1989,6 +1989,10 @@ MonoBehaviour:
   storySeed: 54321
   worldBinder: {fileID: 1217600642}
   player: {fileID: 360065397}
+  currentGraph:
+    nodes: []
+    startNodeId: 
+    exitNodeId: 
 --- !u!114 &1217600642
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2171,19 +2175,6 @@ MonoBehaviour:
   m_BlockingMask:
     serializedVersion: 2
     m_Bits: 4294967295
---- !u!114 &1379360335
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1379360330}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2be1b9689fcd42a4988eaee41e421161, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Prototipo2::NarrativeHUDPrototipo2
-  targetCanvas: {fileID: 1379360333}
 --- !u!114 &1379360332
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2252,6 +2243,19 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
+--- !u!114 &1379360335
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1379360330}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2be1b9689fcd42a4988eaee41e421161, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Prototipo2::NarrativeHUDPrototipo2
+  targetCanvas: {fileID: 1379360333}
 --- !u!1 &1416923182
 GameObject:
   m_ObjectHideFlags: 0

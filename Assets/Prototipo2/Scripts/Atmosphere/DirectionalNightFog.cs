@@ -6,26 +6,32 @@ namespace Prototipo2
     {
         [Header("Referencias")]
         public Transform playerTransform;
+        public Camera targetCamera;
 
-        [Header("Configuración de Niebla Ambiental")]
+        [Header("Shader de Niebla Direccional")]
+        public Shader fogShader;
+        public Color dayFogColor = new Color(0.65f, 0.72f, 0.80f, 0.35f);
+        public Color nightFogColor = new Color(0.04f, 0.06f, 0.11f, 0.95f);
+        [Range(0.001f, 0.1f)] public float fogDensity = 0.022f;
+        [Range(0.0f, 3.0f)] public float directionalForwardBoost = 1.6f;
+        public float nearDistance = 2.0f;
+        public float farDistance = 35.0f;
+        public float fogTransitionSpeed = 1.8f;
+
+        [Header("Horizonte Global")]
         public bool controlGlobalFog = true;
-        public float dayFogDensity = 0.006f;
-        public float nightFogDensity = 0.045f;
-        public Color dayFogColor = new Color(0.65f, 0.72f, 0.80f, 1f);
-        public Color nightFogColor = new Color(0.04f, 0.05f, 0.09f, 1f);
-        public float fogTransitionSpeed = 1.5f;
 
-        [Header("Cono Direccional Frontal (Suspenso Nocturno)")]
-        public bool enableForwardSuspenseCone = true;
-        public float coneDistance = 6.0f;
-        public float coneRadius = 3.5f;
-        [Range(0f, 1f)] public float nightParticleAlpha = 0.65f;
+        private Material fogMaterial;
+        private GameObject fogQuadObj;
+        private float currentNightIntensity = 0f;
 
-        private ParticleSystem forwardFogParticles;
-        private ParticleSystem.MainModule particleMain;
-        private ParticleSystem.EmissionModule particleEmission;
-        private float currentFogDensity;
-        private Color currentFogColor;
+        private void Awake()
+        {
+            if (fogShader == null)
+            {
+                fogShader = Shader.Find("Prototipo2/CityDirectionalFog");
+            }
+        }
 
         private void Start()
         {
@@ -35,20 +41,91 @@ namespace Prototipo2
                 if (hc != null) playerTransform = hc.transform;
             }
 
+            if (targetCamera == null)
+            {
+                targetCamera = Camera.main;
+            }
+
+            CrearFrustumFogQuad();
+
             if (controlGlobalFog)
             {
                 RenderSettings.fog = true;
                 RenderSettings.fogMode = FogMode.ExponentialSquared;
-                currentFogDensity = dayFogDensity;
-                currentFogColor = dayFogColor;
-                RenderSettings.fogDensity = currentFogDensity;
-                RenderSettings.fogColor = currentFogColor;
+                RenderSettings.fogDensity = 0.005f;
+                RenderSettings.fogColor = dayFogColor;
+            }
+        }
+
+        private void CrearFrustumFogQuad()
+        {
+            if (targetCamera == null) return;
+            if (fogShader == null)
+            {
+                fogShader = Shader.Find("Prototipo2/CityDirectionalFog");
+                if (fogShader == null)
+                {
+                    Debug.LogWarning("[DirectionalNightFog] Shader 'Prototipo2/CityDirectionalFog' no encontrado. Asegúrate de que compila correctamente.");
+                    return;
+                }
             }
 
-            if (enableForwardSuspenseCone)
+            if (fogMaterial == null)
             {
-                CrearConoParticulasFrontal();
+                fogMaterial = new Material(fogShader);
+                fogMaterial.name = "Mat_CityDirectionalFog_Instance";
             }
+
+            // Destruir quad previo si existiera
+            Transform existing = targetCamera.transform.Find("ScreenDirectionalFogQuad");
+            if (existing != null) Destroy(existing.gameObject);
+
+            // Crear quad acoplado a la cámara para renderizar el shader a pantalla completa
+            fogQuadObj = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            fogQuadObj.name = "ScreenDirectionalFogQuad";
+            fogQuadObj.transform.SetParent(targetCamera.transform, false);
+
+            // Eliminar colisionador del quad para que no interfiera con raycasts
+            Collider col = fogQuadObj.GetComponent<Collider>();
+            if (col != null) Destroy(col);
+
+            // Colocar justo delante del plano cercano de la cámara
+            float distanceInFront = targetCamera.nearClipPlane + 0.15f;
+            fogQuadObj.transform.localPosition = new Vector3(0, 0, distanceInFront);
+            fogQuadObj.transform.localRotation = Quaternion.identity;
+
+            // Escalar para cubrir exactamente el frustum de la cámara
+            ActualizarEscalaQuad(distanceInFront);
+
+            MeshRenderer mr = fogQuadObj.GetComponent<MeshRenderer>();
+            if (mr != null)
+            {
+                mr.material = fogMaterial;
+                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                mr.receiveShadows = false;
+                mr.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+                mr.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+            }
+        }
+
+        private void ActualizarEscalaQuad(float distance)
+        {
+            if (fogQuadObj == null || targetCamera == null) return;
+
+            float frustumHeight, frustumWidth;
+            if (targetCamera.orthographic)
+            {
+                frustumHeight = targetCamera.orthographicSize * 2.0f;
+                frustumWidth = frustumHeight * targetCamera.aspect;
+            }
+            else
+            {
+                frustumHeight = 2.0f * distance * Mathf.Tan(targetCamera.fieldOfView * 0.5f * Mathf.Deg2Rad);
+                frustumWidth = frustumHeight * targetCamera.aspect;
+            }
+
+            // Margen adicional del 15% para garantizar cobertura completa en rotaciones
+            fogQuadObj.transform.localScale = new Vector3(frustumWidth * 1.15f, frustumHeight * 1.15f, 1.0f);
         }
 
         private void Update()
@@ -60,23 +137,38 @@ namespace Prototipo2
                 if (playerTransform == null) return;
             }
 
+            if (targetCamera == null)
+            {
+                targetCamera = Camera.main;
+                if (fogQuadObj == null && targetCamera != null)
+                {
+                    CrearFrustumFogQuad();
+                }
+            }
+
             bool isNight = DeterminarSiEsNoche();
+            float targetNight = isNight ? 1.0f : 0.0f;
+            currentNightIntensity = Mathf.MoveTowards(currentNightIntensity, targetNight, Time.deltaTime * (fogTransitionSpeed * 0.5f));
+
+            Color currentColor = Color.Lerp(dayFogColor, nightFogColor, currentNightIntensity);
+
+            if (fogMaterial != null)
+            {
+                fogMaterial.SetVector("_PlayerPosition", playerTransform.position);
+                fogMaterial.SetVector("_PlayerForward", playerTransform.forward);
+                fogMaterial.SetFloat("_NightIntensity", currentNightIntensity);
+                fogMaterial.SetColor("_FogColor", currentColor);
+                fogMaterial.SetFloat("_FogDensity", fogDensity);
+                fogMaterial.SetFloat("_DirectionalIntensity", directionalForwardBoost);
+                fogMaterial.SetFloat("_NearDistance", nearDistance);
+                fogMaterial.SetFloat("_FarDistance", farDistance);
+            }
 
             if (controlGlobalFog)
             {
-                float targetDensity = isNight ? nightFogDensity : dayFogDensity;
-                Color targetColor = isNight ? nightFogColor : dayFogColor;
-
-                currentFogDensity = Mathf.MoveTowards(currentFogDensity, targetDensity, Time.deltaTime * (fogTransitionSpeed * 0.02f));
-                currentFogColor = Color.Lerp(currentFogColor, targetColor, Time.deltaTime * fogTransitionSpeed);
-
-                RenderSettings.fogDensity = currentFogDensity;
-                RenderSettings.fogColor = currentFogColor;
-            }
-
-            if (forwardFogParticles != null)
-            {
-                ActualizarConoParticulas(isNight);
+                float targetGlobalDensity = isNight ? 0.035f : 0.005f;
+                RenderSettings.fogDensity = Mathf.MoveTowards(RenderSettings.fogDensity, targetGlobalDensity, Time.deltaTime * 0.01f);
+                RenderSettings.fogColor = currentColor;
             }
         }
 
@@ -89,63 +181,15 @@ namespace Prototipo2
             return false;
         }
 
-        private void CrearConoParticulasFrontal()
+        private void OnDestroy()
         {
-            GameObject fogConeObj = new GameObject("NightFogSuspenseCone");
-            fogConeObj.transform.SetParent(playerTransform != null ? playerTransform : transform, false);
-            fogConeObj.transform.localPosition = new Vector3(0, 0.4f, 1.2f);
-            fogConeObj.transform.localRotation = Quaternion.identity;
-
-            forwardFogParticles = fogConeObj.AddComponent<ParticleSystem>();
-            var renderer = fogConeObj.GetComponent<ParticleSystemRenderer>();
-            renderer.renderMode = ParticleSystemRenderMode.Billboard;
-
-            // Material suave compatible con URP
-            Shader pShader = Shader.Find("Universal Render Pipeline/Particles/Unlit") 
-                ?? Shader.Find("Universal Render Pipeline/Unlit") 
-                ?? Shader.Find("Particles/Standard Unlit") 
-                ?? Shader.Find("Sprites/Default");
-            Material fogMat = new Material(pShader);
-            renderer.material = fogMat;
-
-            particleMain = forwardFogParticles.main;
-            particleMain.startLifetime = 2.0f;
-            particleMain.startSpeed = 1.0f;
-            particleMain.startSize = 3.5f;
-            particleMain.startColor = new Color(0.1f, 0.12f, 0.18f, 0f);
-            particleMain.simulationSpace = ParticleSystemSimulationSpace.World;
-            particleMain.maxParticles = 60;
-
-            particleEmission = forwardFogParticles.emission;
-            particleEmission.rateOverTime = 15f;
-
-            var shape = forwardFogParticles.shape;
-            shape.shapeType = ParticleSystemShapeType.Cone;
-            shape.angle = 25f;
-            shape.radius = 0.5f;
-
-            var colOverLifetime = forwardFogParticles.colorOverLifetime;
-            colOverLifetime.enabled = true;
-            Gradient grad = new Gradient();
-            grad.SetKeys(
-                new GradientColorKey[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
-                new GradientAlphaKey[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(nightParticleAlpha, 0.4f), new GradientAlphaKey(0f, 1f) }
-            );
-            colOverLifetime.color = grad;
-        }
-
-        private void ActualizarConoParticulas(bool isNight)
-        {
-            if (forwardFogParticles == null) return;
-
-            if (isNight)
+            if (fogQuadObj != null)
             {
-                if (!forwardFogParticles.isPlaying) forwardFogParticles.Play();
-                particleEmission.rateOverTime = 25f;
+                Destroy(fogQuadObj);
             }
-            else
+            if (fogMaterial != null)
             {
-                particleEmission.rateOverTime = 2f;
+                Destroy(fogMaterial);
             }
         }
     }
