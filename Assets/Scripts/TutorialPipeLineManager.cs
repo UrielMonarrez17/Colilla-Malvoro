@@ -387,73 +387,6 @@ public class TutorialPipelineManager : MonoBehaviour
         }
 
         GameObject rootEnv = new GameObject("Tutorial_EntornoGuiado");
-        Shader litShader = Shader.Find("Universal Render Pipeline/Lit");
-        if (litShader == null) litShader = Shader.Find("Standard");
-
-        Material matMuroRefugio = new Material(litShader) { color = new Color(0.32f, 0.25f, 0.20f) };
-        Material matTechoTunel = new Material(litShader) { color = new Color(0.24f, 0.19f, 0.15f) };
-        Material matPisoSeguro = new Material(litShader) { color = new Color(0.22f, 0.42f, 0.26f) };
-        Material matObstaculoSigilo = new Material(litShader) { color = new Color(0.35f, 0.38f, 0.42f) };
-
-        // Base del Hámster (Madriguera / Zona Segura con piso físico grueso)
-        CrearBloque3D("Piso_MadrigueraSegura", rootEnv.transform, new Vector3(225.0f, -0.25f, 244.0f), new Vector3(9.2f, 0.6f, 11.5f), matPisoSeguro, true);
-
-        // Suelo natural provisto por la ciudad
-        CrearBloque3D("Muro_Refugio_Oeste", rootEnv.transform, new Vector3(220.1f, 1.8f, 236.0f), new Vector3(0.8f, 3.6f, 32.0f), matMuroRefugio, true);
-        CrearBloque3D("Muro_CierreSur_Callejon", rootEnv.transform, new Vector3(225.0f, 1.8f, 219.8f), new Vector3(9.6f, 3.6f, 0.8f), matMuroRefugio, true);
-
-        // Pasillo estrecho de entrada al refugio (en Z = 137.5, dejando el paso central en X = 5.0 para la PuertaTrampa)
-        CrearBloque3D("Muro_EntradaRefugio_Oeste", rootEnv.transform, new Vector3(221.8f, 1.8f, 237.5f), new Vector3(3.2f, 3.6f, 1.1f), matMuroRefugio, true);
-        CrearBloque3D("Muro_EntradaRefugio_Este", rootEnv.transform, new Vector3(228.2f, 1.8f, 237.5f), new Vector3(3.2f, 3.6f, 1.1f), matMuroRefugio, true);
-        CrearBloque3D("Arco_Tunel_Refugio", rootEnv.transform, new Vector3(225.0f, 3.3f, 237.5f), new Vector3(9.6f, 0.6f, 3.2f), matTechoTunel, false);
-
-        // Luz cálida interior de la madriguera
-        GameObject luzMadrigueraObj = new GameObject("LuzCalida_Madriguera");
-        luzMadrigueraObj.transform.SetParent(rootEnv.transform, false);
-        luzMadrigueraObj.transform.position = new Vector3(225.0f, 2.8f, 245.0f);
-        Light luzRef = luzMadrigueraObj.AddComponent<Light>();
-        luzRef.type = LightType.Point;
-        luzRef.color = new Color(1f, 0.78f, 0.42f);
-        luzRef.range = 12f;
-        luzRef.intensity = 2.5f;
-
-        // Zona de Control delimitada por casas y barreras de tráfico
-
-        // Posicionar y activar las 5 Paredes Cafés de la escena (Wall a Wall (4)) y cierres perimetrales para impedir que el jugador salga a otra parte de la ciudad
-        ConfigurarParedCafeEscena("Wall (1)", new Vector3(225.0f, 1.8f, 250.2f), new Vector3(10.5f, 3.6f, 0.9f), matMuroRefugio, rootEnv.transform);
-        ConfigurarParedCafeEscena("Wall (4)", new Vector3(265.0f, 1.8f, 252.5f), new Vector3(11.5f, 3.6f, 0.9f), matMuroRefugio, rootEnv.transform);
-        ConfigurarParedCafeEscena("Wall (3)", new Vector3(249.8f, 1.8f, 245.0f), new Vector3(0.9f, 3.6f, 11.5f), matMuroRefugio, rootEnv.transform);
-        ConfigurarParedCafeEscena("Wall",     new Vector3(265.0f, 1.8f, 219.8f), new Vector3(11.5f, 3.6f, 0.9f), matMuroRefugio, rootEnv.transform);
-        ConfigurarParedCafeEscena("Wall (2)", new Vector3(280.2f, 1.8f, 235.0f), new Vector3(0.9f, 3.6f, 32.0f), matMuroRefugio, rootEnv.transform);
-
-        // Cierres cafés perimetrales adicionales en las aceras para un recinto 100% hermético
-        CrearBloque3D("Muro_Perimetro_SurCallejon", rootEnv.transform, new Vector3(240.0f, 1.8f, 219.8f), new Vector3(22.0f, 3.6f, 0.9f), matMuroRefugio, true);
-        CrearBloque3D("Muro_Perimetro_NorteCallejon", rootEnv.transform, new Vector3(240.0f, 1.8f, 230.2f), new Vector3(20.5f, 3.6f, 0.9f), matMuroRefugio, true);
-        CrearBloque3D("Muro_Perimetro_SurEste", rootEnv.transform, new Vector3(275.0f, 1.8f, 219.8f), new Vector3(11.0f, 3.6f, 0.9f), matMuroRefugio, true);
-        CrearBloque3D("Muro_Perimetro_NorteEste", rootEnv.transform, new Vector3(275.0f, 1.8f, 250.2f), new Vector3(11.0f, 3.6f, 0.9f), matMuroRefugio, true);
-
-        // Esquina y Obstáculos de Cobertura para la Fase 2 (Sigilo / Romper Línea de Visión en la calle sur Z=125)
-        CrearBloque3D("Muro_Esquina_RomperVista", rootEnv.transform, new Vector3(271.5f, 1.6f, 228.5f), new Vector3(2.4f, 3.2f, 2.4f), matObstaculoSigilo, true);
-        CrearBloque3D("Cobertura_Sigilo_1", rootEnv.transform, new Vector3(268.5f, 1.0f, 222.4f), new Vector3(3.4f, 2.0f, 1.1f), matObstaculoSigilo, true);
-        CrearBloque3D("Cobertura_Sigilo_2", rootEnv.transform, new Vector3(260.5f, 1.0f, 222.4f), new Vector3(3.4f, 2.0f, 1.1f), matObstaculoSigilo, true);
-
-        // Barreras físicas invisibles/de bloqueo para garantizar secuencia estricta sin saltarse ningún paso
-        Material matBarreraInvisible = new Material(litShader) { color = new Color(1f, 0.5f, 0.1f, 0f) };
-        barreraSalidaMadriguera = CrearBloque3D("BarreraSecuencia_SalidaMadriguera", rootEnv.transform, new Vector3(225.0f, 1.8f, 238.2f), new Vector3(4.5f, 3.6f, 0.5f), matBarreraInvisible, true);
-        barreraSalidaMadriguera.GetComponent<Renderer>().enabled = false;
-        barreraSalidaMadriguera.SetActive(false); // Iniciar desbloqueada para permitir movimiento natural
-
-        barreraSprintCallejon = CrearBloque3D("BarreraSecuencia_SprintCallejon", rootEnv.transform, new Vector3(225.0f, 1.8f, 233.0f), new Vector3(6.0f, 3.6f, 0.6f), matBarreraInvisible, true);
-        barreraSprintCallejon.GetComponent<Renderer>().enabled = false;
-        barreraSprintCallejon.SetActive(false); // Iniciar desbloqueada
-
-        barreraEsquinaSigilo = CrearBloque3D("BarreraSecuencia_EsquinaSigilo", rootEnv.transform, new Vector3(275.0f, 1.8f, 232.5f), new Vector3(12.0f, 3.6f, 0.6f), matBarreraInvisible, true);
-        barreraEsquinaSigilo.GetComponent<Renderer>().enabled = false;
-
-        barreraEntradaRefugio = CrearBloque3D("BarreraSecuencia_EntradaRefugio", rootEnv.transform, new Vector3(244.5f, 1.8f, 225.0f), new Vector3(6.0f, 3.6f, 0.6f), matBarreraInvisible, true);
-        barreraEntradaRefugio.GetComponent<Renderer>().enabled = false;
-
-        // Waypoints de referencia
         GameObject refugioWp = new GameObject("Waypoint_RefugioSeguro");
         refugioWp.transform.SetParent(rootEnv.transform, false);
         refugioWp.transform.position = new Vector3(225.0f, 0.5f, 244.5f);
@@ -548,45 +481,29 @@ public class TutorialPipelineManager : MonoBehaviour
         if (puertaControlCallejon == null)
         {
             puertaControlCallejon = new GameObject("PuertaControl_Ciudad");
+            puertaControlCallejon.transform.position = POS_PUERTA_CONTROL;
+            puertaControlCallejon.transform.rotation = Quaternion.identity;
         }
-        puertaControlCallejon.transform.position = POS_PUERTA_CONTROL;
-        puertaControlCallejon.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
 
+        // Si ya está configurada visualmente en la escena, no sobreescribir ni duplicar hijos
         Transform existingReja = puertaControlCallejon.transform.Find("RejaControl");
-        if (existingReja != null)
+        if (existingReja == null)
         {
-            Destroy(existingReja.gameObject);
-        }
-
-        GameObject barrierPrefab = null;
+            GameObject barrierPrefab = null;
 #if UNITY_EDITOR
-        barrierPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/Prefab/Props/Props_Traffic Control Barrier Fence.prefab");
+            barrierPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/Prefab/Props/Props_Traffic Control Barrier Fence.prefab");
 #endif
-        if (barrierPrefab != null)
-        {
-            GameObject b1 = Instantiate(barrierPrefab, puertaControlCallejon.transform);
-            b1.name = "RejaControl";
-            b1.transform.localPosition = new Vector3(-1.4f, 0f, 0f);
-            b1.transform.localRotation = Quaternion.identity;
-            b1.transform.localScale = new Vector3(1f, 1.3f, 1f);
-            if (b1.GetComponent<Collider>() == null) b1.AddComponent<BoxCollider>();
-
-            GameObject b2 = Instantiate(barrierPrefab, puertaControlCallejon.transform);
-            b2.name = "RejaControl_2";
-            b2.transform.localPosition = new Vector3(1.4f, 0f, 0f);
-            b2.transform.localRotation = Quaternion.identity;
-            b2.transform.localScale = new Vector3(1f, 1.3f, 1f);
-            if (b2.GetComponent<Collider>() == null) b2.AddComponent<BoxCollider>();
-        }
-        else
-        {
-            Material matBarrera = new Material(litShader) { color = new Color(0.85f, 0.25f, 0.15f) };
-            GameObject barreraMesh = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            barreraMesh.name = "RejaControl";
-            barreraMesh.transform.SetParent(puertaControlCallejon.transform, false);
-            barreraMesh.transform.localPosition = new Vector3(0f, 1.3f, 0f);
-            barreraMesh.transform.localScale = new Vector3(0.45f, 2.6f, 6.0f);
-            barreraMesh.GetComponent<Renderer>().material = matBarrera;
+            if (barrierPrefab != null)
+            {
+                GameObject b1 = Instantiate(barrierPrefab, puertaControlCallejon.transform);
+                b1.name = "RejaControl";
+                b1.transform.localPosition = Vector3.zero;
+                b1.transform.localRotation = Quaternion.Euler(0f, 90f, 0f);
+                BoxCollider bc = b1.GetComponent<BoxCollider>();
+                if (bc == null) bc = b1.AddComponent<BoxCollider>();
+                bc.center = new Vector3(0f, 1.2f, 0f);
+                bc.size = new Vector3(8.5f, 2.5f, 0.6f);
+            }
         }
 
         // 2. Contenedor Resplandeciente al lado de la puerta de control (reutiliza "GarbageCollector" de la escena si existe)
