@@ -16,7 +16,7 @@ public static class TutorialLayoutAudit
         foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None))
         {
             var b = r.bounds;
-            if (b.max.x >= -2 && b.min.x <= 62 && b.max.z >= 118 && b.min.z <= 153)
+            if (b.max.x >= 218 && b.min.x <= 282 && b.max.z >= 218 && b.min.z <= 255)
                 report.AppendLine($"GEOMETRY {r.name} parent={r.transform.parent?.name} bounds={b} collider={r.GetComponent<Collider>() != null}");
         }
         foreach (var b in Object.FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None))

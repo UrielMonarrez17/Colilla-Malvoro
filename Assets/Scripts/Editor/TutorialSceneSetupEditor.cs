@@ -139,10 +139,10 @@ public static class TutorialSceneSetupEditor
         string[] cityLootNames = { "GarbageCollector (4)", "GarbageCollector (5)", "GarbageCollector (8)", "GarbageCollector (2)" };
         Vector3[] cityLootPositions =
         {
-            new Vector3(35.0f, 0.35f, 135.0f),
-            new Vector3(45.0f, 0.35f, 122.2f),
-            new Vector3(55.0f, 0.35f, 135.0f),
-            new Vector3(52.5f, 0.35f, 145.0f)
+            new Vector3(255.0f, 0.35f, 235.0f),
+            new Vector3(265.0f, 0.35f, 222.2f),
+            new Vector3(275.0f, 0.35f, 235.0f),
+            new Vector3(272.5f, 0.35f, 245.0f)
         };
         for (int i = 0; i < cityLootNames.Length; i++)
         {
@@ -167,7 +167,7 @@ public static class TutorialSceneSetupEditor
         {
             Undo.RecordObject(cinematica.transform, "Posicionar Cinematica");
             Undo.RecordObject(cinematica, "Configurar CinematicaManager");
-            cinematica.transform.position = new Vector3(5.0f, 0f, 146.0f);
+            cinematica.transform.position = new Vector3(225.0f, 0f, 246.0f);
             Canvas mainCanvas = Object.FindAnyObjectByType<Canvas>(FindObjectsInactive.Include);
             if (mainCanvas != null)
             {
@@ -193,7 +193,7 @@ public static class TutorialSceneSetupEditor
             EditorUtility.SetDirty(cinematica);
         }
 
-        manager.transform.position = new Vector3(5.0f, 0f, 146.0f);
+        manager.transform.position = new Vector3(225.0f, 0f, 246.0f);
 
         // 8b. Activar y posicionar las 5 Paredes Cafés del Tutorial (Wall a Wall (4)) para delimitar la ciudad
         ArrangePerimeterWalls();
@@ -233,11 +233,11 @@ public static class TutorialSceneSetupEditor
     {
         (string name, Vector3 pos, Vector3 scale)[] wallConfigs = new[]
         {
-            ("Wall (1)", new Vector3(5.0f, 1.8f, 150.2f),  new Vector3(10.5f, 3.6f, 0.9f)),
-            ("Wall (4)", new Vector3(45.0f, 1.8f, 152.5f), new Vector3(11.5f, 3.6f, 0.9f)),
-            ("Wall (3)", new Vector3(29.8f, 1.8f, 145.0f), new Vector3(0.9f, 3.6f, 11.5f)),
-            ("Wall",     new Vector3(45.0f, 1.8f, 119.8f), new Vector3(11.5f, 3.6f, 0.9f)),
-            ("Wall (2)", new Vector3(60.2f, 1.8f, 135.0f), new Vector3(0.9f, 3.6f, 32.0f))
+            ("Wall (1)", new Vector3(225.0f, 1.8f, 250.2f),  new Vector3(10.5f, 3.6f, 0.9f)),
+            ("Wall (4)", new Vector3(265.0f, 1.8f, 252.5f), new Vector3(11.5f, 3.6f, 0.9f)),
+            ("Wall (3)", new Vector3(249.8f, 1.8f, 245.0f), new Vector3(0.9f, 3.6f, 11.5f)),
+            ("Wall",     new Vector3(265.0f, 1.8f, 219.8f), new Vector3(11.5f, 3.6f, 0.9f)),
+            ("Wall (2)", new Vector3(280.2f, 1.8f, 235.0f), new Vector3(0.9f, 3.6f, 32.0f))
         };
 
         Transform[] allTransforms = Resources.FindObjectsOfTypeAll<Transform>();

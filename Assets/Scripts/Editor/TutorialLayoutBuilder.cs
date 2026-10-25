@@ -33,18 +33,18 @@ public static class TutorialLayoutBuilder
         ground = MaterialAsset("Piso", new Color(.18f, .24f, .23f));
         marking = MaterialAsset("Ruta", new Color(.92f, .67f, .22f));
         // Fill seams beneath the existing roads without replacing their surfaces.
-        Block(root, "SueloContinuo", new Vector3(30, -.22f, 135), new Vector3(60, .2f, 32), ground);
-        Block(root, "Cierre_Norte_Base", new Vector3(5, 1.8f, 150), new Vector3(10, 3.6f, .6f), wall);
-        Block(root, "Cierre_Este_Base", new Vector3(10, 1.8f, 140), new Vector3(.6f, 3.6f, 20), wall);
-        Block(root, "Callejon_BordeNorte", new Vector3(19.5f, 1.5f, 130), new Vector3(19, 3, .6f), wall);
-        Block(root, "Callejon_BordeSur", new Vector3(19.5f, 1.5f, 120), new Vector3(29, 3, .6f), wall);
-        Block(root, "Ciudad_LimiteSur", new Vector3(44.5f, 1.5f, 119.7f), new Vector3(31, 3, .6f), wall);
-        Block(root, "Ciudad_LimiteNorte", new Vector3(45, 1.5f, 150), new Vector3(30, 3, .6f), wall);
-        Block(root, "Ciudad_LimiteEste", new Vector3(60, 1.5f, 135), new Vector3(.6f, 3, 30), wall);
+        Block(root, "SueloContinuo", new Vector3(250, -.22f, 235), new Vector3(60, .2f, 32), ground);
+        Block(root, "Cierre_Norte_Base", new Vector3(225, 1.8f, 250), new Vector3(10, 3.6f, .6f), wall);
+        Block(root, "Cierre_Este_Base", new Vector3(230, 1.8f, 240), new Vector3(.6f, 3.6f, 20), wall);
+        Block(root, "Callejon_BordeNorte", new Vector3(239.5f, 1.5f, 230), new Vector3(19, 3, .6f), wall);
+        Block(root, "Callejon_BordeSur", new Vector3(239.5f, 1.5f, 220), new Vector3(29, 3, .6f), wall);
+        Block(root, "Ciudad_LimiteSur", new Vector3(264.5f, 1.5f, 219.7f), new Vector3(31, 3, .6f), wall);
+        Block(root, "Ciudad_LimiteNorte", new Vector3(265, 1.5f, 250), new Vector3(30, 3, .6f), wall);
+        Block(root, "Ciudad_LimiteEste", new Vector3(280, 1.5f, 235), new Vector3(.6f, 3, 30), wall);
         // Cover sits BETWEEN the patrol and the crouched route, not behind the player.
-        root.Find("Cobertura_Sigilo_1").position = new Vector3(48.5f, 1, 124.3f);
-        root.Find("Cobertura_Sigilo_2").position = new Vector3(40.5f, 1, 124.3f);
-        Block(root, "Cobertura_Sigilo_3", new Vector3(34, 1, 124.3f), new Vector3(3.4f, 2, 1.1f), wall);
+        root.Find("Cobertura_Sigilo_1").position = new Vector3(268.5f, 1, 224.3f);
+        root.Find("Cobertura_Sigilo_2").position = new Vector3(260.5f, 1, 224.3f);
+        Block(root, "Cobertura_Sigilo_3", new Vector3(254, 1, 224.3f), new Vector3(3.4f, 2, 1.1f), wall);
         // Save the runtime-created materials so scene references survive a build/reload.
         foreach (var renderer in root.GetComponentsInChildren<Renderer>())
         {
@@ -53,7 +53,7 @@ public static class TutorialLayoutBuilder
                 renderer.sharedMaterial = MaterialAsset("Entorno_" + ColorUtility.ToHtmlStringRGB(mat.color), mat.color);
         }
         for (int i = 0; i < 8; i++)
-            Block(root, "Guia_Callejon_" + i, new Vector3(8 + i * 2.5f, .035f, 125), new Vector3(1, .03f, .15f), marking, false);
+            Block(root, "Guia_Callejon_" + i, new Vector3(228 + i * 2.5f, .035f, 225), new Vector3(1, .03f, .15f), marking, false);
 
         // Preserve the door asset; open its leaf so it cannot trap the player in the base.
         var door = manager.puertaTrampaRefugio;
@@ -73,7 +73,7 @@ public static class TutorialLayoutBuilder
         if (surface == null) surface = root.gameObject.AddComponent<NavMeshSurface>();
         surface.enabled = true;
         surface.collectObjects = CollectObjects.Volume;
-        surface.center = new Vector3(30, 3, 135);
+        surface.center = new Vector3(250, 3, 235);
         surface.size = new Vector3(62, 10, 34);
         surface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
         surface.overrideVoxelSize = true;

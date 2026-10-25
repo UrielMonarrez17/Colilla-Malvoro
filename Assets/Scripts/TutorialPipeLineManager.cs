@@ -102,7 +102,7 @@ public class TutorialPipelineManager : MonoBehaviour
     private List<Button> botonesRecetasSecundarias = new List<Button>();
 
     // --- Checkpoints para Respawn Seguro ---
-    private Vector3 checkpointPosicion = new Vector3(5.0f, 0.85f, 146.0f);
+    private Vector3 checkpointPosicion = new Vector3(225.0f, 0.85f, 246.0f);
 
     // --- UI Dinámica de Apoyo (HUD, Prompts, Resaltados, Banner de Fase) ---
     private Canvas tutorialHudCanvas;
@@ -128,16 +128,16 @@ public class TutorialPipelineManager : MonoBehaviour
     private AudioClip clipSfxAmanecer;
 
     // --- Coordenadas Clave dentro de la Ciudad Principal (cityManagerMath en Tutorial.unity) ---
-    public static readonly Vector3 POS_MADRIGUERA_INICIO = new Vector3(5.0f, 0.85f, 146.0f);
-    public static readonly Vector3 POS_MESA_REFUGIO      = new Vector3(2.3f, 0.55f, 144.5f);
-    public static readonly Vector3 POS_PUERTA_TRAMPA_REF = new Vector3(5.0f, 0.10f, 137.5f);
-    public static readonly Vector3 POS_SALIDA_CALLEJON   = new Vector3(22.5f, 0.45f, 125.0f);
-    public static readonly Vector3 POS_PUERTA_CONTROL    = new Vector3(28.8f, 0.10f, 125.0f);
-    public static readonly Vector3 POS_CONTENEDOR_BRILLO = new Vector3(25.8f, 0.35f, 127.6f);
-    public static readonly Vector3 POS_LULU_CIUDAD       = new Vector3(45.0f, 0.15f, 148.0f);
-    public static readonly Vector3 POS_VIA_FERAL_SPAWN   = new Vector3(35.0f, 0.15f, 142.0f);
-    public static readonly Vector3 POS_ESQUINA_SIGILO    = new Vector3(55.0f, 0.35f, 126.0f);
-    public static readonly Vector3 POS_PATRULLA_SIGILO   = new Vector3(42.0f, 0.15f, 126.5f);
+    public static readonly Vector3 POS_MADRIGUERA_INICIO = new Vector3(225.0f, 0.85f, 246.0f);
+    public static readonly Vector3 POS_MESA_REFUGIO      = new Vector3(222.3f, 0.55f, 244.5f);
+    public static readonly Vector3 POS_PUERTA_TRAMPA_REF = new Vector3(225.0f, 0.10f, 237.5f);
+    public static readonly Vector3 POS_SALIDA_CALLEJON   = new Vector3(242.5f, 0.45f, 225.0f);
+    public static readonly Vector3 POS_PUERTA_CONTROL    = new Vector3(248.8f, 0.10f, 225.0f);
+    public static readonly Vector3 POS_CONTENEDOR_BRILLO = new Vector3(245.8f, 0.35f, 227.6f);
+    public static readonly Vector3 POS_LULU_CIUDAD       = new Vector3(265.0f, 0.15f, 248.0f);
+    public static readonly Vector3 POS_VIA_FERAL_SPAWN   = new Vector3(255.0f, 0.15f, 242.0f);
+    public static readonly Vector3 POS_ESQUINA_SIGILO    = new Vector3(275.0f, 0.35f, 226.0f);
+    public static readonly Vector3 POS_PATRULLA_SIGILO   = new Vector3(262.0f, 0.15f, 226.5f);
 
     void Awake()
     {
@@ -396,24 +396,24 @@ public class TutorialPipelineManager : MonoBehaviour
         Material matObstaculoSigilo = new Material(litShader) { color = new Color(0.35f, 0.38f, 0.42f) };
 
         // Base del Hámster (Madriguera / Zona Segura con piso físico grueso)
-        CrearBloque3D("Piso_MadrigueraSegura", rootEnv.transform, new Vector3(5.0f, -0.25f, 144.0f), new Vector3(9.2f, 0.6f, 11.5f), matPisoSeguro, true);
+        CrearBloque3D("Piso_MadrigueraSegura", rootEnv.transform, new Vector3(225.0f, -0.25f, 244.0f), new Vector3(9.2f, 0.6f, 11.5f), matPisoSeguro, true);
 
         // Piso físico sólido de seguridad bajo todo el escenario del tutorial (Anti-caídas al vacío)
-        GameObject pisoAntiCaidas = CrearBloque3D("Piso_SueloTutorial_AntiCaidas", rootEnv.transform, new Vector3(30.0f, -0.5f, 135.0f), new Vector3(75.0f, 1.0f, 50.0f), matPisoSeguro, true);
+        GameObject pisoAntiCaidas = CrearBloque3D("Piso_SueloTutorial_AntiCaidas", rootEnv.transform, new Vector3(250.0f, -0.5f, 235.0f), new Vector3(75.0f, 1.0f, 50.0f), matPisoSeguro, true);
         Renderer rAntiCaidas = pisoAntiCaidas.GetComponent<Renderer>();
         if (rAntiCaidas != null) rAntiCaidas.enabled = false;
-        CrearBloque3D("Muro_Refugio_Oeste", rootEnv.transform, new Vector3(0.1f, 1.8f, 136.0f), new Vector3(0.8f, 3.6f, 32.0f), matMuroRefugio, true);
-        CrearBloque3D("Muro_CierreSur_Callejon", rootEnv.transform, new Vector3(5.0f, 1.8f, 119.8f), new Vector3(9.6f, 3.6f, 0.8f), matMuroRefugio, true);
+        CrearBloque3D("Muro_Refugio_Oeste", rootEnv.transform, new Vector3(220.1f, 1.8f, 236.0f), new Vector3(0.8f, 3.6f, 32.0f), matMuroRefugio, true);
+        CrearBloque3D("Muro_CierreSur_Callejon", rootEnv.transform, new Vector3(225.0f, 1.8f, 219.8f), new Vector3(9.6f, 3.6f, 0.8f), matMuroRefugio, true);
 
         // Pasillo estrecho de entrada al refugio (en Z = 137.5, dejando el paso central en X = 5.0 para la PuertaTrampa)
-        CrearBloque3D("Muro_EntradaRefugio_Oeste", rootEnv.transform, new Vector3(1.8f, 1.8f, 137.5f), new Vector3(3.2f, 3.6f, 1.1f), matMuroRefugio, true);
-        CrearBloque3D("Muro_EntradaRefugio_Este", rootEnv.transform, new Vector3(8.2f, 1.8f, 137.5f), new Vector3(3.2f, 3.6f, 1.1f), matMuroRefugio, true);
-        CrearBloque3D("Arco_Tunel_Refugio", rootEnv.transform, new Vector3(5.0f, 3.3f, 137.5f), new Vector3(9.6f, 0.6f, 3.2f), matTechoTunel, false);
+        CrearBloque3D("Muro_EntradaRefugio_Oeste", rootEnv.transform, new Vector3(221.8f, 1.8f, 237.5f), new Vector3(3.2f, 3.6f, 1.1f), matMuroRefugio, true);
+        CrearBloque3D("Muro_EntradaRefugio_Este", rootEnv.transform, new Vector3(228.2f, 1.8f, 237.5f), new Vector3(3.2f, 3.6f, 1.1f), matMuroRefugio, true);
+        CrearBloque3D("Arco_Tunel_Refugio", rootEnv.transform, new Vector3(225.0f, 3.3f, 237.5f), new Vector3(9.6f, 0.6f, 3.2f), matTechoTunel, false);
 
         // Luz cálida interior de la madriguera
         GameObject luzMadrigueraObj = new GameObject("LuzCalida_Madriguera");
         luzMadrigueraObj.transform.SetParent(rootEnv.transform, false);
-        luzMadrigueraObj.transform.position = new Vector3(5.0f, 2.8f, 145.0f);
+        luzMadrigueraObj.transform.position = new Vector3(225.0f, 2.8f, 245.0f);
         Light luzRef = luzMadrigueraObj.AddComponent<Light>();
         luzRef.type = LightType.Point;
         luzRef.color = new Color(1f, 0.78f, 0.42f);
@@ -421,45 +421,45 @@ public class TutorialPipelineManager : MonoBehaviour
         luzRef.intensity = 2.5f;
 
         // Zona de Control (Muros laterales junto a la puerta bloqueada en X = 28.8, Z = 125.0)
-        CrearBloque3D("Muro_Control_Norte", rootEnv.transform, new Vector3(28.8f, 1.8f, 128.4f), new Vector3(0.9f, 3.6f, 3.0f), matMuroRefugio, true);
-        CrearBloque3D("Muro_Control_Sur", rootEnv.transform, new Vector3(28.8f, 1.8f, 121.6f), new Vector3(0.9f, 3.6f, 3.0f), matMuroRefugio, true);
+        CrearBloque3D("Muro_Control_Norte", rootEnv.transform, new Vector3(248.8f, 1.8f, 228.4f), new Vector3(0.9f, 3.6f, 3.0f), matMuroRefugio, true);
+        CrearBloque3D("Muro_Control_Sur", rootEnv.transform, new Vector3(248.8f, 1.8f, 221.6f), new Vector3(0.9f, 3.6f, 3.0f), matMuroRefugio, true);
 
         // Posicionar y activar las 5 Paredes Cafés de la escena (Wall a Wall (4)) y cierres perimetrales para impedir que el jugador salga a otra parte de la ciudad
-        ConfigurarParedCafeEscena("Wall (1)", new Vector3(5.0f, 1.8f, 150.2f), new Vector3(10.5f, 3.6f, 0.9f), matMuroRefugio, rootEnv.transform);
-        ConfigurarParedCafeEscena("Wall (4)", new Vector3(45.0f, 1.8f, 152.5f), new Vector3(11.5f, 3.6f, 0.9f), matMuroRefugio, rootEnv.transform);
-        ConfigurarParedCafeEscena("Wall (3)", new Vector3(29.8f, 1.8f, 145.0f), new Vector3(0.9f, 3.6f, 11.5f), matMuroRefugio, rootEnv.transform);
-        ConfigurarParedCafeEscena("Wall",     new Vector3(45.0f, 1.8f, 119.8f), new Vector3(11.5f, 3.6f, 0.9f), matMuroRefugio, rootEnv.transform);
-        ConfigurarParedCafeEscena("Wall (2)", new Vector3(60.2f, 1.8f, 135.0f), new Vector3(0.9f, 3.6f, 32.0f), matMuroRefugio, rootEnv.transform);
+        ConfigurarParedCafeEscena("Wall (1)", new Vector3(225.0f, 1.8f, 250.2f), new Vector3(10.5f, 3.6f, 0.9f), matMuroRefugio, rootEnv.transform);
+        ConfigurarParedCafeEscena("Wall (4)", new Vector3(265.0f, 1.8f, 252.5f), new Vector3(11.5f, 3.6f, 0.9f), matMuroRefugio, rootEnv.transform);
+        ConfigurarParedCafeEscena("Wall (3)", new Vector3(249.8f, 1.8f, 245.0f), new Vector3(0.9f, 3.6f, 11.5f), matMuroRefugio, rootEnv.transform);
+        ConfigurarParedCafeEscena("Wall",     new Vector3(265.0f, 1.8f, 219.8f), new Vector3(11.5f, 3.6f, 0.9f), matMuroRefugio, rootEnv.transform);
+        ConfigurarParedCafeEscena("Wall (2)", new Vector3(280.2f, 1.8f, 235.0f), new Vector3(0.9f, 3.6f, 32.0f), matMuroRefugio, rootEnv.transform);
 
         // Cierres cafés perimetrales adicionales en las aceras para un recinto 100% hermético
-        CrearBloque3D("Muro_Perimetro_SurCallejon", rootEnv.transform, new Vector3(20.0f, 1.8f, 119.8f), new Vector3(22.0f, 3.6f, 0.9f), matMuroRefugio, true);
-        CrearBloque3D("Muro_Perimetro_NorteCallejon", rootEnv.transform, new Vector3(20.0f, 1.8f, 130.2f), new Vector3(20.5f, 3.6f, 0.9f), matMuroRefugio, true);
-        CrearBloque3D("Muro_Perimetro_SurEste", rootEnv.transform, new Vector3(55.0f, 1.8f, 119.8f), new Vector3(11.0f, 3.6f, 0.9f), matMuroRefugio, true);
-        CrearBloque3D("Muro_Perimetro_NorteEste", rootEnv.transform, new Vector3(55.0f, 1.8f, 150.2f), new Vector3(11.0f, 3.6f, 0.9f), matMuroRefugio, true);
+        CrearBloque3D("Muro_Perimetro_SurCallejon", rootEnv.transform, new Vector3(240.0f, 1.8f, 219.8f), new Vector3(22.0f, 3.6f, 0.9f), matMuroRefugio, true);
+        CrearBloque3D("Muro_Perimetro_NorteCallejon", rootEnv.transform, new Vector3(240.0f, 1.8f, 230.2f), new Vector3(20.5f, 3.6f, 0.9f), matMuroRefugio, true);
+        CrearBloque3D("Muro_Perimetro_SurEste", rootEnv.transform, new Vector3(275.0f, 1.8f, 219.8f), new Vector3(11.0f, 3.6f, 0.9f), matMuroRefugio, true);
+        CrearBloque3D("Muro_Perimetro_NorteEste", rootEnv.transform, new Vector3(275.0f, 1.8f, 250.2f), new Vector3(11.0f, 3.6f, 0.9f), matMuroRefugio, true);
 
         // Esquina y Obstáculos de Cobertura para la Fase 2 (Sigilo / Romper Línea de Visión en la calle sur Z=125)
-        CrearBloque3D("Muro_Esquina_RomperVista", rootEnv.transform, new Vector3(51.5f, 1.6f, 128.5f), new Vector3(2.4f, 3.2f, 2.4f), matObstaculoSigilo, true);
-        CrearBloque3D("Cobertura_Sigilo_1", rootEnv.transform, new Vector3(48.5f, 1.0f, 122.4f), new Vector3(3.4f, 2.0f, 1.1f), matObstaculoSigilo, true);
-        CrearBloque3D("Cobertura_Sigilo_2", rootEnv.transform, new Vector3(40.5f, 1.0f, 122.4f), new Vector3(3.4f, 2.0f, 1.1f), matObstaculoSigilo, true);
+        CrearBloque3D("Muro_Esquina_RomperVista", rootEnv.transform, new Vector3(271.5f, 1.6f, 228.5f), new Vector3(2.4f, 3.2f, 2.4f), matObstaculoSigilo, true);
+        CrearBloque3D("Cobertura_Sigilo_1", rootEnv.transform, new Vector3(268.5f, 1.0f, 222.4f), new Vector3(3.4f, 2.0f, 1.1f), matObstaculoSigilo, true);
+        CrearBloque3D("Cobertura_Sigilo_2", rootEnv.transform, new Vector3(260.5f, 1.0f, 222.4f), new Vector3(3.4f, 2.0f, 1.1f), matObstaculoSigilo, true);
 
         // Barreras físicas invisibles/de bloqueo para garantizar secuencia estricta sin saltarse ningún paso
         Material matBarreraInvisible = new Material(litShader) { color = new Color(1f, 0.5f, 0.1f, 0f) };
-        barreraSalidaMadriguera = CrearBloque3D("BarreraSecuencia_SalidaMadriguera", rootEnv.transform, new Vector3(5.0f, 1.8f, 138.2f), new Vector3(4.5f, 3.6f, 0.5f), matBarreraInvisible, true);
+        barreraSalidaMadriguera = CrearBloque3D("BarreraSecuencia_SalidaMadriguera", rootEnv.transform, new Vector3(225.0f, 1.8f, 238.2f), new Vector3(4.5f, 3.6f, 0.5f), matBarreraInvisible, true);
         barreraSalidaMadriguera.GetComponent<Renderer>().enabled = false;
 
-        barreraSprintCallejon = CrearBloque3D("BarreraSecuencia_SprintCallejon", rootEnv.transform, new Vector3(23.5f, 1.8f, 125.0f), new Vector3(0.6f, 3.6f, 10.0f), matBarreraInvisible, true);
+        barreraSprintCallejon = CrearBloque3D("BarreraSecuencia_SprintCallejon", rootEnv.transform, new Vector3(243.5f, 1.8f, 225.0f), new Vector3(0.6f, 3.6f, 10.0f), matBarreraInvisible, true);
         barreraSprintCallejon.GetComponent<Renderer>().enabled = false;
 
-        barreraEsquinaSigilo = CrearBloque3D("BarreraSecuencia_EsquinaSigilo", rootEnv.transform, new Vector3(55.0f, 1.8f, 132.5f), new Vector3(12.0f, 3.6f, 0.6f), matBarreraInvisible, true);
+        barreraEsquinaSigilo = CrearBloque3D("BarreraSecuencia_EsquinaSigilo", rootEnv.transform, new Vector3(275.0f, 1.8f, 232.5f), new Vector3(12.0f, 3.6f, 0.6f), matBarreraInvisible, true);
         barreraEsquinaSigilo.GetComponent<Renderer>().enabled = false;
 
-        barreraEntradaRefugio = CrearBloque3D("BarreraSecuencia_EntradaRefugio", rootEnv.transform, new Vector3(24.5f, 1.8f, 125.0f), new Vector3(0.6f, 3.6f, 10.0f), matBarreraInvisible, true);
+        barreraEntradaRefugio = CrearBloque3D("BarreraSecuencia_EntradaRefugio", rootEnv.transform, new Vector3(244.5f, 1.8f, 225.0f), new Vector3(0.6f, 3.6f, 10.0f), matBarreraInvisible, true);
         barreraEntradaRefugio.GetComponent<Renderer>().enabled = false;
 
         // Waypoints de referencia
         GameObject refugioWp = new GameObject("Waypoint_RefugioSeguro");
         refugioWp.transform.SetParent(rootEnv.transform, false);
-        refugioWp.transform.position = new Vector3(5.0f, 0.5f, 144.5f);
+        refugioWp.transform.position = new Vector3(225.0f, 0.5f, 244.5f);
         puntoRefugioSeguro = refugioWp.transform;
 
         GameObject salidaCallejonWp = new GameObject("Waypoint_SalidaCallejon");
@@ -603,10 +603,10 @@ public class TutorialPipelineManager : MonoBehaviour
         // Posiciones en el circuito de calles de la ciudad hacia Lulú (Lulú está en X=45.0, Z=148.0)
         Vector3[] posicionesLootCiudad = new Vector3[]
         {
-            new Vector3(35.0f, 0.35f, 135.0f),
-            new Vector3(45.0f, 0.35f, 122.2f),
-            new Vector3(55.0f, 0.35f, 135.0f),
-            new Vector3(52.5f, 0.35f, 145.0f)
+            new Vector3(255.0f, 0.35f, 235.0f),
+            new Vector3(265.0f, 0.35f, 222.2f),
+            new Vector3(275.0f, 0.35f, 235.0f),
+            new Vector3(272.5f, 0.35f, 245.0f)
         };
 
         string[] nombresExistentes = new string[]
@@ -657,9 +657,9 @@ public class TutorialPipelineManager : MonoBehaviour
         // Ciudadanos pacíficos en la ciudad que pasean de día y se retiran/transforman al anochecer
         Vector3[] posCiudadanos = new Vector3[]
         {
-            new Vector3(35.0f, 0.15f, 128.0f),
-            new Vector3(41.5f, 0.15f, 145.0f),
-            new Vector3(55.0f, 0.15f, 128.0f)
+            new Vector3(255.0f, 0.15f, 228.0f),
+            new Vector3(261.5f, 0.15f, 245.0f),
+            new Vector3(275.0f, 0.15f, 228.0f)
         };
 
         for (int i = 0; i < posCiudadanos.Length; i++)
@@ -1207,7 +1207,7 @@ public class TutorialPipelineManager : MonoBehaviour
         // Colocar al jugador en la vía norte
         if (hamster != null)
         {
-            Vector3 posJugadorNoche = new Vector3(48.0f, 0.85f, 145.0f);
+            Vector3 posJugadorNoche = new Vector3(268.0f, 0.85f, 245.0f);
             hamster.RespawnOrHeal(posJugadorNoche);
             hamster.transform.rotation = Quaternion.Euler(0f, -90f, 0f);
             checkpointPosicion = posJugadorNoche;
@@ -1518,8 +1518,8 @@ public class TutorialPipelineManager : MonoBehaviour
             enemigoFeralPrincipal.showVisionCone = true;
             enemigoFeralPrincipal.SetPatrolWaypoints(new Vector3[]
             {
-                AjustarANavMesh(new Vector3(44.0f, 0.15f, 126.5f)),
-                AjustarANavMesh(new Vector3(35.5f, 0.15f, 126.5f))
+                AjustarANavMesh(new Vector3(264.0f, 0.15f, 226.5f)),
+                AjustarANavMesh(new Vector3(255.5f, 0.15f, 226.5f))
             });
         }
 
