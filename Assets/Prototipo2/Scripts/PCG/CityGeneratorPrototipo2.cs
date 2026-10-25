@@ -284,7 +284,7 @@ namespace Prototipo2
             {
                 if (Vector3.Distance(deadEndPos, PlayerSpawnPoint) < 6.0f) continue;
 
-                Vector3 dropPos = deadEndPos + new Vector3(rng.Range(-1.5f, 1.5f), 0, rng.Range(-1.5f, 1.5f));
+                Vector3 dropPos = deadEndPos + new Vector3((float)rng.Range(-1, 2), 0, (float)rng.Range(-1, 2));
                 dropPos.y = roadHeightY;
 
                 GameObject spawnerObj = new GameObject($"DropSpawner_Alley_{spawnerIndex++}");
