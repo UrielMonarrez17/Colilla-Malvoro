@@ -113,9 +113,9 @@ public class LootContainer : MonoBehaviour
             }
             obtenidos.Add(itemObtenido);
         }
-        
+
         yaFueSaqueado = true;
-        
+
         // Apagamos la luz de resplandor si existía
         if (glowLight != null)
         {
@@ -180,10 +180,10 @@ public class LootContainer : MonoBehaviour
                 return loot.item; // ¡Encontramos el ítem ganador!
             }
             // Si no fue este, le restamos su probabilidad al número y pasamos al siguiente
-            numeroAleatorio -= loot.dropChance; 
+            numeroAleatorio -= loot.dropChance;
         }
 
         // Por seguridad, si algo falla (que no debería), regresamos basura por defecto
-        return ItemType.Desperdicios; 
+        return ItemType.Desperdicios;
     }
 }

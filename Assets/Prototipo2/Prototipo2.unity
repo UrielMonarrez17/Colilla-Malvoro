@@ -454,6 +454,7 @@ GameObject:
   - component: {fileID: 360065399}
   - component: {fileID: 360065398}
   - component: {fileID: 360065404}
+  - component: {fileID: 360065405}
   m_Layer: 0
   m_Name: Hamster
   m_TagString: Untagged
@@ -538,7 +539,6 @@ MonoBehaviour:
     m_Bits: 4294967295
   enableGroundSnapping: 1
   groundSnapForce: 12
-  airDashAllowed: 1
   dashKeyPrimary: 113
   dashKeySecondary: 306
   rightClickDash: 1
@@ -649,6 +649,27 @@ MonoBehaviour:
   farDistance: 35
   fogTransitionSpeed: 1.8
   controlGlobalFog: 1
+--- !u!65 &360065405
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 360065396}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &365914791
 GameObject:
   m_ObjectHideFlags: 0
@@ -1374,6 +1395,58 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: f3f4d4734766a4e4d87a51e8949259db, type: 3}
+--- !u!1 &718291040
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 718291041}
+  - component: {fileID: 718291042}
+  m_Layer: 0
+  m_Name: MissionPointerArrow
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &718291041
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 718291040}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 102, y: 0.85, z: 56}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &718291042
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 718291040}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1cb42df2204408b9cfa234bf18233c3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Prototipo2::MissionPointerPrototipo2
+  playerTransform: {fileID: 360065397}
+  objetivo: {fileID: 0}
+  hoverHeight: 0.85
+  velocidadRotacion: 12
+  bobSpeed: 3.5
+  bobAmplitude: 0.08
+  arrowMaterial: {fileID: 2100000, guid: 6a6932296cc41e8498e64a2f47a1e14e, type: 2}
+  arrowColor: {r: 1, g: 0.92, b: 0.016, a: 1}
 --- !u!1001 &786933335
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2004,7 +2077,7 @@ MonoBehaviour:
   storySeed: 54321
   worldBinder: {fileID: 1217600642}
   player: {fileID: 360065397}
-  missionPointer: {fileID: 718291042}
+  missionPointer: {fileID: 0}
   currentGraph:
     nodes: []
     startNodeId: 
@@ -2036,7 +2109,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 14509c62ec074e09b61e6ade9026adca, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Prototipo2::CityGeneratorPrototipo2
-  seed: 12345
+  seed: 5504183
   mapWidth: 40
   mapLength: 40
   cellSize: 10
@@ -2080,7 +2153,7 @@ MonoBehaviour:
   - {fileID: 7287056650258485505, guid: b39f544652824647b92515168c580470, type: 3}
   - {fileID: 6253783941866253735, guid: bb2d7f1b64fc4f4e810324e8235be399, type: 3}
   - {fileID: 7287056650258485505, guid: 7cbcd3121a56465d8dda603ec01e22ee, type: 3}
-  maxEnemiesToSpawn: 12
+  maxEnemiesToSpawn: 100
   minEnemyDistanceFromSpawn: 30
 --- !u!4 &1217600644
 Transform:
@@ -2424,6 +2497,7 @@ GameObject:
   - component: {fileID: 1633850698}
   - component: {fileID: 1633850697}
   - component: {fileID: 1633850695}
+  - component: {fileID: 1633850696}
   m_Layer: 0
   m_Name: Floor
   m_TagString: Untagged
@@ -2480,7 +2554,7 @@ BoxCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0
-  m_Enabled: 0
+  m_Enabled: 1
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
@@ -3352,58 +3426,6 @@ MonoBehaviour:
   m_OnValueChanged:
     m_PersistentCalls:
       m_Calls: []
---- !u!1 &718291040
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 718291041}
-  - component: {fileID: 718291042}
-  m_Layer: 0
-  m_Name: MissionPointerArrow
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &718291041
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 718291040}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 102, y: 0.85, z: 56}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &718291042
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 718291040}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a1cb42df2204408b9cfa234bf18233c3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Prototipo2::MissionPointerPrototipo2
-  playerTransform: {fileID: 360065397}
-  objetivo: {fileID: 0}
-  hoverHeight: 0.85
-  velocidadRotacion: 12
-  bobSpeed: 3.5
-  bobAmplitude: 0.08
-  arrowMaterial: {fileID: 2100000, guid: 6a6932296cc41e8498e64a2f47a1e14e, type: 2}
-  arrowColor: {r: 1, g: 0.92, b: 0.016, a: 1}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

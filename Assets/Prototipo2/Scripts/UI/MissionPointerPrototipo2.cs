@@ -198,7 +198,7 @@ namespace Prototipo2
             foreach (var c in containers)
             {
                 if (c == null || !c.gameObject.activeInHierarchy) continue;
-                if (c.ItemsRestantes <= 0) continue; // Ya fue saqueado
+                if (c.YaFueSaqueado) continue; // Ya fue saqueado
 
                 float d = Vector3.Distance(playerPos, c.transform.position);
                 if (d < menorDist)
