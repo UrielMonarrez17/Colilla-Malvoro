@@ -14,8 +14,9 @@ namespace Prototipo2
         public int storySeed = 54321;
         public StoryWorldBinder worldBinder;
 
-        [Header("Referencias del Jugador")]
+        [Header("Referencias del Jugador y Misión")]
         public Transform player;
+        public MissionPointerPrototipo2 missionPointer;
 
         [Header("Estado Actual")]
         [SerializeField] private StoryGraph currentGraph;
@@ -59,6 +60,11 @@ namespace Prototipo2
             {
                 HamsterController hc = FindAnyObjectByType<HamsterController>();
                 if (hc != null) player = hc.transform;
+            }
+
+            if (missionPointer == null)
+            {
+                missionPointer = FindAnyObjectByType<MissionPointerPrototipo2>();
             }
 
             // Iniciar tras la generación de la ciudad
@@ -207,6 +213,10 @@ namespace Prototipo2
             currentActiveNode = targetNode;
 
             Debug.Log($"[StoryManager] Nuevo Objetivo Activo: {targetNode.title} ({targetNode.type})");
+            if (missionPointer != null)
+            {
+                missionPointer.ActualizarObjetivoPorNodo(targetNode);
+            }
             OnActiveNodeChanged?.Invoke(targetNode);
         }
 
