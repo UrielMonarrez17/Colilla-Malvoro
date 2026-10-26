@@ -875,15 +875,14 @@ GameObject:
   m_Component:
   - component: {fileID: 1740307612617142317}
   - component: {fileID: 8839400561282747319}
-  - component: {fileID: 2029320052928249574}
   - component: {fileID: 4471232599761341977}
   - component: {fileID: 8082970626080870488}
   - component: {fileID: 6286600430652488240}
   - component: {fileID: 4193913572574327906}
-  - component: {fileID: 2526388999328886083}
+  - component: {fileID: 3253662408645066068}
   m_Layer: 0
-  m_Name: Tiger_001
-  m_TagString: Untagged
+  m_Name: Tiger_Prototipo2
+  m_TagString: Enemy
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -898,7 +897,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.46425, y: 1.46425, z: 1.46425}
+  m_LocalScale: {x: 0.9098521, y: 0.9098521, z: 0.9098521}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 8271680127656070063}
@@ -927,22 +926,6 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
---- !u!114 &2029320052928249574
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7287056650258485505}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8a91a4739df9c5040bf5689769afcc6e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::AnimationShowcase
-  idleSpeed: 0
-  walkSpeed: 0.5
-  runSpeed: 1
-  dampTime: 0.1
 --- !u!65 &4471232599761341977
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -962,8 +945,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.5978182, y: 1.1979992, z: 2.1081994}
-  m_Center: {x: 0.010117837, y: 0.60207546, z: 0.25919205}
+  m_Size: {x: 0.55, y: 1.2, z: 1.8}
+  m_Center: {x: 0, y: 0.6, z: 0.15}
 --- !u!54 &8082970626080870488
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -986,8 +969,8 @@ Rigidbody:
     m_Bits: 0
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
-  m_UseGravity: 1
-  m_IsKinematic: 0
+  m_UseGravity: 0
+  m_IsKinematic: 1
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
@@ -1000,8 +983,8 @@ NavMeshAgent:
   m_GameObject: {fileID: 7287056650258485505}
   m_Enabled: 1
   m_AgentTypeID: 0
-  m_Radius: 0.65
-  m_Speed: 8
+  m_Radius: 0.5
+  m_Speed: 4.5
   m_Acceleration: 8
   avoidancePriority: 50
   m_AngularSpeed: 250
@@ -1009,7 +992,7 @@ NavMeshAgent:
   m_AutoTraverseOffMeshLink: 1
   m_AutoBraking: 1
   m_AutoRepath: 1
-  m_Height: 1.1
+  m_Height: 1.2
   m_BaseOffset: 0
   m_WalkableMask: 4294967295
   m_ObstacleAvoidanceType: 4
@@ -1025,7 +1008,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 409110e8449d3a3439c6f6146d9ae554, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyOnCollision
---- !u!114 &2526388999328886083
+--- !u!114 &3253662408645066068
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1034,24 +1017,27 @@ MonoBehaviour:
   m_GameObject: {fileID: 7287056650258485505}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fd23620762d512748972e67fd5bfc97d, type: 3}
+  m_Script: {fileID: 11500000, guid: 4c64072cc09637a4cb1daf193ea4932a, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::EnemyAI
+  m_EditorClassIdentifier: Assembly-CSharp::Prototipo2.EnemyAIPrototipo2
   currentState: 0
   player: {fileID: 0}
-  visionRadiusNormal: 50
+  visionRadiusNormal: 35
   visionRadiusCrouched: 15
-  backDetectionRadius: 2
+  backDetectionRadius: 2.5
   visionAngle: 120
   obstacleMask:
     serializedVersion: 2
     m_Bits: 0
-  wanderRadius: 15
-  wanderWaitTime: 3
-  wanderSpeed: 4
-  chaseSpeed: 8
-  attackRange: 2
+  showVisionCone: 0
+  wanderRadius: 35
+  wanderWaitTime: 2
+  wanderSpeed: 4.5
+  chaseSpeed: 8.5
+  attackRange: 2.2
   attackCooldown: 1.5
+  minCitySurfaceY: 0
+  buildingCheckDistance: 1.6
 --- !u!1 &7346800667167296489
 GameObject:
   m_ObjectHideFlags: 0
@@ -1159,7 +1145,7 @@ GameObject:
   - component: {fileID: 7137266084028176307}
   m_Layer: 0
   m_Name: Tiger_001
-  m_TagString: Untagged
+  m_TagString: Enemy
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0

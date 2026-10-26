@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 using Prototipo2.Narrative;
 
 namespace Prototipo2
@@ -7,9 +8,13 @@ namespace Prototipo2
     public class StoryWorldBinder : MonoBehaviour
     {
         [Header("Prefabs y Marcadores Visuales")]
+        public GameObject luluPrefab;
         public GameObject npcMarkerPrefab;
         public GameObject lockBarricadePrefab;
         public GameObject objectiveBeaconPrefab;
+
+        public GameObject SpawnedLuluInstance { get; private set; }
+        public LuluNPCPrototipo2 SpawnedLuluNPC { get; private set; }
 
         private readonly List<GameObject> spawnedWorldArtifacts = new List<GameObject>();
 
@@ -29,11 +34,13 @@ namespace Prototipo2
                 startNode.worldPosition = spawnPt;
             }
 
-            // 2. Encounter Node: Ubicar en una esquina o acera cercana al refugio (~12m a 20m)
+            // 2. Encounter Node: Ubicar en una esquina o acera cercana al refugio (~10m a 22m) y spawnear el prefab de Lulú
             StoryNode encounterNode = graph.GetNode("node_encounter");
             if (encounterNode != null)
             {
-                Vector3 encounterPos = spawnPt + new Vector3(12f, 0f, 8f);
+                Vector3 encounterPos = spawnPt + new Vector3(10f, 0f, 8f);
+                encounterPos.y = cityGen.roadHeightY;
+
                 if (cityGen.IntersectionPoints.Count > 0)
                 {
                     // Buscar la intersección más cercana al spawn pero no idéntica
@@ -41,15 +48,18 @@ namespace Prototipo2
                     foreach (var pt in cityGen.IntersectionPoints)
                     {
                         float d = Vector3.Distance(pt, spawnPt);
-                        if (d > 8f && d < bestDist)
+                        if (d > 7f && d < bestDist)
                         {
                             bestDist = d;
                             encounterPos = pt;
                         }
                     }
                 }
+
+                encounterPos = AjustarPosicionSuperficieCiudad(encounterPos, cityGen.roadHeightY);
                 encounterNode.worldPosition = encounterPos;
-                CrearMarcadorMundo(encounterPos, Color.cyan, $"NPC_{encounterNode.targetActorName}", "Hablar con [F]");
+
+                SpawnearLuluEnMundo(encounterPos, spawnPt);
             }
 
             // 3. Quest Node: Asignar al grupo de loot sockets
@@ -83,6 +93,7 @@ namespace Prototipo2
                 {
                     lockPos = cityGen.IntersectionPoints[cityGen.IntersectionPoints.Count / 2];
                 }
+                lockPos = AjustarPosicionSuperficieCiudad(lockPos, cityGen.roadHeightY);
                 lockNode.worldPosition = lockPos;
                 CrearBarricadaLock(lockPos);
             }
@@ -110,6 +121,7 @@ namespace Prototipo2
                         }
                     }
                 }
+                bossPos = AjustarPosicionSuperficieCiudad(bossPos, cityGen.roadHeightY);
                 bossNode.worldPosition = bossPos;
                 CrearMarcadorMundo(bossPos, Color.red, "Boss_Territory", "¡Territorio Feral Alfa!");
             }
@@ -132,9 +144,70 @@ namespace Prototipo2
                         }
                     }
                 }
+                exitPos = AjustarPosicionSuperficieCiudad(exitPos, cityGen.roadHeightY);
                 exitNode.worldPosition = exitPos;
                 CrearMarcadorMundo(exitPos, Color.green, "Madriguera_Exit", "Madriguera Segura (Extracción)");
             }
+        }
+
+        private Vector3 AjustarPosicionSuperficieCiudad(Vector3 pos, float roadHeightY)
+        {
+            pos.y = roadHeightY;
+            if (NavMesh.SamplePosition(pos, out NavMeshHit navHit, 10.0f, NavMesh.AllAreas))
+            {
+                return navHit.position;
+            }
+
+            Vector3 rayOrigin = new Vector3(pos.x, roadHeightY + 5f, pos.z);
+            RaycastHit[] hits = Physics.RaycastAll(rayOrigin, Vector3.down, 10f, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < hits.Length; i++)
+            {
+                if (hits[i].collider == null) continue;
+                if (hits[i].point.y >= roadHeightY - 0.5f && hits[i].point.y <= roadHeightY + 1.0f)
+                {
+                    pos.y = hits[i].point.y;
+                    break;
+                }
+            }
+
+            return pos;
+        }
+
+        private void SpawnearLuluEnMundo(Vector3 encounterPos, Vector3 playerSpawnPt)
+        {
+            GameObject prefabToUse = luluPrefab != null ? luluPrefab : npcMarkerPrefab;
+
+            Vector3 lookDir = playerSpawnPt - encounterPos;
+            lookDir.y = 0f;
+            Quaternion spawnRot = lookDir.sqrMagnitude > 0.01f
+                ? Quaternion.LookRotation(lookDir.normalized)
+                : Quaternion.identity;
+
+            if (prefabToUse != null)
+            {
+                SpawnedLuluInstance = Instantiate(prefabToUse, encounterPos, spawnRot, transform);
+                SpawnedLuluInstance.name = "Lulu_NPC_Prototipo2";
+                SpawnedLuluInstance.tag = "Interactable";
+                SpawnedLuluInstance.transform.position = encounterPos;
+
+                NavMeshAgent agent = SpawnedLuluInstance.GetComponent<NavMeshAgent>();
+                if (agent != null && agent.enabled)
+                {
+                    agent.Warp(encounterPos);
+                }
+
+                SpawnedLuluNPC = SpawnedLuluInstance.GetComponent<LuluNPCPrototipo2>();
+                if (SpawnedLuluNPC == null)
+                {
+                    SpawnedLuluNPC = SpawnedLuluInstance.AddComponent<LuluNPCPrototipo2>();
+                }
+                SpawnedLuluNPC.SetHomeAnchor(encounterPos);
+
+                spawnedWorldArtifacts.Add(SpawnedLuluInstance);
+            }
+
+            // Crear un anillo marcador sutil en el suelo debajo de Lulú para resaltar su zona de encuentro
+            CrearMarcadorMundo(encounterPos, Color.cyan, "NPC_Lulu", "Hablar con Lulú [F]");
         }
 
         private void CrearMarcadorMundo(Vector3 pos, Color color, string nombre, string label)
@@ -166,6 +239,10 @@ namespace Prototipo2
             barricada.transform.SetParent(transform);
             barricada.transform.position = pos + new Vector3(0, 1.2f, 0);
             barricada.transform.localScale = new Vector3(6f, 2.4f, 1.5f);
+
+            NavMeshObstacle obstacle = barricada.AddComponent<NavMeshObstacle>();
+            obstacle.carving = true;
+            obstacle.shape = NavMeshObstacleShape.Box;
 
             Renderer ren = barricada.GetComponent<Renderer>();
             if (ren != null)
@@ -199,6 +276,8 @@ namespace Prototipo2
                 }
             }
             spawnedWorldArtifacts.Clear();
+            SpawnedLuluInstance = null;
+            SpawnedLuluNPC = null;
         }
     }
 }

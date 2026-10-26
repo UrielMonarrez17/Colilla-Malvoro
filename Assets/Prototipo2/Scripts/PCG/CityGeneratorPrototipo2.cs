@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
+using Unity.AI.Navigation;
 
 namespace Prototipo2
 {
@@ -67,10 +69,7 @@ namespace Prototipo2
 
         private void Start()
         {
-            if (transform.childCount == 0)
-            {
-                GenerateCity();
-            }
+            GenerateCity();
         }
 
         [ContextMenu("Generar Ciudad Completa en Editor")]
@@ -113,6 +112,9 @@ namespace Prototipo2
             Grid = grid;
             LastNetwork = network;
 
+            // 4.5 Configurar colliders/NavMeshObstacles en edificios y nivelar NavMesh a la ciudad (Y = roadHeightY)
+            ConfigurarNavegacionYColisionesCiudad();
+
             // 5. Analizar características viales (intersecciones, callejones sin salida, rotondas/loops)
             AnalizarTopologiaVial(grid, network);
 
@@ -126,6 +128,61 @@ namespace Prototipo2
             GenerarEnemigosFerales(rng);
 
             OnCityGenerated?.Invoke();
+        }
+
+        private void ConfigurarNavegacionYColisionesCiudad()
+        {
+            // 1. Asegurar que todos los edificios tengan BoxCollider sólido y NavMeshObstacle con carving activo
+            BuildingData[] buildings = GetComponentsInChildren<BuildingData>(true);
+            foreach (BuildingData b in buildings)
+            {
+                if (b == null) continue;
+                GameObject bObj = b.gameObject;
+
+                BoxCollider box = bObj.GetComponent<BoxCollider>();
+                if (box == null)
+                {
+                    box = bObj.AddComponent<BoxCollider>();
+                    Renderer ren = bObj.GetComponent<Renderer>() ?? bObj.GetComponentInChildren<Renderer>();
+                    if (ren != null)
+                    {
+                        box.center = bObj.transform.InverseTransformPoint(ren.bounds.center);
+                        Vector3 worldSize = ren.bounds.size;
+                        Vector3 lossy = bObj.transform.lossyScale;
+                        box.size = new Vector3(
+                            lossy.x > 0.001f ? worldSize.x / lossy.x : worldSize.x,
+                            lossy.y > 0.001f ? worldSize.y / lossy.y : worldSize.y,
+                            lossy.z > 0.001f ? worldSize.z / lossy.z : worldSize.z
+                        );
+                    }
+                }
+
+                box.enabled = true;
+                box.isTrigger = false;
+
+                NavMeshObstacle obstacle = bObj.GetComponent<NavMeshObstacle>();
+                if (obstacle == null)
+                {
+                    obstacle = bObj.AddComponent<NavMeshObstacle>();
+                }
+                obstacle.shape = NavMeshObstacleShape.Box;
+                obstacle.center = box.center;
+                obstacle.size = box.size;
+                obstacle.carving = true;
+                obstacle.carveOnlyStationary = true;
+                obstacle.carvingMoveThreshold = 0.1f;
+                obstacle.carvingTimeToStationary = 0.1f;
+            }
+
+            // 2. Hornear NavMesh directamente sobre la geometria de las calles y edificios (hijos de cityManager)
+            NavMeshSurface navSurface = GetComponent<NavMeshSurface>();
+            if (navSurface == null)
+            {
+                navSurface = gameObject.AddComponent<NavMeshSurface>();
+            }
+            navSurface.collectObjects = CollectObjects.Children;
+            navSurface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
+            navSurface.BuildNavMesh();
         }
 
         private void AnalizarTopologiaVial(CityGrid grid, RoadNetwork network)
@@ -202,8 +259,21 @@ namespace Prototipo2
                 bestCell = new Vector2Int(grid.Width / 2, grid.Length / 2);
             }
 
-            PlayerSpawnPoint = new Vector3(bestCell.x * cellSize + cellSize * 0.5f, roadHeightY + 0.5f, bestCell.y * cellSize + cellSize * 0.5f);
+            Vector3 rawSpawnPoint = new Vector3(bestCell.x * cellSize + cellSize * 0.5f, roadHeightY, bestCell.y * cellSize + cellSize * 0.5f);
+            if (NavMesh.SamplePosition(rawSpawnPoint, out NavMeshHit navHit, 5f, NavMesh.AllAreas))
+            {
+                PlayerSpawnPoint = navHit.position + Vector3.up * 0.05f;
+            }
+            else
+            {
+                PlayerSpawnPoint = new Vector3(bestCell.x * cellSize + cellSize * 0.5f, roadHeightY + 0.1f, bestCell.y * cellSize + cellSize * 0.5f);
+            }
+
             CraftTableSpawnPoint = PlayerSpawnPoint + new Vector3(2.0f, 0f, 1.5f);
+            if (NavMesh.SamplePosition(CraftTableSpawnPoint, out NavMeshHit tableHit, 3f, NavMesh.AllAreas))
+            {
+                CraftTableSpawnPoint = tableHit.position;
+            }
 
             // Marcador jerarquico explicito para el Spawn del Hamster y Refugio
             GameObject shelterMarker = new GameObject("SPAWN_HAMSTER_REFUGIO");
@@ -392,8 +462,8 @@ namespace Prototipo2
 
                     EnemySpawner spawner = spawnerObj.AddComponent<EnemySpawner>();
                     spawner.enemyPrefab = chosenPrefab;
-                    spawner.patrolRadius = 9f;
-                    spawner.spawnOnlyAtNight = false; // Spawnea inmediatamente para que esté activo en la demo
+                    spawner.spawnOnAwake = false;
+                    spawner.spawnOnlyAtNight = false; // Spawnea inmediatamente para que esté activo en la demo y entre en Wander libre
                     spawner.SpawnEnemy();
 
                     EnemySpawnPoints.Add(spawnPos);
@@ -404,12 +474,34 @@ namespace Prototipo2
         [ContextMenu("Limpiar Ciudad")]
         public void ClearCity()
         {
+            LootSpawnPoints.Clear();
+            EnemySpawnPoints.Clear();
+            IntersectionPoints.Clear();
+            DeadEndPoints.Clear();
+            LoopCenterPoints.Clear();
+
             for (int i = transform.childCount - 1; i >= 0; i--)
             {
                 Transform child = transform.GetChild(i);
                 // No destruir al hamster si casualmente estuviera como hijo
                 if (child == hamsterTransform) continue;
-                Destroy(child.gameObject);
+                if (Application.isPlaying)
+                {
+                    Destroy(child.gameObject);
+                }
+                else
+                {
+                    DestroyImmediate(child.gameObject);
+                }
+            }
+
+            if (!Application.isPlaying)
+            {
+                NavMeshSurface navSurface = GetComponent<NavMeshSurface>();
+                if (navSurface != null)
+                {
+                    navSurface.RemoveData();
+                }
             }
         }
 

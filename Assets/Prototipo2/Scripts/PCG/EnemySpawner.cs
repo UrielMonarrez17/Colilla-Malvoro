@@ -56,15 +56,53 @@ namespace Prototipo2
                 return null;
             }
 
+            float citySurfaceY = CityGeneratorPrototipo2.Instance != null ? CityGeneratorPrototipo2.Instance.roadHeightY : 0f;
             Vector3 spawnPos = transform.position;
-            if (NavMesh.SamplePosition(spawnPos, out NavMeshHit hit, 4.0f, NavMesh.AllAreas))
+            spawnPos.y = citySurfaceY;
+
+            // Proyectar directamente sobre el NavMesh horneado de las calles de la ciudad
+            if (NavMesh.SamplePosition(spawnPos, out NavMeshHit hit, 10.0f, NavMesh.AllAreas))
             {
                 spawnPos = hit.position;
+            }
+            else
+            {
+                // Fallback por raycast sobre la superficie de la calle si el NavMesh estuviera en proceso
+                Vector3 rayOrigin = new Vector3(spawnPos.x, citySurfaceY + 5f, spawnPos.z);
+                RaycastHit[] hits = Physics.RaycastAll(rayOrigin, Vector3.down, 10f, ~0, QueryTriggerInteraction.Ignore);
+                for (int i = 0; i < hits.Length; i++)
+                {
+                    if (hits[i].collider == null) continue;
+                    if (hits[i].point.y >= citySurfaceY - 0.5f && hits[i].point.y <= citySurfaceY + 1.0f)
+                    {
+                        spawnPos.y = hits[i].point.y;
+                        break;
+                    }
+                }
             }
 
             spawnedEnemyInstance = Instantiate(enemyPrefab, spawnPos, transform.rotation, transform);
             spawnedEnemyInstance.name = $"Feral_{name}";
             spawnedEnemyInstance.tag = "Enemy";
+
+            // Asegurar que la posición mundial quede sobre la ciudad incluso si el prefab tenía offset residual
+            spawnedEnemyInstance.transform.position = spawnPos;
+
+            NavMeshAgent agent = spawnedEnemyInstance.GetComponent<NavMeshAgent>();
+            if (agent != null)
+            {
+                agent.baseOffset = 0f;
+                agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
+                if (agent.enabled)
+                {
+                    agent.Warp(spawnPos);
+                }
+            }
+
+            if (spawnedEnemyInstance.GetComponent<EnemyOnCollision>() == null)
+            {
+                spawnedEnemyInstance.AddComponent<EnemyOnCollision>();
+            }
 
             EnemyAI ai = spawnedEnemyInstance.GetComponent<EnemyAI>();
             if (ai != null)
@@ -72,10 +110,19 @@ namespace Prototipo2
                 HamsterController hc = FindAnyObjectByType<HamsterController>();
                 if (hc != null) ai.player = hc.transform;
 
-                // Configurar waypoints de patrulla alrededor del spawner
-                Vector3 p1 = spawnPos + transform.forward * patrolRadius * 0.5f;
-                Vector3 p2 = spawnPos - transform.forward * patrolRadius * 0.5f;
-                ai.SetPatrolWaypoints(new Vector3[] { p1, p2 });
+                // Dejar todo a la máquina de estados del enemigo: sin waypoints de patrulla y con radio de wander amplio
+                ai.SetPatrolWaypoints(null);
+                if (ai.wanderRadius < 30f)
+                {
+                    ai.wanderRadius = 35f;
+                }
+            }
+
+            EnemyAIPrototipo2 protoAi = spawnedEnemyInstance.GetComponent<EnemyAIPrototipo2>();
+            if (protoAi != null)
+            {
+                protoAi.minCitySurfaceY = citySurfaceY;
+                protoAi.SnapToCitySurfaceImmediate();
             }
 
             hasSpawned = true;

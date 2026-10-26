@@ -321,6 +321,10 @@ namespace Prototipo2
                 {
                     lootContainer.InteractuarConLoot();
                 }
+                else if (protoCurrentInteractable.TryGetComponent<LuluNPCPrototipo2>(out LuluNPCPrototipo2 luluProto))
+                {
+                    luluProto.InteractuarConLulu();
+                }
                 else if (protoCurrentInteractable.TryGetComponent<LuluNPC>(out LuluNPC lulu))
                 {
                     lulu.InteractuarConLulu();

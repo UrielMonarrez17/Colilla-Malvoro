@@ -190,7 +190,7 @@ namespace Prototipo2
         {
             if (playerTransform == null) return null;
 
-            LootContainer[] containers = FindObjectsByType<LootContainer>(FindObjectsSortMode.None);
+            LootContainer[] containers = FindObjectsByType<LootContainer>();
             Transform mejor = null;
             float menorDist = float.MaxValue;
 

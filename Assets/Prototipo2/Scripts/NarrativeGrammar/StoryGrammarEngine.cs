@@ -5,12 +5,12 @@ namespace Prototipo2.Narrative
 {
     public class StoryGrammarEngine
     {
-        // Pool de supervivientes cuerdos (pueden ser herbívoros, felinos u otros)
-        private static readonly (string name, string species, string dialogue)[] SaneSurvivors =
+        // Variantes de diálogo contextual de Lulú según la semilla procedural
+        private static readonly string[] LuluEncounterDialogues =
         {
-            ("Lulú", "Gata Callejera Cuerda", "¡Psst! Hámster, qué alivio ver a alguien cuerdo. La noche enloqueció a casi todos... incluso a los conejos y ciervos."),
-            ("Barnaby", "Búho Vigía", "Cuidado con las calles principales. La locura feral no distingue entre cazador y presa."),
-            ("Mica", "Coneja Sobreviviente", "No te acerques a los herbívoros infectados, sus astas y pezuñas son letales.")
+            "¡Psst! Hámster, qué alivio ver a alguien cuerdo. La niebla nocturna enloqueció a casi todos en la ciudad... Reúne suministros en los callejones y fabrica una trampa antes de cruzar al norte.",
+            "¡Oye, pequeñín! Por aquí. Soy Lulú, conozco los atajos de estos bloques. Los edificios están llenos de chatarra en sus fachadas; junta 2 lotes y usa tu mesa de trabajo para abrir la barricada.",
+            "¡Cuidado con las avenidas abiertas! Incluso los ciervos se han vuelto ferales al caer la noche. Busca recursos en las esquinas, arma una herramienta en tu refugio y no dejes que te acorralen."
         };
 
         // Pool de Animales Ferales Alfa para el Clímax (Universal feral lore)
@@ -28,9 +28,10 @@ namespace Prototipo2.Narrative
 
             StoryGraph graph = new StoryGraph();
 
-            // Selección temática según semilla
-            var survivor = SaneSurvivors[Random.Range(0, SaneSurvivors.Length)];
+            // Selección temática según semilla manteniendo siempre a Lulú como NPC aliada protagonista
+            string luluBaseDialogue = LuluEncounterDialogues[Random.Range(0, LuluEncounterDialogues.Length)];
             var alphaBoss = AlphaBosses[Random.Range(0, AlphaBosses.Length)];
+            string contextualDialogue = $"{luluBaseDialogue} Y ten mucho cuidado más adelante con el {alphaBoss.title}.";
 
             // Regla 1: [Story] -> Start -> [Exploration] -> [Conflict] -> [Climax] -> Exit
 
@@ -41,22 +42,22 @@ namespace Prototipo2.Narrative
                 type = StoryNodeType.Start,
                 title = "Despertar en la Ciudad Hostil",
                 description = "Has llegado a las inmediaciones de la ciudad tras el tutorial. Establece tu base de operaciones en el refugio inicial.",
-                hint = "Observa tu alrededor y busca señales de supervivientes.",
+                hint = "Camina hacia la calle cercana para localizar a Lulú.",
                 state = StoryNodeState.Active,
                 nextNodeIds = new List<string> { "node_encounter" }
             };
 
-            // 2. Nodo Encounter [Exploration]
+            // 2. Nodo Encounter [Exploration] - Protagonizado por Lulú NPC
             StoryNode encounterNode = new StoryNode
             {
                 id = "node_encounter",
                 type = StoryNodeType.Encounter,
-                title = $"Contacto con {survivor.name}",
-                description = $"Localiza a {survivor.name} ({survivor.species}), una de las pocas criaturas que no ha sucumbido al estado feral.",
-                hint = $"Acércate a {survivor.name} para escuchar su advertencia.",
+                title = "Contacto con Lulú",
+                description = "Localiza a Lulú (Gata Callejera Cuerda), una aliada superviviente que patrulla las aceras cercanas al refugio.",
+                hint = "Acércate a Lulú y presiona [F] para hablar con ella.",
                 state = StoryNodeState.Locked,
-                targetActorName = survivor.name,
-                dialogueText = survivor.dialogue,
+                targetActorName = "Lulú",
+                dialogueText = contextualDialogue,
                 prerequisiteNodeIds = new List<string> { "node_start" },
                 nextNodeIds = new List<string> { "node_quest" }
             };

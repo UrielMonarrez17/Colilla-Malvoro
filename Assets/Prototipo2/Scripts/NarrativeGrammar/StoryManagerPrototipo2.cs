@@ -52,6 +52,12 @@ namespace Prototipo2
         {
             LootContainer.OnContainerLooted -= HandleContainerLooted;
             CraftingTable.OnTrapCrafted -= HandleTrapCrafted;
+
+            CityGeneratorPrototipo2 cityGen = FindAnyObjectByType<CityGeneratorPrototipo2>();
+            if (cityGen != null)
+            {
+                cityGen.OnCityGenerated -= InicializarHistoria;
+            }
         }
 
         private void Start()
@@ -71,7 +77,12 @@ namespace Prototipo2
             CityGeneratorPrototipo2 cityGen = FindAnyObjectByType<CityGeneratorPrototipo2>();
             if (cityGen != null)
             {
+                cityGen.OnCityGenerated -= InicializarHistoria;
                 cityGen.OnCityGenerated += InicializarHistoria;
+                if (cityGen.Grid != null)
+                {
+                    InicializarHistoria();
+                }
             }
             else
             {
@@ -105,6 +116,12 @@ namespace Prototipo2
                 return;
             }
 
+            // Si el nodo activo es el encuentro con Lulú y existe su instancia NPC, actualizar posición en tiempo real
+            if (currentActiveNode.id == "node_encounter" && worldBinder != null && worldBinder.SpawnedLuluInstance != null)
+            {
+                currentActiveNode.worldPosition = worldBinder.SpawnedLuluInstance.transform.position;
+            }
+
             float distToTarget = Vector3.Distance(player.position, currentActiveNode.worldPosition);
 
             // 1. Nodo Start: Tras dar los primeros pasos, avanzar a Encounter
@@ -116,13 +133,11 @@ namespace Prototipo2
             }
 
             // 2. Nodo Encounter: Al acercarse e interactuar con F
-            if (currentActiveNode.id == "node_encounter" && distToTarget <= 3.5f)
+            if (currentActiveNode.id == "node_encounter" && distToTarget <= 3.8f)
             {
-                if (Input.GetKeyDown(KeyCode.F))
+                if (FeralInput.Pressed(KeyCode.F) || Input.GetKeyDown(KeyCode.F))
                 {
-                    OnDialogueTriggered?.Invoke(currentActiveNode.targetActorName, currentActiveNode.dialogueText);
-                    CompletarNodoActual();
-                    SetNodeActive("node_quest");
+                    InteractuarConLulu(worldBinder != null ? worldBinder.SpawnedLuluNPC : null);
                 }
                 return;
             }
@@ -130,7 +145,7 @@ namespace Prototipo2
             // 3. Nodo Key: Fabricar trampa o pulsar F en la mesa
             if (currentActiveNode.id == "node_key" && distToTarget <= 3.0f)
             {
-                if (Input.GetKeyDown(KeyCode.F))
+                if (FeralInput.Pressed(KeyCode.F) || Input.GetKeyDown(KeyCode.F))
                 {
                     CompletarNodoActual();
                     if (worldBinder != null) worldBinder.DesactivarBarricadaLock();
@@ -142,7 +157,7 @@ namespace Prototipo2
             // 4. Nodo Lock: Llegar a la barricada y desbloquear con F
             if (currentActiveNode.id == "node_lock" && distToTarget <= 4.0f)
             {
-                if (Input.GetKeyDown(KeyCode.F) || distToTarget <= 2.5f)
+                if (FeralInput.Pressed(KeyCode.F) || Input.GetKeyDown(KeyCode.F) || distToTarget <= 2.5f)
                 {
                     if (worldBinder != null) worldBinder.DesactivarBarricadaLock();
                     CompletarNodoActual();
@@ -167,6 +182,49 @@ namespace Prototipo2
                 OnDemoCompleted?.Invoke();
                 return;
             }
+        }
+
+        public void InteractuarConLulu(LuluNPCPrototipo2 luluNpc = null)
+        {
+            if (currentGraph == null) return;
+
+            if (currentActiveNode != null && currentActiveNode.id == "node_start")
+            {
+                CompletarNodoActual();
+                SetNodeActive("node_encounter");
+            }
+
+            if (currentActiveNode != null && currentActiveNode.id == "node_encounter")
+            {
+                OnDialogueTriggered?.Invoke(currentActiveNode.targetActorName, currentActiveNode.dialogueText);
+                CompletarNodoActual();
+                SetNodeActive("node_quest");
+                return;
+            }
+
+            // Diálogos contextuales adicionales de Lulú según la fase de la historia procedural
+            string activeId = currentActiveNode != null ? currentActiveNode.id : "";
+            string contextualFollowUp;
+            switch (activeId)
+            {
+                case "node_quest":
+                    contextualFollowUp = $"Aún necesitas recolectar suministros ({containersLootedCount}/{currentActiveNode.requiredItemCount}). Revisa los contenedores de basura en las esquinas y callejones.";
+                    break;
+                case "node_key":
+                    contextualFollowUp = "¡Ya tienes los materiales! Corre a la mesa de trabajo junto a tu refugio y pulsa [F] para preparar la herramienta de apertura.";
+                    break;
+                case "node_lock":
+                    contextualFollowUp = "La barricada central ya puede despejarse. Dirígete al paso bloqueado y ábrelo antes de que te rodeen.";
+                    break;
+                case "node_boss":
+                    contextualFollowUp = "La rotonda más adelante es territorio del Alfa. Agáchate con [C] para reducir su detección o usa una trampa.";
+                    break;
+                default:
+                    contextualFollowUp = "¡El camino hacia la madriguera de extracción está despejado! No mires atrás, pequeñín.";
+                    break;
+            }
+
+            OnDialogueTriggered?.Invoke("Lulú", contextualFollowUp);
         }
 
         private void HandleContainerLooted(LootContainer container, List<ItemType> items)
