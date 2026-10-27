@@ -16,7 +16,7 @@ public class TimeManager : MonoBehaviour
 
     [Tooltip("Hora inicial del juego (0 a 24).")]
     [Range(0f, 24f)]
-    [SerializeField] private float startingHour = 0f;
+    [SerializeField] private float startingHour = 8f;
 
     [Header("Umbrales del Ciclo (Horas 0-24)")]
     [Range(0f, 24f)]
@@ -25,8 +25,11 @@ public class TimeManager : MonoBehaviour
     [Range(0f, 24f)]
     [SerializeField] private float nightfallHour = 18f;
 
-    private float currentInGameHour;
+    [Header("Control de Progresión")]
+    [Tooltip("Si está pausado, el reloj solo avanza cuando lo indica el tutorial o eventos.")]
+    public bool pauseAutoAdvance = false;
 
+    private float currentInGameHour;
 
     public int CurrentHour => Mathf.FloorToInt(currentInGameHour);
     public int CurrentMinute => Mathf.FloorToInt((currentInGameHour - CurrentHour) * 60f);
@@ -58,7 +61,10 @@ public class TimeManager : MonoBehaviour
 
     private void Update()
     {
-        AdvanceTime();
+        if (!pauseAutoAdvance)
+        {
+            AdvanceTime();
+        }
         CheckCycleChange();
         
         if (showDebugLog)
@@ -106,7 +112,13 @@ public class TimeManager : MonoBehaviour
     }
 
     public void SetTime() {
-        currentInGameHour = Mathf.Clamp(6, 0f, 24f) % 24f;
+        SetExactHour(6f);
+    }
+
+    public void SetExactHour(float hour24)
+    {
+        currentInGameHour = Mathf.Repeat(hour24, 24f);
+        CheckCycleChange();
     }
 
     public void SetDayDuration(float realMinutes) {
