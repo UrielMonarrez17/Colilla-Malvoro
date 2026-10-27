@@ -46,9 +46,48 @@ namespace Prototipo2.UI
         private CursorLockMode previousCursorLock;
         private float previousTimeScale = 1f;
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void AutoEnsureInGameUI()
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (scene.name.IndexOf("MainMenu", StringComparison.OrdinalIgnoreCase) >= 0) return;
+
+            if (FindFirstObjectByType<InGameInventoryUIPrototipo2>() == null)
+            {
+                var prefab = Resources.Load<GameObject>("Prefabs/InGameInventoryUI_Prototipo2");
+                if (prefab != null)
+                {
+                    var instance = Instantiate(prefab);
+                    instance.name = "InGameInventoryUI_Prototipo2";
+                }
+            }
+
+            if (FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
+            {
+                var es = new GameObject("EventSystem");
+                es.AddComponent<UnityEngine.EventSystems.EventSystem>();
+#if ENABLE_INPUT_SYSTEM
+                es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+#else
+                es.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+#endif
+            }
+        }
+
         private void Start()
         {
             MainMenuControllerPrototipo2.ApplySavedAudio();
+            if (FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
+            {
+                var es = new GameObject("EventSystem");
+                es.AddComponent<UnityEngine.EventSystems.EventSystem>();
+#if ENABLE_INPUT_SYSTEM
+                es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+#else
+                es.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+#endif
+            }
+
             inventory = InventoryManager.Instance;
             if (inventory == null)
             {
@@ -282,6 +321,7 @@ namespace Prototipo2.UI
         private void Update()
         {
             if (panel == null) return;
+            if (TutorialPipelineManager.Instance != null && TutorialPipelineManager.Instance.enCinematica) return;
 
             bool escapePressed = false;
             bool invPressed = false;

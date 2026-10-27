@@ -493694,7 +493694,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Prototipo2::IsometricCameraFollow
   target: {fileID: 1162808865}
-  offset: {x: 0, y: 11, z: -9}
+  offset: {x: -10, y: 14.142136, z: -10}
   smoothSpeed: 8
   targetOffset: {x: 0, y: 0.4, z: 0}
   pitchAngle: 45

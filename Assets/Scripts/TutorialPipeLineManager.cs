@@ -205,9 +205,17 @@ public class TutorialPipelineManager : MonoBehaviour
     {
 #if UNITY_EDITOR
         if (prefabEnemigoTigre == null)
-            prefabEnemigoTigre = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/PreFabs/Enemies/Tiger_001.prefab");
+        {
+            prefabEnemigoTigre = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo2/Prefabs/Tiger_Prototipo2.prefab");
+            if (prefabEnemigoTigre == null)
+                prefabEnemigoTigre = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/PreFabs/Enemies/Tiger_001.prefab");
+        }
         if (prefabEnemigoPerro == null)
-            prefabEnemigoPerro = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/PreFabs/Enemies/Dog_001.prefab");
+        {
+            prefabEnemigoPerro = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo2/Prefabs/Dog_Prototipo2.prefab");
+            if (prefabEnemigoPerro == null)
+                prefabEnemigoPerro = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/PreFabs/Enemies/Dog_001.prefab");
+        }
         if (prefabCiudadanoGato == null)
         {
             prefabCiudadanoGato = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Animals/Animals_FREE/Prefabs/Kitty_001.prefab");
@@ -812,7 +820,7 @@ public class TutorialPipelineManager : MonoBehaviour
             TutorialState.AprenderControles,
             "FASE 1: DÍA 1 — MOVIMIENTO Y RECOLECCIÓN",
             "Misión: Desplázate por la madriguera usando [W] [A] [S] [D]",
-            "Estás en la Base del Hámster (zona segura). Practica moverte en las 4 direcciones para salir al callejón.",
+            "Estás en la Base del Hámster (zona segura). Practica moverte en las 4 direcciones para salir al callejón. Puedes saltar con [Espacio].",
             null
         );
     }
@@ -1418,8 +1426,8 @@ public class TutorialPipelineManager : MonoBehaviour
         ConfigurarTextosEstado(
             TutorialState.EscapeDash,
             "FASE 2: NOCHE 1 — INTRODUCCIÓN AL DASH (ESCAPE RÁPIDO)",
-            "Misión: ¡Te persiguen! Presiona [Espacio] (Dash) en movimiento y corre hacia la esquina",
-            "Usa [Espacio] para esquivar el zarpazo y ganar distancia. Si te golpea una vez, se activará tu Respuesta de Adrenalina (repone estamina + velocidad).",
+            "Misión: ¡Te persiguen! Presiona [Q] o [Click Derecho] (Dash) en movimiento y corre hacia la esquina",
+            "Usa [Q] o [Click Derecho] para hacer Dash y esquivar el zarpazo (puedes saltar con [Espacio]). Si te golpea una vez, se activará tu Respuesta de Adrenalina (repone estamina + velocidad).",
             puntoEsquinaSigilo
         );
     }
@@ -1471,8 +1479,8 @@ public class TutorialPipelineManager : MonoBehaviour
             ? Vector3.Distance(hamster.transform.position, puntoEsquinaSigilo.position)
             : 99f;
 
-        string estadoDash = dashEjecutadoEnPersecucion ? "<color=#55FF55>[Dash ]</color>" : "Presiona [Espacio] (Dash)";
-            ActualizarTextoMision($"Misión: {estadoDash} y dobla la esquina sur ({distEsquina:0.0}m)");
+        string estadoDash = dashEjecutadoEnPersecucion ? "<color=#55FF55>[Dash ✓]</color>" : "Presiona [Q] o [Click Derecho] (Dash)";
+        ActualizarTextoMision($"Misión: {estadoDash} y dobla la esquina sur ({distEsquina:0.0}m)");
         
 
         if (dashEjecutadoEnPersecucion && distEsquina < 4f)
@@ -1774,7 +1782,22 @@ public class TutorialPipelineManager : MonoBehaviour
             textoSubtituloGuia.text = "Cargando Prototipo2...";
         }
 
-        SceneManager.LoadScene("Prototipo2");
+        if (Application.CanStreamedLevelBeLoaded("Prototipo2"))
+        {
+            SceneManager.LoadScene("Prototipo2");
+        }
+        else if (Application.CanStreamedLevelBeLoaded("Assets/Prototipo2/Prototipo2.unity"))
+        {
+            SceneManager.LoadScene("Assets/Prototipo2/Prototipo2.unity");
+        }
+        else if (SceneManager.sceneCountInBuildSettings > 2)
+        {
+            SceneManager.LoadScene(2);
+        }
+        else
+        {
+            SceneManager.LoadScene("Prototipo2");
+        }
     }
 
     // ===================================================================================

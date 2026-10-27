@@ -25,6 +25,16 @@ namespace Prototipo2
             if (targetCanvas == null)
             {
                 targetCanvas = FindAnyObjectByType<Canvas>();
+                if (targetCanvas == null)
+                {
+                    GameObject canvasObj = new GameObject("HUD_Canvas");
+                    targetCanvas = canvasObj.AddComponent<Canvas>();
+                    targetCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                    CanvasScaler cs = canvasObj.AddComponent<CanvasScaler>();
+                    cs.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                    cs.referenceResolution = new Vector2(1920f, 1080f);
+                    canvasObj.AddComponent<GraphicRaycaster>();
+                }
             }
 
             ConstruirUI();

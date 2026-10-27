@@ -81,9 +81,20 @@ public static class TutorialSceneSetupEditor
             Undo.RecordObject(mainCam.transform, "Posicionar Main Camera");
             CameraFollow cf = mainCam.GetComponent<CameraFollow>();
             if (cf != null && manager.hamster != null) cf.target = manager.hamster.transform;
-            Vector3 offset = cf != null ? cf.offset : new Vector3(0f, 11f, -9f);
-            mainCam.transform.position = TutorialPipelineManager.POS_MADRIGUERA_INICIO + offset;
-            mainCam.transform.rotation = Quaternion.Euler(42.189f, 0f, 0f);
+            if (cf is Prototipo2.IsometricCameraFollow iso)
+            {
+                mainCam.fieldOfView = iso.fieldOfView;
+                mainCam.transform.rotation = Quaternion.Euler(iso.pitchAngle, iso.yawAngle, 0f);
+                Vector3 targetCenter = TutorialPipelineManager.POS_MADRIGUERA_INICIO + iso.targetOffset;
+                iso.offset = mainCam.transform.rotation * (Vector3.back * iso.distance);
+                mainCam.transform.position = targetCenter + iso.offset;
+            }
+            else
+            {
+                Vector3 offset = cf != null ? cf.offset : new Vector3(0f, 11f, -9f);
+                mainCam.transform.position = TutorialPipelineManager.POS_MADRIGUERA_INICIO + offset;
+                mainCam.transform.rotation = Quaternion.Euler(42.189f, 0f, 0f);
+            }
         }
 
         // 4. Posicionar Mesa de Fabricación (CraftTable) en el Refugio (bloqueada hasta Fase 3)

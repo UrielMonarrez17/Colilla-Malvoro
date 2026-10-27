@@ -217,7 +217,7 @@ namespace Prototipo2
             }
 
             // DASH: Exclusivo con [Q], [Click Derecho] o [LeftControl] (nunca con Espacio)
-            if (dashTriggered && Time.time >= nextDashTime && moveInput != Vector3.zero && !FeralInput.Held(KeyCode.C))
+            if (dashTriggered && Time.time >= nextDashTime && !FeralInput.Held(KeyCode.C))
             {
                 StartCoroutine(DashRoutineProto());
             }
@@ -257,15 +257,17 @@ namespace Prototipo2
             nextDashTime = Time.time + dashCooldown;
             InvokeOnDashUsed();
 
+            Vector3 dashDir = moveInput != Vector3.zero ? moveInput : transform.forward;
+
             // Mantener componente vertical sin congelar gravedad en seco
             float preservedY = Mathf.Max(rb.linearVelocity.y * 0.35f, 0.5f);
             rb.linearVelocity = new Vector3(0, preservedY, 0);
-            rb.AddForce(moveInput * dashForce, ForceMode.Impulse);
+            rb.AddForce(dashDir * dashForce, ForceMode.Impulse);
 
             yield return new WaitForSeconds(dashDuration);
 
             // Al terminar el dash, estabilizar la velocidad horizontal a la velocidad normal sin frenar a cero absoluto
-            Vector3 exitVel = moveInput * (currentBaseSpeed * currentSpeedModifier);
+            Vector3 exitVel = dashDir * (currentBaseSpeed * currentSpeedModifier);
             rb.linearVelocity = new Vector3(exitVel.x, rb.linearVelocity.y, exitVel.z);
             isDashing = false;
         }
@@ -329,6 +331,7 @@ namespace Prototipo2
                         {
                             puerta.InstalarTrampa(trampaSeleccionada);
                             InventoryManager.Instance.RemoveTrampa(trampaSeleccionada);
+                            InvokeOnTrapInstalled(trampaSeleccionada, puerta);
                             Debug.Log($"[HamsterControllerPrototipo2] Trampa de {trampaSeleccionada} instalada.");
                         }
                     }

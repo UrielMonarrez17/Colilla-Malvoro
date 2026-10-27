@@ -38,6 +38,18 @@ namespace Prototipo2.UI
             Time.timeScale = 1f;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+            EnsureEventSystem();
+        }
+
+        public static void EnsureEventSystem()
+        {
+            if (UnityEngine.Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>() != null) return;
+            var system = new GameObject("Prototipo2 EventSystem", typeof(UnityEngine.EventSystems.EventSystem));
+#if ENABLE_INPUT_SYSTEM
+            system.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>().AssignDefaultActions();
+#else
+            system.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+#endif
         }
 
         private void Start()
@@ -66,15 +78,7 @@ namespace Prototipo2.UI
 
         private void InitializeButtons()
         {
-            BindButton("Play", () =>
-            {
-                // Si existe página de Sessions (page 1), ir a ella; si no, iniciar directamente
-                if (pages != null && pages.Length > 1 && pages[1] != null)
-                    ShowPage(1);
-                else
-                    StartTutorial();
-            });
-
+            BindButton("Play", StartTutorial);
             BindButton("SavedGames", () => ShowPage(1));
             BindButton("AudioSettings", () => ShowPage(2));
             BindButton("Help", () => ShowPage(3));
@@ -302,7 +306,9 @@ namespace Prototipo2.UI
         {
             foreach (T comp in parent.GetComponentsInChildren<T>(true))
             {
-                if (comp.name.Equals(objectName, StringComparison.OrdinalIgnoreCase))
+                if (comp.name.Equals(objectName, StringComparison.OrdinalIgnoreCase) ||
+                    comp.name.Equals(objectName + "Label", StringComparison.OrdinalIgnoreCase) ||
+                    comp.name.Equals(objectName + "Button", StringComparison.OrdinalIgnoreCase))
                     return comp;
             }
             return null;

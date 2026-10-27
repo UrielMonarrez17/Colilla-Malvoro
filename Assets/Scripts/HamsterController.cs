@@ -79,6 +79,7 @@ public class HamsterController : MonoBehaviour
     protected void InvokeOnAdrenalineTriggered() => OnAdrenalineTriggered?.Invoke();
     protected void InvokeOnDamageReceived(int hits, int max) => OnDamageReceived?.Invoke(hits, max);
     protected void InvokeOnPlayerDied() => OnPlayerDied?.Invoke();
+    protected void InvokeOnTrapInstalled(TipoTrampa tipo, PuertaTrampa puerta) => OnTrapInstalled?.Invoke(tipo, puerta);
 
     // ===================================================================================
     //  INICIALIZACIÓN (Start)

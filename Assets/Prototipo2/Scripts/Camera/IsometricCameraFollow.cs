@@ -45,6 +45,22 @@ namespace Prototipo2
                 cam.orthographic = false;
                 cam.fieldOfView = fieldOfView;
             }
+
+            ActualizarRotacionCamara();
+            offset = transform.rotation * (Vector3.back * distance);
+        }
+
+        private void OnValidate()
+        {
+            if (cam == null) cam = GetComponent<Camera>();
+            if (cam != null)
+            {
+                cam.orthographic = false;
+                cam.fieldOfView = fieldOfView;
+            }
+
+            ActualizarRotacionCamara();
+            offset = transform.rotation * (Vector3.back * distance);
         }
 
         private void Start()

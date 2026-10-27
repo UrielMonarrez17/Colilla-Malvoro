@@ -179,7 +179,8 @@ namespace Prototipo2
                 var st = TutorialPipelineManager.Instance.currentState;
                 if (st == TutorialPipelineManager.TutorialState.CinematicaAparicionFeral ||
                     st == TutorialPipelineManager.TutorialState.EscapeDash ||
-                    st == TutorialPipelineManager.TutorialState.SigiloEsquina)
+                    st == TutorialPipelineManager.TutorialState.SigiloEsquina ||
+                    st == TutorialPipelineManager.TutorialState.LlegadaRefugioAmanecer)
                 {
                     return true;
                 }
