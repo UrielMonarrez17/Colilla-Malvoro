@@ -45,11 +45,13 @@ namespace Prototipo2
 
         private void Awake()
         {
+            this.enabled = true;
             rb = GetComponent<Rigidbody>();
         }
 
         private void Start()
         {
+            this.enabled = true;
             if (rb == null) rb = GetComponent<Rigidbody>();
 
             rb.freezeRotation = true;

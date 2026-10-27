@@ -115,7 +115,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 20cc004cde904283b764f1c425097ae3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  openOnDirectPlay: 1
+  openOnDirectPlay: 0
 --- !u!1 &8100000007
 GameObject:
   m_ObjectHideFlags: 0

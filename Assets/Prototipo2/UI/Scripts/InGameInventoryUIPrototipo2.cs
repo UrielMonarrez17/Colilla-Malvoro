@@ -163,7 +163,15 @@ namespace Prototipo2.UI
             {
                 panel.SetActive(false);
             }
-            SetOpen(openOnDirectPlay);
+            if (openOnDirectPlay)
+            {
+                SetOpen(true);
+            }
+            else
+            {
+                isOpen = false;
+                if (hud != null) hud.SetActive(true);
+            }
         }
 
         private void Filter(bool available)
@@ -278,7 +286,11 @@ namespace Prototipo2.UI
         private void RestoreGameplay()
         {
             Time.timeScale = previousTimeScale <= 0f ? 1f : previousTimeScale;
-            if (player != null) player.enabled = wasPlayerEnabled;
+            if (player == null) player = FindAnyObjectByType<HamsterController>();
+            if (player != null && !player.IsDead)
+            {
+                player.enabled = true;
+            }
             Cursor.visible = previousCursorVisible;
             Cursor.lockState = previousCursorLock;
         }

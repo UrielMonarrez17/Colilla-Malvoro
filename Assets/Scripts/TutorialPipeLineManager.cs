@@ -46,9 +46,9 @@ public class TutorialPipelineManager : MonoBehaviour
     public TutorialState currentState = TutorialState.AprenderControles;
 
     [Header("UI Referencias (Existentes en Escena)")]
-    public GameObject panelControlesWASD; 
-    public TextMeshProUGUI textoMisionUI; 
-    public PunteroMision punteroFlecha; 
+    public GameObject panelControlesWASD;
+    public TextMeshProUGUI textoMisionUI;
+    public PunteroMision punteroFlecha;
 
     [Header("Cinemática Tigre (MP4)")]
     [Tooltip("Video del tigre amenazante con la leyenda ¡CORRE!. Si se deja vacío se carga Resources/Videos/TigreCorre.")]
@@ -93,7 +93,7 @@ public class TutorialPipelineManager : MonoBehaviour
     private float tiempoAgachadoEnSigilo = 0f;
     private bool menuCrafteoAbierto = false;
     private bool trampaInstaladaEnRefugio = false;
-    private bool enCinematica = false;
+    public bool enCinematica = false;
 
     // --- Barreras y Candados de Secuencia Obligatoria ---
     private GameObject barreraSalidaMadriguera;
@@ -131,15 +131,15 @@ public class TutorialPipelineManager : MonoBehaviour
 
     // --- Coordenadas Clave dentro de la Ciudad Principal (cityManagerMath en Tutorial.unity) ---
     public static readonly Vector3 POS_MADRIGUERA_INICIO = new Vector3(225.0f, 0.85f, 246.0f);
-    public static readonly Vector3 POS_MESA_REFUGIO      = new Vector3(222.3f, 0.55f, 244.5f);
+    public static readonly Vector3 POS_MESA_REFUGIO = new Vector3(222.3f, 0.55f, 244.5f);
     public static readonly Vector3 POS_PUERTA_TRAMPA_REF = new Vector3(225.0f, 0.10f, 237.5f);
-    public static readonly Vector3 POS_SALIDA_CALLEJON   = new Vector3(225.0f, 0.45f, 235.0f);
-    public static readonly Vector3 POS_PUERTA_CONTROL    = new Vector3(251.0f, 0.10f, 235.0f);
+    public static readonly Vector3 POS_SALIDA_CALLEJON = new Vector3(225.0f, 0.45f, 235.0f);
+    public static readonly Vector3 POS_PUERTA_CONTROL = new Vector3(251.0f, 0.10f, 235.0f);
     public static readonly Vector3 POS_CONTENEDOR_BRILLO = new Vector3(246.34f, 0.35f, 237.60f);
-    public static readonly Vector3 POS_LULU_CIUDAD       = new Vector3(265.0f, 0.15f, 248.0f);
-    public static readonly Vector3 POS_VIA_FERAL_SPAWN   = new Vector3(255.0f, 0.15f, 242.0f);
-    public static readonly Vector3 POS_ESQUINA_SIGILO    = new Vector3(275.0f, 0.35f, 226.0f);
-    public static readonly Vector3 POS_PATRULLA_SIGILO   = new Vector3(262.0f, 0.15f, 226.5f);
+    public static readonly Vector3 POS_LULU_CIUDAD = new Vector3(265.0f, 0.15f, 248.0f);
+    public static readonly Vector3 POS_VIA_FERAL_SPAWN = new Vector3(255.0f, 0.15f, 242.0f);
+    public static readonly Vector3 POS_ESQUINA_SIGILO = new Vector3(275.0f, 0.35f, 226.0f);
+    public static readonly Vector3 POS_PATRULLA_SIGILO = new Vector3(262.0f, 0.15f, 226.5f);
 
     void Awake()
     {
@@ -171,6 +171,7 @@ public class TutorialPipelineManager : MonoBehaviour
 
         if (hamster != null)
         {
+            if (!enCinematica) hamster.enabled = true;
             hamster.OnDashUsed -= HandlePlayerDash;
             hamster.OnAdrenalineTriggered -= HandlePlayerAdrenaline;
             hamster.OnPlayerDied -= HandlePlayerDied;
@@ -313,6 +314,7 @@ public class TutorialPipelineManager : MonoBehaviour
 
         if (hamster != null)
         {
+            if (!enCinematica) hamster.enabled = true;
             hamster.OnDashUsed -= HandlePlayerDash;
             hamster.OnDashUsed += HandlePlayerDash;
             hamster.OnAdrenalineTriggered -= HandlePlayerAdrenaline;
@@ -1481,7 +1483,7 @@ public class TutorialPipelineManager : MonoBehaviour
 
         string estadoDash = dashEjecutadoEnPersecucion ? "<color=#55FF55>[Dash ✓]</color>" : "Presiona [Q] o [Click Derecho] (Dash)";
         ActualizarTextoMision($"Misión: {estadoDash} y dobla la esquina sur ({distEsquina:0.0}m)");
-        
+
 
         if (dashEjecutadoEnPersecucion && distEsquina < 4f)
         {

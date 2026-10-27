@@ -284,7 +284,16 @@ namespace Prototipo2
             if (hamsterTransform == null)
             {
                 HamsterController hc = FindAnyObjectByType<HamsterController>();
-                if (hc != null) hamsterTransform = hc.transform;
+                if (hc != null)
+                {
+                    hc.enabled = true;
+                    hamsterTransform = hc.transform;
+                }
+            }
+            else
+            {
+                HamsterController hc = hamsterTransform.GetComponent<HamsterController>();
+                if (hc != null) hc.enabled = true;
             }
 
             if (hamsterTransform != null)

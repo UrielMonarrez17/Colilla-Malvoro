@@ -27,6 +27,7 @@ public class CinematicaManager : MonoBehaviour
 
     IEnumerator Start()
     {
+        if (hamster == null) hamster = FindAnyObjectByType<HamsterController>();
         if (reproductorVideo == null || reproductorVideo.clip == null)
         {
             IniciarGameplay(null);
@@ -135,6 +136,7 @@ public class CinematicaManager : MonoBehaviour
         {
             TutorialPipelineManager.Instance.NotificarFinCinematicaInicial();
         }
+        if (hamster == null) hamster = FindAnyObjectByType<HamsterController>();
         if (hamster != null) hamster.enabled = true;
         gameObject.SetActive(false);
     }
