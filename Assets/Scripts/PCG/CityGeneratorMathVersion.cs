@@ -1,6 +1,17 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+// Regla para colocar un objeto cualquiera junto a los edificios (usando sus sockets)
+[System.Serializable]
+public class SocketSpawnRule
+{
+    public string name = "Objeto";
+    public GameObject prefab;
+    [Range(0f, 1f)] public float probability = 0.5f; // probabilidad por edificio
+    public float yOffset = 0f;                        // altura extra sobre roadHeightY
+    public bool alignToBuilding = false;              // copiar la rotación del edificio
+}
+
 // Orquestador: solo coordina las fases en orden. La logica vive en las demas clases.
 public class CityGeneratorMathVersion : MonoBehaviour
 {
@@ -16,10 +27,9 @@ public class CityGeneratorMathVersion : MonoBehaviour
     public List<GameObject> specialBuildings = new List<GameObject>();
     public List<GameObject> normalBuildings = new List<GameObject>();
 
-    [Header("Loot")]
-    public GameObject lootPrefab;
-    [Range(0f, 1f)] public float lootProbability = 0.5f; // 5% de probabilidad por celda libre
-    
+    [Header("Objetos junto a edificios (loot, props, etc.)")]
+    public List<SocketSpawnRule> socketSpawns = new List<SocketSpawnRule>();
+
     [Header("Prefabs de Caminos y Suelos")]
     public GameObject roadForward;
     public GameObject roadAngle;
@@ -55,58 +65,9 @@ public class CityGeneratorMathVersion : MonoBehaviour
         new SpecialBuildingPlacer(settings, rng, network, spawner).PlaceAll(specialBuildings);
         // 3. Relleno con edificios normales
         new NormalBuildingPlacer(settings, rng, grid, spawner).PlaceAll(normalBuildings);
-        
-        // 3.5 Generar Loot usando los Sockets de los edificios
-        if (lootPrefab != null)
-        {
-            CitySocket[] spawnedBuildings = GetComponentsInChildren<CitySocket>();
-            
-            foreach (CitySocket socket in spawnedBuildings)
-            {
-                if (socket.frontSocket == null) continue;
+        // 3.5 Objetos junto a los edificios (loot, props, etc.)
+        SpawnSocketObjects(rng);
 
-                // Evaluamos la probabilidad primero
-                if (!rng.Chance(lootProbability)) continue;
-
-                float z = socket.frontSocket.localPosition.z;
-
-                // Posiciones relativas: Este, Oeste y Sur
-                Vector3[] localOffsets = {
-                    new Vector3(z, 0, 0),   // Derecha (E)
-                    new Vector3(-z, 0, 0),  // Izquierda (O)
-                    new Vector3(0, 0, -z)   // Atrás (S)
-                };
-
-                // Desordenamos el arreglo para elegir caras al azar sin repetir (Fisher-Yates)
-                for (int i = 0; i < localOffsets.Length; i++)
-                {
-                    int rand = rng.Range(i, localOffsets.Length);
-                    (localOffsets[i], localOffsets[rand]) = (localOffsets[rand], localOffsets[i]);
-                }
-
-                // Buscamos la primera cara que esté vacía
-                foreach (Vector3 offset in localOffsets)
-                {
-                    Vector3 worldPos = socket.transform.TransformPoint(offset);
-                    worldPos.y = roadHeightY;
-
-                    int gridX = Mathf.FloorToInt(worldPos.x / cellSize);
-                    int gridY = Mathf.FloorToInt(worldPos.z / cellSize);
-                    Vector2Int cell = new Vector2Int(gridX, gridY);
-
-                    // Si la celda es válida y está vacía, instanciamos y pasamos al siguiente edificio
-                    if (grid.InBounds(cell) && grid.Get(cell) == CellType.Empty)
-                    {
-                        Instantiate(lootPrefab, worldPos, Quaternion.identity, transform);
-                        
-                        // Opcional pero recomendado: marcar la celda para que otro edificio cercano no ponga su loot aquí mismo
-                        // grid.Set(cell, CellType.Special); 
-                        
-                        break; // Ya colocamos el loot de este edificio, no revisamos más caras
-                    }
-                }
-            }
-        }
         // 4. Instanciar calles y pavimento
         var roadPrefabs = new RoadPrefabs
         {
@@ -121,11 +82,58 @@ public class CityGeneratorMathVersion : MonoBehaviour
         lastNetwork = network;
     }
 
+    // Recorre cada regla y, por cada edificio, intenta colocar el objeto en una cara libre (E, O o S)
+    // Recorre cada regla y, por cada edificio, coloca el objeto en una cara al azar (E, O o S)
+    void SpawnSocketObjects(CityRandom rng)
+    {
+        if (socketSpawns.Count == 0) return;
+
+        CitySocket[] sockets = GetComponentsInChildren<CitySocket>();
+
+        foreach (SocketSpawnRule rule in socketSpawns)
+        {
+            if (rule.prefab == null) continue;
+
+            foreach (CitySocket socket in sockets)
+            {
+                if (socket.frontSocket == null) continue;
+                if (!rng.Chance(rule.probability)) continue;
+
+                SpawnAtSocket(rule, socket, rng);
+            }
+        }
+    }
+
+    void SpawnAtSocket(SocketSpawnRule rule, CitySocket socket, CityRandom rng)
+    {
+        float z = socket.frontSocket.localPosition.z;
+
+        // Posiciones relativas: Este, Oeste y Sur
+        Vector3[] localOffsets = {
+            new Vector3(z, 0, 0),   // Derecha (E)
+            new Vector3(-z, 0, 0),  // Izquierda (O)
+            new Vector3(0, 0, -z)   // Atrás (S)
+        };
+
+        // Una cara al azar con el PRNG (el máximo es exclusivo)
+        Vector3 offset = localOffsets[rng.Range(0, localOffsets.Length)];
+
+        Vector3 worldPos = socket.transform.TransformPoint(offset);
+        worldPos.y = roadHeightY + rule.yOffset;
+
+        Quaternion rot = rule.alignToBuilding ? socket.transform.rotation : Quaternion.identity;
+        Instantiate(rule.prefab, worldPos, rot, transform);
+    }
+
     // Destruye TODOS los hijos del objeto antes de regenerar
     public void ClearCity()
     {
         for (int i = transform.childCount - 1; i >= 0; i--)
-            Destroy(transform.GetChild(i).gameObject);
+        {
+            Transform child = transform.GetChild(i);
+            child.SetParent(null);
+            Destroy(child.gameObject);
+        }
     }
 
     // Debug: dibuja en amarillo las celdas de cada rotonda (con el objeto seleccionado)
