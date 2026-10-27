@@ -5,21 +5,15 @@ using Prototipo2.Narrative;
 namespace Prototipo2
 {
     [SelectionBase]
-    public class MissionPointerPrototipo2 : MonoBehaviour
+    public class MissionPointerPrototipo2 : PunteroMision
     {
         [Header("Referencias")]
         [Tooltip("Transform del hámster al que sigue la flecha.")]
         public Transform playerTransform;
 
-        [Tooltip("Objetivo manual (Transform). Si es nulo, se rastrea la posición de la misión.")]
-        public Transform objetivo;
-
         [Header("Ajustes de Posición y Animación")]
         [Tooltip("Altura de flotación sobre el hámster.")]
         public float hoverHeight = 0.85f;
-
-        [Tooltip("Velocidad de interpolación de giro hacia el objetivo.")]
-        public float velocidadRotacion = 12f;
 
         [Tooltip("Velocidad del balanceo vertical (bobbing).")]
         public float bobSpeed = 3.5f;
@@ -45,8 +39,12 @@ namespace Prototipo2
             initialYOffset = hoverHeight;
         }
 
-        private void Start()
+        protected override void Start()
         {
+            base.Start();
+            flotar = false; // El posicionamiento y flotación lo gestiona LateUpdate
+            velocidadRotacion = 12f;
+
             if (playerTransform == null)
             {
                 HamsterController hc = FindAnyObjectByType<HamsterController>();

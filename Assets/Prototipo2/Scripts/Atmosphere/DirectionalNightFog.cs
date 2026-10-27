@@ -174,6 +174,17 @@ namespace Prototipo2
 
         private bool DeterminarSiEsNoche()
         {
+            if (TutorialPipelineManager.Instance != null)
+            {
+                var st = TutorialPipelineManager.Instance.currentState;
+                if (st == TutorialPipelineManager.TutorialState.CinematicaAparicionFeral ||
+                    st == TutorialPipelineManager.TutorialState.EscapeDash ||
+                    st == TutorialPipelineManager.TutorialState.SigiloEsquina)
+                {
+                    return true;
+                }
+            }
+
             if (TimeManager.Instance != null)
             {
                 return TimeManager.Instance.CurrentCycleState == TimeManager.CycleState.Night;

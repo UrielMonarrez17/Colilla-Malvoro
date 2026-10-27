@@ -38,45 +38,33 @@ namespace Prototipo2
         private bool isGrounded = true;
         private bool isJumping = false;
         private Vector3 groundNormal = Vector3.up;
-        private Rigidbody protoRb;
-        private Vector3 protoMoveInput;
-        private float protoCurrentBaseSpeed;
-        private float protoCurrentSpeedModifier = 1f;
-        private int protoHitsReceived = 0;
-        private bool protoIsExhausted = false;
-        private bool protoIsDashing = false;
-        private bool protoIsDead = false;
-        private bool protoIsAdrenalineActive = false;
-        private Vector3 protoInitialScale;
-        private float protoNextDashTime = 0f;
         private float nextJumpTime = 0f;
-        private GameObject protoCurrentInteractable;
 
         public bool IsGrounded => isGrounded;
         public bool IsJumping => isJumping;
 
         private void Awake()
         {
-            protoRb = GetComponent<Rigidbody>();
+            rb = GetComponent<Rigidbody>();
         }
 
         private void Start()
         {
-            if (protoRb == null) protoRb = GetComponent<Rigidbody>();
+            if (rb == null) rb = GetComponent<Rigidbody>();
 
-            protoRb.freezeRotation = true;
-            protoRb.useGravity = true;
-            protoRb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-            protoRb.interpolation = RigidbodyInterpolation.Interpolate;
+            rb.freezeRotation = true;
+            rb.useGravity = true;
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
 
-            protoInitialScale = transform.localScale;
-            if (protoInitialScale.sqrMagnitude < 0.000001f)
+            initialScale = transform.localScale;
+            if (initialScale.sqrMagnitude < 0.000001f)
             {
-                protoInitialScale = new Vector3(0.0042f, 0.0042f, 0.0042f);
+                initialScale = new Vector3(0.0042f, 0.0042f, 0.0042f);
             }
 
             currentStamina = maxStamina;
-            protoCurrentBaseSpeed = walkSpeed;
+            currentBaseSpeed = walkSpeed;
 
             if (staminaSlider != null)
             {
@@ -87,12 +75,12 @@ namespace Prototipo2
 
         private void Update()
         {
-            if (protoIsDead) return;
+            if (isDead) return;
 
             // 1. Capturar Input de movimiento (WASD/Joystick)
             float horizontal = FeralInput.Horizontal;
             float vertical = FeralInput.Vertical;
-            protoMoveInput = new Vector3(horizontal, 0f, vertical).normalized;
+            moveInput = new Vector3(horizontal, 0f, vertical).normalized;
 
             // 2. Selección de trampas
             if (FeralInput.Pressed(KeyCode.Alpha1)) { trampaSeleccionada = TipoTrampa.Puas; }
@@ -107,11 +95,11 @@ namespace Prototipo2
 
         private void FixedUpdate()
         {
-            if (protoIsDead) return;
+            if (isDead) return;
 
             UpdateGroundStatus();
 
-            if (!protoIsDashing)
+            if (!isDashing)
             {
                 MoveProto();
                 RotateProto();
@@ -144,7 +132,7 @@ namespace Prototipo2
             }
 
             // Si está subiendo por impulso de salto, no considerarlo en el suelo hasta que comience a descender
-            if (isJumping && protoRb.linearVelocity.y > 0.1f)
+            if (isJumping && rb.linearVelocity.y > 0.1f)
             {
                 isGrounded = false;
             }
@@ -152,7 +140,7 @@ namespace Prototipo2
             {
                 isGrounded = foundGround;
                 // Solo restablecer isJumping a false cuando realmente haya tocado el suelo en caída
-                if (isGrounded && protoRb.linearVelocity.y <= 0.15f)
+                if (isGrounded && rb.linearVelocity.y <= 0.15f)
                 {
                     isJumping = false;
                 }
@@ -165,14 +153,14 @@ namespace Prototipo2
             if (!isGrounded)
             {
                 float extraG = Mathf.Abs(Physics.gravity.y) * (customGravityMultiplier - 1f);
-                protoRb.AddForce(Vector3.down * extraG, ForceMode.Acceleration);
+                rb.AddForce(Vector3.down * extraG, ForceMode.Acceleration);
             }
-            else if (enableGroundSnapping && !protoIsDashing && !isJumping && protoRb.linearVelocity.y <= 0.1f)
+            else if (enableGroundSnapping && !isDashing && !isJumping && rb.linearVelocity.y <= 0.1f)
             {
                 // Ground Snapping: mantiene al personaje adherido a rampas y aceras al correr sin salir despegado
-                if (protoMoveInput != Vector3.zero)
+                if (moveInput != Vector3.zero)
                 {
-                    protoRb.AddForce(Vector3.down * groundSnapForce, ForceMode.Acceleration);
+                    rb.AddForce(Vector3.down * groundSnapForce, ForceMode.Acceleration);
                 }
             }
         }
@@ -181,33 +169,34 @@ namespace Prototipo2
         {
             // Sigilo (Crouch)
             bool crouching = FeralInput.Held(KeyCode.C);
+            isCrouching = crouching;
             if (crouching)
             {
-                transform.localScale = new Vector3(protoInitialScale.x, protoInitialScale.y * 0.5f, protoInitialScale.z);
+                transform.localScale = new Vector3(initialScale.x, initialScale.y * 0.5f, initialScale.z);
             }
             else
             {
-                transform.localScale = protoInitialScale;
+                transform.localScale = initialScale;
             }
 
-            if (currentStamina <= 0f) protoIsExhausted = true;
-            else if (currentStamina >= minStaminaToSprint) protoIsExhausted = false;
+            if (currentStamina <= 0f) isExhausted = true;
+            else if (currentStamina >= minStaminaToSprint) isExhausted = false;
 
-            bool isTryingToSprint = FeralInput.Held(KeyCode.LeftShift) && protoMoveInput != Vector3.zero && !protoIsExhausted && !crouching;
+            bool isTryingToSprint = FeralInput.Held(KeyCode.LeftShift) && moveInput != Vector3.zero && !isExhausted && !crouching;
 
             if (isTryingToSprint)
             {
-                protoCurrentBaseSpeed = sprintSpeed;
+                currentBaseSpeed = sprintSpeed;
                 currentStamina -= staminaDrainRate * Time.deltaTime;
             }
             else if (crouching)
             {
-                protoCurrentBaseSpeed = crouchSpeed;
+                currentBaseSpeed = crouchSpeed;
                 if (currentStamina < maxStamina) currentStamina += staminaRegenRate * Time.deltaTime;
             }
             else
             {
-                protoCurrentBaseSpeed = walkSpeed;
+                currentBaseSpeed = walkSpeed;
                 if (currentStamina < maxStamina) currentStamina += staminaRegenRate * Time.deltaTime;
             }
 
@@ -228,7 +217,7 @@ namespace Prototipo2
             }
 
             // DASH: Exclusivo con [Q], [Click Derecho] o [LeftControl] (nunca con Espacio)
-            if (dashTriggered && Time.time >= protoNextDashTime && protoMoveInput != Vector3.zero && !FeralInput.Held(KeyCode.C))
+            if (dashTriggered && Time.time >= nextDashTime && moveInput != Vector3.zero && !FeralInput.Held(KeyCode.C))
             {
                 StartCoroutine(DashRoutineProto());
             }
@@ -256,7 +245,7 @@ namespace Prototipo2
             nextJumpTime = Time.time + 0.25f;
 
             // Impulso vertical limpio hacia arriba
-            protoRb.linearVelocity = new Vector3(protoRb.linearVelocity.x, jumpForce, protoRb.linearVelocity.z);
+            rb.linearVelocity = new Vector3(rb.linearVelocity.x, jumpForce, rb.linearVelocity.z);
 
             currentStamina = Mathf.Max(0, currentStamina - jumpStaminaCost);
             if (staminaSlider != null) staminaSlider.value = currentStamina;
@@ -264,26 +253,27 @@ namespace Prototipo2
 
         private IEnumerator DashRoutineProto()
         {
-            protoIsDashing = true;
-            protoNextDashTime = Time.time + dashCooldown;
+            isDashing = true;
+            nextDashTime = Time.time + dashCooldown;
+            InvokeOnDashUsed();
 
             // Mantener componente vertical sin congelar gravedad en seco
-            float preservedY = Mathf.Max(protoRb.linearVelocity.y * 0.35f, 0.5f);
-            protoRb.linearVelocity = new Vector3(0, preservedY, 0);
-            protoRb.AddForce(protoMoveInput * dashForce, ForceMode.Impulse);
+            float preservedY = Mathf.Max(rb.linearVelocity.y * 0.35f, 0.5f);
+            rb.linearVelocity = new Vector3(0, preservedY, 0);
+            rb.AddForce(moveInput * dashForce, ForceMode.Impulse);
 
             yield return new WaitForSeconds(dashDuration);
 
             // Al terminar el dash, estabilizar la velocidad horizontal a la velocidad normal sin frenar a cero absoluto
-            Vector3 exitVel = protoMoveInput * (protoCurrentBaseSpeed * protoCurrentSpeedModifier);
-            protoRb.linearVelocity = new Vector3(exitVel.x, protoRb.linearVelocity.y, exitVel.z);
-            protoIsDashing = false;
+            Vector3 exitVel = moveInput * (currentBaseSpeed * currentSpeedModifier);
+            rb.linearVelocity = new Vector3(exitVel.x, rb.linearVelocity.y, exitVel.z);
+            isDashing = false;
         }
 
         private void MoveProto()
         {
-            float finalSpeed = protoCurrentBaseSpeed * protoCurrentSpeedModifier;
-            Vector3 targetVelocity = protoMoveInput * finalSpeed;
+            float finalSpeed = currentBaseSpeed * currentSpeedModifier;
+            Vector3 targetVelocity = moveInput * finalSpeed;
 
             // Si está en el suelo sobre una pendiente o bordillo, proyectar sobre la normal
             if (isGrounded && groundNormal != Vector3.up)
@@ -292,44 +282,44 @@ namespace Prototipo2
             }
 
             // Mantenemos la velocidad vertical calculada por PhysX + Gravedad extra
-            protoRb.linearVelocity = new Vector3(targetVelocity.x, protoRb.linearVelocity.y, targetVelocity.z);
+            rb.linearVelocity = new Vector3(targetVelocity.x, rb.linearVelocity.y, targetVelocity.z);
         }
 
         private void RotateProto()
         {
-            if (protoMoveInput != Vector3.zero)
+            if (moveInput != Vector3.zero)
             {
-                Quaternion targetRotation = Quaternion.LookRotation(protoMoveInput);
-                protoRb.MoveRotation(Quaternion.Slerp(protoRb.rotation, targetRotation, turnSpeed * Time.fixedDeltaTime));
+                Quaternion targetRotation = Quaternion.LookRotation(moveInput);
+                rb.MoveRotation(Quaternion.Slerp(rb.rotation, targetRotation, turnSpeed * Time.fixedDeltaTime));
             }
         }
 
         private void HandleInteractionProto()
         {
-            if (protoCurrentInteractable != null && !protoCurrentInteractable.activeInHierarchy)
+            if (currentInteractable != null && !currentInteractable.activeInHierarchy)
             {
-                protoCurrentInteractable = null;
+                currentInteractable = null;
             }
 
-            if (FeralInput.Pressed(KeyCode.F) && protoCurrentInteractable != null)
+            if (FeralInput.Pressed(KeyCode.F) && currentInteractable != null)
             {
-                if (protoCurrentInteractable.TryGetComponent<CraftingTable>(out CraftingTable craftingTable))
+                if (currentInteractable.TryGetComponent<CraftingTable>(out CraftingTable craftingTable))
                 {
                     craftingTable.ToggleCraftingMenu();
                 }
-                else if (protoCurrentInteractable.TryGetComponent<LootContainer>(out LootContainer lootContainer))
+                else if (currentInteractable.TryGetComponent<LootContainer>(out LootContainer lootContainer))
                 {
                     lootContainer.InteractuarConLoot();
                 }
-                else if (protoCurrentInteractable.TryGetComponent<LuluNPCPrototipo2>(out LuluNPCPrototipo2 luluProto))
+                else if (currentInteractable.TryGetComponent<LuluNPCPrototipo2>(out LuluNPCPrototipo2 luluProto))
                 {
                     luluProto.InteractuarConLulu();
                 }
-                else if (protoCurrentInteractable.TryGetComponent<LuluNPC>(out LuluNPC lulu))
+                else if (currentInteractable.TryGetComponent<LuluNPC>(out LuluNPC lulu))
                 {
                     lulu.InteractuarConLulu();
                 }
-                else if (protoCurrentInteractable.TryGetComponent<PuertaTrampa>(out PuertaTrampa puerta))
+                else if (currentInteractable.TryGetComponent<PuertaTrampa>(out PuertaTrampa puerta))
                 {
                     if (trampaSeleccionada == TipoTrampa.Ninguna) return;
 
@@ -346,31 +336,38 @@ namespace Prototipo2
             }
         }
 
+        public override void RespawnOrHeal(Vector3? newPosition = null)
+        {
+            base.RespawnOrHeal(newPosition);
+            isGrounded = true;
+            isJumping = false;
+        }
+
         private void OnTriggerEnter(Collider other)
         {
             if (other.CompareTag("Interactable") || other.CompareTag("Door"))
             {
-                protoCurrentInteractable = other.gameObject;
+                currentInteractable = other.gameObject;
             }
         }
 
         private void OnTriggerStay(Collider other)
         {
-            if (protoCurrentInteractable == null && (other.CompareTag("Interactable") || other.CompareTag("Door")))
+            if (currentInteractable == null && (other.CompareTag("Interactable") || other.CompareTag("Door")))
             {
-                protoCurrentInteractable = other.gameObject;
+                currentInteractable = other.gameObject;
             }
         }
 
         private void OnTriggerExit(Collider other)
         {
-            if ((other.CompareTag("Interactable") || other.CompareTag("Door")) && other.gameObject == protoCurrentInteractable)
+            if ((other.CompareTag("Interactable") || other.CompareTag("Door")) && other.gameObject == currentInteractable)
             {
-                if (protoCurrentInteractable.TryGetComponent<CraftingTable>(out CraftingTable table))
+                if (currentInteractable.TryGetComponent<CraftingTable>(out CraftingTable table))
                 {
                     table.CloseMenu();
                 }
-                protoCurrentInteractable = null;
+                currentInteractable = null;
             }
         }
     }

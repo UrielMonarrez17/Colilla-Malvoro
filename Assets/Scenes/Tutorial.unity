@@ -493673,6 +493673,7 @@ GameObject:
   - component: {fileID: 1095112124}
   - component: {fileID: 1095112123}
   - component: {fileID: 1095112122}
+  - component: {fileID: 1095112127}
   m_Layer: 0
   m_Name: Main Camera (1)
   m_TagString: MainCamera
@@ -493689,12 +493690,47 @@ MonoBehaviour:
   m_GameObject: {fileID: 1095112121}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fda374c09682dd54086b4c7e200b0cfc, type: 3}
+  m_Script: {fileID: 11500000, guid: 809b8bef0d04408b9cfa234bf18233ac, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
+  m_EditorClassIdentifier: Prototipo2::IsometricCameraFollow
   target: {fileID: 1162808865}
   offset: {x: 0, y: 11, z: -9}
   smoothSpeed: 8
+  targetOffset: {x: 0, y: 0.4, z: 0}
+  pitchAngle: 45
+  yawAngle: 45
+  distance: 20
+  fieldOfView: 32
+  enableOcclusionFading: 1
+  occlusionLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  sphereCastRadius: 0.5
+  fadedAlpha: 0.2
+  fadeSpeed: 7
+--- !u!114 &1095112127
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1095112121}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f22e8ea9152485298318522aa08a04d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Prototipo2::DirectionalNightFog
+  playerTransform: {fileID: 1162808865}
+  targetCamera: {fileID: 1095112125}
+  fogShader: {fileID: 4800000, guid: a72b98e1cd3f48a1b559ef17e33a101f, type: 3}
+  dayFogColor: {r: 0.65, g: 0.72, b: 0.8, a: 0.35}
+  nightFogColor: {r: 0.04, g: 0.06, b: 0.11, a: 0.95}
+  fogDensity: 0.022
+  directionalForwardBoost: 1.6
+  nearDistance: 2
+  farDistance: 35
+  fogTransitionSpeed: 1.8
+  controlGlobalFog: 1
 --- !u!114 &1095112123
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -521283,15 +521319,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 0138da158be4bbe4aa4f1bf9bb5ba03a, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.019348267
+      value: 0.0042
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 0138da158be4bbe4aa4f1bf9bb5ba03a, type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.019348267
+      value: 0.0042
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 0138da158be4bbe4aa4f1bf9bb5ba03a, type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.019348267
+      value: 0.0042
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 0138da158be4bbe4aa4f1bf9bb5ba03a, type: 3}
       propertyPath: m_LocalPosition.x
@@ -521377,9 +521413,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 1162808866}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 76f985213b4304a4988553a650e239b3, type: 3}
+  m_Script: {fileID: 11500000, guid: 9f64b2cf2204408b9cfa234bf18233b2, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HamsterController
+  m_EditorClassIdentifier: Prototipo2::HamsterControllerPrototipo2
   walkSpeed: 8
   sprintSpeed: 13
   crouchSpeed: 4
@@ -521390,14 +521426,30 @@ MonoBehaviour:
   staminaRegenRate: 15
   minStaminaToSprint: 20
   staminaSlider: {fileID: 1287479021}
+  staminaFillImage: {fileID: 0}
   dashForce: 25
-  dashCooldown: 1.5
-  dashDuration: 0.15
-  maxHitsAllowed: 3
-  adrenalineBoostModifier: 1.3
+  dashCooldown: 1
+  dashDuration: 0.2
+  dashStaminaCost: 35
+  crouchScale: {x: 1, y: 0.5, z: 1}
+  crouchTransitionSpeed: 10
+  interactRange: 5
+  maxHitsAllowed: 2
   adrenalineDuration: 3
-  fatiguePenaltyPerHit: 0.1
-  trampaSeleccionada: 1
+  adrenalineSpeedMultiplier: 1.5
+  trampaSeleccionada: 0
+  customGravityMultiplier: 2.4
+  jumpForce: 7.5
+  jumpStaminaCost: 10
+  groundCheckDistance: 0.14
+  groundLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  enableGroundSnapping: 1
+  groundSnapForce: 12
+  dashKeyPrimary: 113
+  dashKeySecondary: 306
+  rightClickDash: 1
 --- !u!54 &1162808868
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -521425,8 +521477,8 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 1
---- !u!65 &1162808869
-BoxCollider:
+--- !u!136 &1162808869
+CapsuleCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -521443,9 +521495,10 @@ BoxCollider:
   m_IsTrigger: 0
   m_ProvidesContacts: 0
   m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 35.158134, y: 45.72409, z: 120.49766}
-  m_Center: {x: -1.238791, y: 1.8147613, z: -0.20977785}
+  m_Radius: 18
+  m_Height: 40
+  m_Direction: 1
+  m_Center: {x: 0, y: 1.8, z: 0}
 --- !u!1 &1162892271
 GameObject:
   m_ObjectHideFlags: 0
@@ -677008,8 +677061,8 @@ MonoBehaviour:
   textoMisionUI: {fileID: 0}
   punteroFlecha: {fileID: 1995883131}
   videoCinematicaTigre: {fileID: 0}
-  prefabEnemigoTigre: {fileID: 7287056650258485505, guid: fff10cbcb16a15f44a5cc8c82d5488c5, type: 3}
-  prefabEnemigoPerro: {fileID: 6253783941866253735, guid: f3f4d4734766a4e4d87a51e8949259db, type: 3}
+  prefabEnemigoTigre: {fileID: 7287056650258485505, guid: b39f544652824647b92515168c580470, type: 3}
+  prefabEnemigoPerro: {fileID: 6253783941866253735, guid: bb2d7f1b64fc4f4e810324e8235be399, type: 3}
   prefabCiudadanoGato: {fileID: 6397291155531275063, guid: 44a0de0f766c9634eb66f1d56b7edc9d, type: 3}
   prefabCiudadanoCiervo: {fileID: 7402009758359158996, guid: 4ecab060b0afb5d4db61f7f1311b9e24, type: 3}
   prefabPuertaControl: {fileID: 3583412624788119033, guid: 1dfe47c81e292dd45a72fb9c18cd09f6, type: 3}

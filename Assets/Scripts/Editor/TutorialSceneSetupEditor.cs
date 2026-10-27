@@ -36,9 +36,9 @@ public static class TutorialSceneSetupEditor
 
         // 1. Vincular Prefabs al TutorialPipelineManager
         if (manager.prefabEnemigoTigre == null)
-            manager.prefabEnemigoTigre = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/PreFabs/Enemies/Tiger_001.prefab");
+            manager.prefabEnemigoTigre = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo2/Prefabs/Tiger_Prototipo2.prefab");
         if (manager.prefabEnemigoPerro == null)
-            manager.prefabEnemigoPerro = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/PreFabs/Enemies/Dog_001.prefab");
+            manager.prefabEnemigoPerro = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo2/Prefabs/Dog_Prototipo2.prefab");
         if (manager.prefabCiudadanoGato == null)
         {
             manager.prefabCiudadanoGato = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Animals/Animals_FREE/Prefabs/Kitty_001.prefab");

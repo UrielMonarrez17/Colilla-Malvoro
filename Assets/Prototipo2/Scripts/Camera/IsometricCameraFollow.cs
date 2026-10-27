@@ -3,12 +3,10 @@ using UnityEngine;
 
 namespace Prototipo2
 {
-    public class IsometricCameraFollow : MonoBehaviour
+    public class IsometricCameraFollow : CameraFollow
     {
-        [Header("Seguimiento del Objetivo")]
-        public Transform target;
+        [Header("Ajustes de Seguimiento Isométrico")]
         public Vector3 targetOffset = new Vector3(0, 0.4f, 0);
-        public float smoothSpeed = 8f;
 
         [Header("Perspectiva Isométrica")]
         [Range(20f, 60f)] public float pitchAngle = 45f;
@@ -61,9 +59,10 @@ namespace Prototipo2
             occlusionLayers &= ~LayerMask.GetMask("Ignore Raycast", "UI");
 
             ActualizarRotacionCamara();
+            offset = transform.rotation * (Vector3.back * distance);
         }
 
-        private void LateUpdate()
+        protected override void LateUpdate()
         {
             if (target == null)
             {
@@ -89,9 +88,9 @@ namespace Prototipo2
         {
             ActualizarRotacionCamara();
 
+            offset = transform.rotation * (Vector3.back * distance);
             Vector3 targetCenter = target.position + targetOffset;
-            Vector3 cameraDirection = transform.rotation * Vector3.back;
-            Vector3 desiredPosition = targetCenter + cameraDirection * distance;
+            Vector3 desiredPosition = targetCenter + offset;
 
             transform.position = Vector3.Lerp(transform.position, desiredPosition, Time.deltaTime * smoothSpeed);
         }

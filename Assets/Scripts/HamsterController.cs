@@ -40,14 +40,14 @@ public class HamsterController : MonoBehaviour
     public TipoTrampa trampaSeleccionada = TipoTrampa.Puas; // Trampa seleccionada actualmente
 
     // --- Variables de Estado ---
-    private float currentBaseSpeed;
-    private float currentSpeedModifier = 1f; 
-    private int hitsReceived = 0;
-    private bool isExhausted = false; 
-    private bool isDashing = false;
-    private bool isDead = false;
-    private bool isAdrenalineActive = false;
-    private Vector3 initialScale;
+    protected float currentBaseSpeed;
+    protected float currentSpeedModifier = 1f; 
+    protected int hitsReceived = 0;
+    protected bool isExhausted = false; 
+    protected bool isDashing = false;
+    protected bool isDead = false;
+    protected bool isAdrenalineActive = false;
+    protected Vector3 initialScale;
 
     public bool IsDead => isDead;
     public bool IsDashing => isDashing;
@@ -59,7 +59,7 @@ public class HamsterController : MonoBehaviour
     public bool IsSprinting => FeralInput.Held(KeyCode.LeftShift) && moveInput != Vector3.zero && !isExhausted && !isCrouching;
     public GameObject CurrentInteractable => currentInteractable;
     
-    public bool isCrouching { get; private set; } 
+    public bool isCrouching { get; protected set; } 
 
     // Eventos para integración con Tutorial y HUD
     public event Action OnDashUsed;
@@ -68,12 +68,17 @@ public class HamsterController : MonoBehaviour
     public event Action OnPlayerDied;
     public event Action<TipoTrampa, PuertaTrampa> OnTrapInstalled;
 
-    private float nextDashTime = 0f;
-    private KeyCode interactKey = KeyCode.F;
-    private GameObject currentInteractable; 
+    protected float nextDashTime = 0f;
+    protected KeyCode interactKey = KeyCode.F;
+    protected GameObject currentInteractable; 
 
-    private Rigidbody rb;
-    private Vector3 moveInput;
+    protected Rigidbody rb;
+    protected Vector3 moveInput;
+
+    protected void InvokeOnDashUsed() => OnDashUsed?.Invoke();
+    protected void InvokeOnAdrenalineTriggered() => OnAdrenalineTriggered?.Invoke();
+    protected void InvokeOnDamageReceived(int hits, int max) => OnDamageReceived?.Invoke(hits, max);
+    protected void InvokeOnPlayerDied() => OnPlayerDied?.Invoke();
 
     // ===================================================================================
     //  INICIALIZACIÓN (Start)
@@ -296,7 +301,7 @@ public class HamsterController : MonoBehaviour
     //  SISTEMA PÚBLICO DE SALUD Y DAÑO
     // ===================================================================================
 
-    public void ReceiveDamage()
+    public virtual void ReceiveDamage()
     {
         if (isDead) return;
         // The first hit teaches adrenaline; give the player its full escape window.
@@ -342,7 +347,7 @@ public class HamsterController : MonoBehaviour
         }
     }
 
-    private void Die()
+    protected virtual void Die()
     {
         isDead = true;
         Debug.LogError("¡HAS MUERTO! Game Over.");
@@ -356,7 +361,7 @@ public class HamsterController : MonoBehaviour
     /// <summary>
     /// Restaura la salud, estamina y posición del hámster (usado al dormir en refugio o reaparecer en checkpoint).
     /// </summary>
-    public void RespawnOrHeal(Vector3? newPosition = null)
+    public virtual void RespawnOrHeal(Vector3? newPosition = null)
     {
         StopAllCoroutines();
         isDead = false;
