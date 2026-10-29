@@ -321,6 +321,7 @@ namespace Prototipo2
 
         public void InteractuarConLulu()
         {
+            if (Prototipo2.UI.FeralGameUI.BlocksGameplay) return;
             if (Time.time - lastInteractTime < 0.4f) return;
             lastInteractTime = Time.time;
 

@@ -14,6 +14,8 @@ public class InventoryManager : MonoBehaviour
     public void Clear()
     {
         foreach (ItemType item in System.Enum.GetValues(typeof(ItemType))) inventory[item] = 0;
+        foreach (TipoTrampa type in System.Enum.GetValues(typeof(TipoTrampa)))
+            if (type != TipoTrampa.Ninguna) trampasInventory[type] = 0;
         Changed?.Invoke();
     }
     //Cambios para quitar
@@ -86,20 +88,26 @@ public class InventoryManager : MonoBehaviour
 
     public void AddTrampa(TipoTrampa tipo)
     {
+        if (tipo == TipoTrampa.Ninguna) return;
+        if (!trampasInventory.ContainsKey(tipo)) trampasInventory[tipo] = 0;
         trampasInventory[tipo]++;
+        Changed?.Invoke();
         Debug.Log($"[Inventario] Trampa añadida: {tipo}. Total: {trampasInventory[tipo]}");
     }
 
     public bool HasTrampa(TipoTrampa tipo)
     {
-        return trampasInventory[tipo] > 0;
+        return GetTrapCount(tipo) > 0;
     }
+
+    public int GetTrapCount(TipoTrampa tipo) => trampasInventory.TryGetValue(tipo, out int count) ? count : 0;
 
     public void RemoveTrampa(TipoTrampa tipo)
     {
         if (HasTrampa(tipo))
         {
             trampasInventory[tipo]--;
+            Changed?.Invoke();
             Debug.Log($"[Inventario] Trampa usada: {tipo}. Restantes: {trampasInventory[tipo]}");
         }
     }

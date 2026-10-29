@@ -117,6 +117,7 @@ public class HamsterController : MonoBehaviour
 
     void Update()
     {
+        if (Prototipo2.UI.FeralGameUI.BlocksGameplay) return;
         if (isDead || isDashing) return; 
 
         // 1. Capturar Input de movimiento (WASD/Joystick)

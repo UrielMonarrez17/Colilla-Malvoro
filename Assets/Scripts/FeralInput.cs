@@ -62,6 +62,7 @@ public static class FeralInput
             case KeyCode.LeftControl: return keyboard.leftCtrlKey;
             case KeyCode.Tab: return keyboard.tabKey;
             case KeyCode.I: return keyboard.iKey;
+            case KeyCode.M: return keyboard.mKey;
             case KeyCode.Escape: return keyboard.escapeKey;
             case KeyCode.Return: return keyboard.enterKey;
             case KeyCode.KeypadEnter: return keyboard.numpadEnterKey;
