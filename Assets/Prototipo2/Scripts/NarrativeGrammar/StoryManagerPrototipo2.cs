@@ -115,6 +115,7 @@ namespace Prototipo2
 
         private void Update()
         {
+            if (Prototipo2.UI.FeralGameUI.BlocksGameplay) return;
             if (currentActiveNode == null || player == null)
             {
                 if (player == null)
@@ -195,6 +196,7 @@ namespace Prototipo2
 
         public void InteractuarConLulu(LuluNPCPrototipo2 luluNpc = null)
         {
+            if (Prototipo2.UI.FeralGameUI.BlocksGameplay) return;
             if (currentGraph == null) return;
 
             if (currentActiveNode != null && currentActiveNode.id == "node_start")

@@ -1,0 +1,12 @@
+PASS: Main menu opens with its controller
+PASS: Play loads the actual Tutorial scene
+PASS: Tutorial presents the unified Canvas after the intro
+PASS: Live tutorial has an objective
+PASS: Inventory pauses the actual tutorial
+PASS: Tutorial completion transition loads Prototipo2
+PASS: Prototype presents the unified Canvas
+PASS: Legacy narrative panel does not overlap the new HUD
+PASS: Prototype journal displays generated missions
+PASS: Return to main menu restores time
+
+ALL CHECKS PASSED

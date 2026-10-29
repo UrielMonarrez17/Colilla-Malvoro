@@ -65,6 +65,15 @@ public class LuluNPC : MonoBehaviour
     private IEnumerator MostrarDialogo(string mensaje)
     {
         hablando = true;
+        if (Prototipo2.UI.FeralGameUI.Instance != null)
+        {
+            var ui = Prototipo2.UI.FeralGameUI.Instance;
+            ui.ShowDialogue("Lulú", mensaje.Replace("Lulú: ", "").Replace("[Presiona ESPACIO o F para continuar]", "").Trim());
+            yield return null;
+            while (ui != null && ui.DialogueOpen) yield return null;
+            hablando = false;
+            yield break;
+        }
         if (panelDialogo != null) panelDialogo.SetActive(true);
         if (textoDialogo != null) textoDialogo.text = mensaje;
 
