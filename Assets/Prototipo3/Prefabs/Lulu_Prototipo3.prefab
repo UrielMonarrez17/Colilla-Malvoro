@@ -327,9 +327,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 1382665795767730925}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8701bfc036f250325f31f6bd63290c58, type: 3}
+  m_Script: {fileID: 11500000, guid: 948a8fe312ae3194e92ee90af7f2504a, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Prototipo3.Narrative.LuluNPCPrototipo3
+  m_EditorClassIdentifier: Assembly-CSharp::Prototipo3.LuluNPCPrototipo3
   currentState: 0
   strollRadius: 6.5
   strollSpeed: 2

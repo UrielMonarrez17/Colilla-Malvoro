@@ -1,5 +1,12 @@
 fileFormatVersion: 2
-guid: 65d45d18dd1764149a778076ad2c4821
+guid: 276b9b2773da9bb48b16bd8eef7b64d0
+AssetOrigin:
+  serializedVersion: 1
+  productId: 101998
+  packageName: Resource Vector Graphics
+  packageVersion: 0.2
+  assetPath: Assets/UI/Resource Vector Graphics/UI_Graphic_Resource_Iron.png
+  uploadId: 207244
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}

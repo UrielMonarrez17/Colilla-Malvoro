@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Prototipo3.Narrative;
 
-namespace Prototipo3.UI
+namespace Prototipo3
 {
     [SelectionBase]
     public class MissionPointerPrototipo3 : PunteroMision
@@ -44,120 +44,223 @@ namespace Prototipo3.UI
             flotar = false;
             velocidadRotacion = 12f;
 
-            if (playerTransform == null)
-            {
-                var p = FindFirstObjectByType<Prototipo3.Player.HamsterControllerPrototipo3>();
-                if (p != null) playerTransform = p.transform;
-            }
-
+            EnsurePlayerReference();
             ConstruirVisualSiNoExiste();
 
-            if (StoryManagerPrototipo3.Instance != null)
+            StoryManagerPrototipo3 sm = FindAnyObjectByType<StoryManagerPrototipo3>();
+            if (sm != null)
             {
-                StoryManagerPrototipo3.Instance.OnActiveNodeChanged += ActualizarObjetivoPorNodo;
-                if (StoryManagerPrototipo3.Instance.CurrentActiveNode != null)
+                sm.OnActiveNodeChanged += ActualizarObjetivoPorNodo;
+                sm.OnDemoCompleted += OcultarFlecha;
+
+                if (sm.CurrentActiveNode != null)
                 {
-                    ActualizarObjetivoPorNodo(StoryManagerPrototipo3.Instance.CurrentActiveNode);
+                    ActualizarObjetivoPorNodo(sm.CurrentActiveNode);
                 }
             }
         }
 
-        private void OnDestroy()
+        private void OnEnable()
         {
-            if (StoryManagerPrototipo3.Instance != null)
+            LootContainer.OnContainerLooted += HandleContainerLooted;
+        }
+
+        private void OnDisable()
+        {
+            LootContainer.OnContainerLooted -= HandleContainerLooted;
+
+            StoryManagerPrototipo3 sm = FindAnyObjectByType<StoryManagerPrototipo3>();
+            if (sm != null)
             {
-                StoryManagerPrototipo3.Instance.OnActiveNodeChanged -= ActualizarObjetivoPorNodo;
+                sm.OnActiveNodeChanged -= ActualizarObjetivoPorNodo;
+                sm.OnDemoCompleted -= OcultarFlecha;
             }
         }
 
-        public void ActualizarObjetivoPorNodo(StoryNodePrototipo3 node)
+        private void EnsurePlayerReference()
         {
-            if (node == null)
+            if (playerTransform == null)
             {
-                hasValidTarget = false;
-                if (visualRoot != null) visualRoot.SetActive(false);
-                return;
+                HamsterControllerPrototipo3 hc3 = FindAnyObjectByType<HamsterControllerPrototipo3>();
+                if (hc3 != null) { playerTransform = hc3.transform; return; }
+                HamsterController hc = FindAnyObjectByType<HamsterController>();
+                if (hc != null) playerTransform = hc.transform;
             }
-
-            currentTargetWorldPos = node.worldPosition;
-            hasValidTarget = true;
-            if (visualRoot != null) visualRoot.SetActive(true);
-        }
-
-        public void EstablecerObjetivoManual(Vector3 targetPos)
-        {
-            currentTargetWorldPos = targetPos;
-            hasValidTarget = true;
-            if (visualRoot != null) visualRoot.SetActive(true);
         }
 
         private void LateUpdate()
         {
-            if (playerTransform == null)
-            {
-                var p = FindFirstObjectByType<Prototipo3.Player.HamsterControllerPrototipo3>();
-                if (p != null) playerTransform = p.transform;
-                else return;
-            }
+            EnsurePlayerReference();
+            if (playerTransform == null) return;
 
             float bob = Mathf.Sin(Time.time * bobSpeed) * bobAmplitude;
-            transform.position = playerTransform.position + Vector3.up * (initialYOffset + bob);
+            Vector3 targetPos = playerTransform.position + Vector3.up * (hoverHeight + bob);
+            transform.position = targetPos;
 
-            if (!hasValidTarget) return;
+            ResolverPosicionObjetivo();
 
-            Vector3 direction = currentTargetWorldPos - transform.position;
-            direction.y = 0f;
-
-            if (direction.sqrMagnitude > 0.05f)
+            if (hasValidTarget)
             {
-                Quaternion targetRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, velocidadRotacion * Time.deltaTime);
+                Vector3 direccion = currentTargetWorldPos - transform.position;
+                direccion.y = 0;
+
+                if (direccion.sqrMagnitude > 0.05f)
+                {
+                    Quaternion rotacionDeseada = Quaternion.LookRotation(direccion.normalized, Vector3.up);
+                    transform.rotation = Quaternion.Slerp(transform.rotation, rotacionDeseada, Time.deltaTime * velocidadRotacion);
+                }
+
+                if (visualRoot != null && !visualRoot.activeSelf)
+                {
+                    visualRoot.SetActive(true);
+                }
+            }
+        }
+
+        private void ResolverPosicionObjetivo()
+        {
+            if (objetivo != null)
+            {
+                currentTargetWorldPos = objetivo.position;
+                hasValidTarget = true;
+                return;
+            }
+
+            StoryManagerPrototipo3 sm = StoryManagerPrototipo3.Instance ?? FindAnyObjectByType<StoryManagerPrototipo3>();
+            if (sm != null && sm.CurrentGraph != null)
+            {
+                List<StoryNode> activeNodes = sm.CurrentGraph.GetActiveNodes();
+                if (activeNodes.Count > 0 && playerTransform != null)
+                {
+                    StoryNode closestNode = activeNodes[0];
+                    float bestDist = Vector3.Distance(playerTransform.position, closestNode.worldPosition);
+                    for (int i = 1; i < activeNodes.Count; i++)
+                    {
+                        float d = Vector3.Distance(playerTransform.position, activeNodes[i].worldPosition);
+                        if (d < bestDist && activeNodes[i].worldPosition != Vector3.zero)
+                        {
+                            bestDist = d;
+                            closestNode = activeNodes[i];
+                        }
+                    }
+
+                    if (closestNode.worldPosition != Vector3.zero)
+                    {
+                        currentTargetWorldPos = closestNode.worldPosition;
+                        hasValidTarget = true;
+                        return;
+                    }
+                }
+
+                if (sm.CurrentActiveNode != null && sm.CurrentActiveNode.worldPosition != Vector3.zero)
+                {
+                    currentTargetWorldPos = sm.CurrentActiveNode.worldPosition;
+                    hasValidTarget = true;
+                    return;
+                }
+            }
+        }
+
+        public void ActualizarObjetivoPorNodo(StoryNode node)
+        {
+            if (node == null)
+            {
+                hasValidTarget = false;
+                return;
+            }
+
+            if (node.worldPosition != Vector3.zero)
+            {
+                currentTargetWorldPos = node.worldPosition;
+                hasValidTarget = true;
+            }
+        }
+
+        private void HandleContainerLooted(LootContainer c, List<ItemType> items)
+        {
+            ResolverPosicionObjetivo();
+        }
+
+        public void OcultarFlecha()
+        {
+            hasValidTarget = false;
+            if (visualRoot != null) visualRoot.SetActive(false);
+        }
+
+        public void EstablecerObjetivoManual(Transform nuevoObjetivo)
+        {
+            objetivo = nuevoObjetivo;
+            if (objetivo != null)
+            {
+                currentTargetWorldPos = objetivo.position;
+                hasValidTarget = true;
+                if (visualRoot != null) visualRoot.SetActive(true);
             }
         }
 
         private void ConstruirVisualSiNoExiste()
         {
-            if (GetComponentInChildren<MeshRenderer>() != null)
+            if (transform.childCount > 0)
             {
-                visualRoot = GetComponentInChildren<MeshRenderer>().gameObject;
+                visualRoot = transform.GetChild(0).gameObject;
                 return;
             }
 
-            visualRoot = new GameObject("BananaArrowVisual");
-            visualRoot.transform.SetParent(this.transform, false);
-
-            GameObject shaft = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            shaft.name = "ArrowShaft";
-            shaft.transform.SetParent(visualRoot.transform, false);
-            shaft.transform.localScale = new Vector3(0.045f, 0.12f, 0.045f);
-            shaft.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            shaft.transform.localPosition = new Vector3(0f, 0f, -0.05f);
-            Destroy(shaft.GetComponent<Collider>());
-
-            GameObject head = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            head.name = "ArrowHead";
-            head.transform.SetParent(visualRoot.transform, false);
-            head.transform.localScale = new Vector3(0.12f, 0.12f, 0.12f);
-            head.transform.localRotation = Quaternion.Euler(45f, 45f, 0f);
-            head.transform.localPosition = new Vector3(0f, 0f, 0.14f);
-            Destroy(head.GetComponent<Collider>());
-
             if (arrowMaterial == null)
             {
-                Shader unlitColorShader = Shader.Find("Universal Render Pipeline/Unlit");
-                if (unlitColorShader == null) unlitColorShader = Shader.Find("Unlit/Color");
-                if (unlitColorShader != null)
+                arrowMaterial = Resources.Load<Material>("AmarilloAmariilloPlatano");
+                if (arrowMaterial == null)
                 {
-                    arrowMaterial = new Material(unlitColorShader);
-                    arrowMaterial.SetColor("_BaseColor", arrowColor);
+                    Shader s = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+                    arrowMaterial = new Material(s);
                     arrowMaterial.color = arrowColor;
+                    if (arrowMaterial.HasProperty("_BaseColor")) arrowMaterial.SetColor("_BaseColor", arrowColor);
+                    if (arrowMaterial.HasProperty("_EmissionColor"))
+                    {
+                        arrowMaterial.EnableKeyword("_EMISSION");
+                        arrowMaterial.SetColor("_EmissionColor", arrowColor * 1.2f);
+                    }
                 }
             }
 
-            if (arrowMaterial != null)
+            visualRoot = new GameObject("VisualArrowMesh");
+            visualRoot.transform.SetParent(transform, false);
+            visualRoot.transform.localPosition = Vector3.zero;
+            visualRoot.transform.localRotation = Quaternion.identity;
+
+            GameObject shaft = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            shaft.name = "ArrowShaft";
+            shaft.transform.SetParent(visualRoot.transform, false);
+            shaft.transform.localPosition = new Vector3(0, 0, -0.15f);
+            shaft.transform.localScale = new Vector3(0.12f, 0.08f, 0.45f);
+
+            Collider colShaft = shaft.GetComponent<Collider>();
+            if (colShaft != null) Destroy(colShaft);
+
+            Renderer renShaft = shaft.GetComponent<Renderer>();
+            if (renShaft != null) renShaft.material = arrowMaterial;
+
+            GameObject tip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            tip.name = "ArrowTip";
+            tip.transform.SetParent(visualRoot.transform, false);
+            tip.transform.localPosition = new Vector3(0, 0, 0.22f);
+            tip.transform.localRotation = Quaternion.Euler(0, 45, 0);
+            tip.transform.localScale = new Vector3(0.32f, 0.08f, 0.32f);
+
+            Collider colTip = tip.GetComponent<Collider>();
+            if (colTip != null) Destroy(colTip);
+
+            Renderer renTip = tip.GetComponent<Renderer>();
+            if (renTip != null) renTip.material = arrowMaterial;
+        }
+
+        private void OnDrawGizmos()
+        {
+            if (hasValidTarget)
             {
-                shaft.GetComponent<MeshRenderer>().sharedMaterial = arrowMaterial;
-                head.GetComponent<MeshRenderer>().sharedMaterial = arrowMaterial;
+                Gizmos.color = Color.yellow;
+                Gizmos.DrawLine(transform.position, currentTargetWorldPos);
+                Gizmos.DrawWireSphere(currentTargetWorldPos, 0.5f);
             }
         }
     }

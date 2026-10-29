@@ -1,8 +1,15 @@
 fileFormatVersion: 2
-guid: 3ab2a8b07fb30d14c915e9a09789fed4
+guid: a21428d14282fe14e85550371514d073
 timeCreated: 1507241447
 licenseType: Store
 DefaultImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 101998
+  packageName: Resource Vector Graphics
+  packageVersion: 0.2
+  assetPath: Assets/UI/Resource Vector Graphics/Source/UI_Graphic_Resource_Hammer.eps
+  uploadId: 207244

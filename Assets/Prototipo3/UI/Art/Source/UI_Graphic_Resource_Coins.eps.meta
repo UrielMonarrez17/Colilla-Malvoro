@@ -1,8 +1,15 @@
 fileFormatVersion: 2
-guid: 43460d64c2659874b90bcc4c446d33ee
+guid: 2c418c8a8fc47bd4cb8cce5ec36b3ed9
 timeCreated: 1507241447
 licenseType: Store
 DefaultImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 101998
+  packageName: Resource Vector Graphics
+  packageVersion: 0.2
+  assetPath: Assets/UI/Resource Vector Graphics/Source/UI_Graphic_Resource_Coins.eps
+  uploadId: 207244

@@ -3,68 +3,59 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace Prototipo3.Player
+namespace Prototipo3
 {
     [RequireComponent(typeof(Rigidbody))]
     [RequireComponent(typeof(CapsuleCollider))]
     public class HamsterControllerPrototipo3 : HamsterController
     {
-        public static HamsterControllerPrototipo3 Instance { get; private set; }
-        public static bool IsInputLocked { get; private set; } = false;
-
-        [Header("Físicas Mejoradas y Gravedad Prototipo 3")]
-        [Tooltip("Multiplicador de gravedad en el aire para peso contundente a escala diminuta.")]
+        [Header("Físicas Mejoradas y Gravedad Prototipo3")]
+        [Tooltip("Multiplicador de gravedad cuando está en el aire.")]
         public float customGravityMultiplier = 2.4f;
 
-        [Tooltip("Fuerza de impulso para el salto.")]
+        [Tooltip("Fuerza de impulso vertical para el salto.")]
         public float jumpForce = 7.5f;
 
         [Tooltip("Costo de estamina por salto.")]
         public float jumpStaminaCost = 10f;
 
-        [Tooltip("Distancia de detección del suelo.")]
+        [Tooltip("Distancia de detección del suelo desde las patas.")]
         public float groundCheckDistance = 0.14f;
 
-        [Tooltip("Capas de suelo.")]
+        [Tooltip("Capas consideradas suelo.")]
         public LayerMask groundLayers = ~0;
 
-        [Tooltip("Ground Snapping para transiciones suaves.")]
+        [Tooltip("Ajuste suave al suelo para no salir flotando sobre desniveles y bordillos.")]
         public bool enableGroundSnapping = true;
         public float groundSnapForce = 12f;
 
-        [Header("Controles de Dash")]
-        public KeyCode dashKeyPrimary = KeyCode.Q;
-        public KeyCode dashKeySecondary = KeyCode.LeftControl;
+        [Header("Controles de Dash y Regeneración")]
+        public KeyCode dashKeyPrimary = KeyCode.Space;
+        public KeyCode dashKeySecondary = KeyCode.Q;
+        public KeyCode regenerateCityKey = KeyCode.G;
         public bool rightClickDash = true;
 
-        [Header("Inventario Narrativo")]
-        public int filtrosCarmesiCount = 0;
-        public bool hasKeycardTorreNorte = false;
-        public bool hasLithiumBattery = false;
-
-        // Estado interno
+        // Estado interno de físicas
         private bool isGrounded = true;
         private bool isJumping = false;
         private Vector3 groundNormal = Vector3.up;
         private float nextJumpTime = 0f;
 
+        // Ralentización externa temporal (ej. Nubes de gas de Clara Valdés)
+        private float externalSlowMultiplier = 1f;
+        private float externalSlowTimer = 0f;
+
         public bool IsGrounded => isGrounded;
         public bool IsJumping => isJumping;
 
-        public static void SetInputLocked(bool locked)
-        {
-            IsInputLocked = locked;
-            if (Instance != null && Instance.rb != null)
-            {
-                Instance.rb.linearVelocity = new Vector3(0f, Instance.rb.linearVelocity.y, 0f);
-            }
-        }
-
         private void Awake()
         {
-            Instance = this;
             this.enabled = true;
             rb = GetComponent<Rigidbody>();
+            if (!gameObject.CompareTag("Player"))
+            {
+                gameObject.tag = "Player";
+            }
         }
 
         private void Start()
@@ -91,35 +82,84 @@ namespace Prototipo3.Player
                 staminaSlider.maxValue = maxStamina;
                 staminaSlider.value = currentStamina;
             }
+
+            TrapSystemPrototipo3.EnsureInstance();
+            RespawnManagerPrototipo3.EnsureInstance();
+        }
+
+        public void ApplyExternalSlow(float multiplier, float duration)
+        {
+            externalSlowMultiplier = Mathf.Clamp(multiplier, 0.25f, 1f);
+            externalSlowTimer = Mathf.Max(externalSlowTimer, duration);
         }
 
         private void Update()
         {
-            if (isDead || IsInputLocked)
+            if (Prototipo3.UI.FeralGameUI.BlocksGameplay) return;
+            if (CutsceneManager.Instance != null && CutsceneManager.Instance.IsPlayingCutscene) return;
+            if (RespawnManagerPrototipo3.Instance != null && RespawnManagerPrototipo3.Instance.IsRespawning) return;
+            if (isDead) return;
+
+            if (externalSlowTimer > 0f)
             {
-                moveInput = Vector3.zero;
-                return;
+                externalSlowTimer -= Time.deltaTime;
+                if (externalSlowTimer <= 0f)
+                {
+                    externalSlowMultiplier = 1f;
+                }
             }
 
-            // 1. Capturar Movimiento
+            // 1. Capturar Input de movimiento (WASD/Joystick)
             float horizontal = FeralInput.Horizontal;
             float vertical = FeralInput.Vertical;
             moveInput = new Vector3(horizontal, 0f, vertical).normalized;
 
-            // 2. Selección de trampas
-            if (FeralInput.Pressed(KeyCode.Alpha1)) { trampaSeleccionada = TipoTrampa.Puas; }
-            if (FeralInput.Pressed(KeyCode.Alpha2)) { trampaSeleccionada = TipoTrampa.Red; }
-            if (FeralInput.Pressed(KeyCode.Alpha3)) { trampaSeleccionada = TipoTrampa.Madera; }
+            // 2. Regenerar ciudad en tiempo real con [G]
+            if (FeralInput.Pressed(regenerateCityKey) || Input.GetKeyDown(regenerateCityKey))
+            {
+                if (CityGeneratorPrototipo3.Instance != null)
+                {
+                    CityGeneratorPrototipo3.Instance.RegenerateCityRuntime();
+                }
+            }
 
-            // 3. Mecánicas
+            // 3. Selección y uso de Trampas Tácticas con teclas rápidas [1], [2], [3]
+            if (FeralInput.Pressed(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Alpha1))
+            {
+                SelectAndTryUseTrap(TipoTrampa.Puas);
+            }
+            if (FeralInput.Pressed(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Alpha2))
+            {
+                SelectAndTryUseTrap(TipoTrampa.Red);
+            }
+            if (FeralInput.Pressed(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Alpha3))
+            {
+                SelectAndTryUseTrap(TipoTrampa.Madera);
+            }
+
+            // 4. Mecánicas de movimiento, sigilo, dash e interacción
+            RefreshProximityInteractable();
             HandleStealthAndSpeedManagementProto();
             HandleJumpAndDash();
             HandleInteractionProto();
         }
 
+        private void SelectAndTryUseTrap(TipoTrampa tipo)
+        {
+            trampaSeleccionada = tipo;
+
+            // Si no estamos frente a una PuertaTrampa tradicional, desplegar inmediatamente la herramienta táctica
+            bool standingAtTrapDoor = currentInteractable != null && currentInteractable.GetComponent<PuertaTrampa>() != null;
+            if (!standingAtTrapDoor)
+            {
+                TrapSystemPrototipo3.EnsureInstance().TryDeployTrap(tipo, transform);
+            }
+        }
+
         private void FixedUpdate()
         {
-            if (isDead || IsInputLocked) return;
+            if (isDead) return;
+            if (CutsceneManager.Instance != null && CutsceneManager.Instance.IsPlayingCutscene) return;
 
             UpdateGroundStatus();
 
@@ -215,74 +255,81 @@ namespace Prototipo3.Player
                 if (currentStamina < maxStamina) currentStamina += staminaRegenRate * Time.deltaTime;
             }
 
-            currentStamina = Mathf.Clamp(currentStamina, 0f, maxStamina);
+            currentStamina = Mathf.Clamp(currentStamina, 0, maxStamina);
             if (staminaSlider != null) staminaSlider.value = currentStamina;
         }
 
         private void HandleJumpAndDash()
         {
-            // Salto con [Espacio]
-            if (FeralInput.Pressed(KeyCode.Space) && isGrounded && !isJumping && Time.time >= nextJumpTime)
-            {
-                if (currentStamina >= jumpStaminaCost)
-                {
-                    currentStamina -= jumpStaminaCost;
-                    nextJumpTime = Time.time + 0.25f;
-                    isJumping = true;
-                    isGrounded = false;
+            bool dashTriggered = IsDashInputTriggered();
 
-                    Vector3 vel = rb.linearVelocity;
-                    vel.y = jumpForce;
-                    rb.linearVelocity = vel;
-                }
+            // En Prototipo 3: Espacio (además de Q / Click Derecho) ejecuta Dash cuando nos movemos
+            if (dashTriggered && Time.time >= nextDashTime && !FeralInput.Held(KeyCode.C))
+            {
+                StartCoroutine(DashRoutineProto());
+                return;
             }
 
-            // Dash con [Q], [Ctrl] o Click Derecho
-            bool dashPressed = FeralInput.Pressed(dashKeyPrimary) || FeralInput.Pressed(dashKeySecondary);
-            if (rightClickDash && Input.GetMouseButtonDown(1)) dashPressed = true;
-
-            if (dashPressed && !isDashing && currentStamina >= 20f)
+            bool spacePressed = FeralInput.Pressed(KeyCode.Space) || Input.GetKeyDown(KeyCode.Space);
+            if (spacePressed && isGrounded && !isJumping && Time.time >= nextJumpTime && !FeralInput.Held(KeyCode.C))
             {
-                StartCoroutine(PerformDashProto());
+                PerformJump();
             }
         }
 
-        private IEnumerator PerformDashProto()
+        private bool IsDashInputTriggered()
+        {
+            if ((FeralInput.Pressed(KeyCode.Space) || Input.GetKeyDown(KeyCode.Space)) && moveInput != Vector3.zero) return true;
+            if (FeralInput.Pressed(dashKeySecondary) || Input.GetKeyDown(dashKeySecondary)) return true;
+            if (rightClickDash && Input.GetMouseButtonDown(1)) return true;
+
+#if ENABLE_INPUT_SYSTEM
+            if (rightClickDash && UnityEngine.InputSystem.Mouse.current != null && UnityEngine.InputSystem.Mouse.current.rightButton.wasPressedThisFrame) return true;
+            if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.qKey.wasPressedThisFrame) return true;
+#endif
+            return false;
+        }
+
+        private void PerformJump()
+        {
+            isGrounded = false;
+            isJumping = true;
+            nextJumpTime = Time.time + 0.25f;
+
+            rb.linearVelocity = new Vector3(rb.linearVelocity.x, jumpForce, rb.linearVelocity.z);
+            currentStamina = Mathf.Max(0, currentStamina - jumpStaminaCost);
+            if (staminaSlider != null) staminaSlider.value = currentStamina;
+        }
+
+        private IEnumerator DashRoutineProto()
         {
             isDashing = true;
-            currentStamina -= 20f;
+            nextDashTime = Time.time + dashCooldown;
+            InvokeOnDashUsed();
 
             Vector3 dashDir = moveInput != Vector3.zero ? moveInput : transform.forward;
-            rb.linearVelocity = dashDir * dashForce;
+
+            float preservedY = Mathf.Max(rb.linearVelocity.y * 0.35f, 0.5f);
+            rb.linearVelocity = new Vector3(0, preservedY, 0);
+            rb.AddForce(dashDir * dashForce, ForceMode.Impulse);
 
             yield return new WaitForSeconds(dashDuration);
 
-            rb.linearVelocity = Vector3.zero;
-            yield return new WaitForSeconds(dashCooldown);
+            Vector3 exitVel = dashDir * (currentBaseSpeed * currentSpeedModifier * externalSlowMultiplier);
+            rb.linearVelocity = new Vector3(exitVel.x, rb.linearVelocity.y, exitVel.z);
             isDashing = false;
-        }
-
-        private void HandleInteractionProto()
-        {
-            if (FeralInput.Pressed(KeyCode.E) || FeralInput.Pressed(KeyCode.F))
-            {
-                if (currentInteractable != null)
-                {
-                    currentInteractable.SendMessage("Interactuar", this, SendMessageOptions.DontRequireReceiver);
-                    currentInteractable.SendMessage("Interact", this, SendMessageOptions.DontRequireReceiver);
-                }
-            }
         }
 
         private void MoveProto()
         {
-            if (moveInput == Vector3.zero)
+            float finalSpeed = currentBaseSpeed * currentSpeedModifier * externalSlowMultiplier;
+            Vector3 targetVelocity = moveInput * finalSpeed;
+
+            if (isGrounded && groundNormal != Vector3.up)
             {
-                rb.linearVelocity = new Vector3(0f, rb.linearVelocity.y, 0f);
-                return;
+                targetVelocity = Vector3.ProjectOnPlane(targetVelocity, groundNormal);
             }
 
-            Vector3 targetVelocity = moveInput * (currentBaseSpeed * currentSpeedModifier);
             rb.linearVelocity = new Vector3(targetVelocity.x, rb.linearVelocity.y, targetVelocity.z);
         }
 
@@ -290,30 +337,166 @@ namespace Prototipo3.Player
         {
             if (moveInput != Vector3.zero)
             {
-                Quaternion targetRot = Quaternion.LookRotation(moveInput, Vector3.up);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, turnSpeed * Time.fixedDeltaTime);
+                Quaternion targetRotation = Quaternion.LookRotation(moveInput);
+                rb.MoveRotation(Quaternion.Slerp(rb.rotation, targetRotation, turnSpeed * Time.fixedDeltaTime));
             }
         }
 
-        public void AddFiltroCarmesi(int amount = 1)
+        private void RefreshProximityInteractable()
         {
-            filtrosCarmesiCount += amount;
-            Debug.Log($"[HamsterControllerPrototipo3] Filtro Carmesí recolectado: {filtrosCarmesiCount}/3");
-            Prototipo3.Narrative.StoryManagerPrototipo3.Instance?.OnItemCollected("Filtro Carmesí", filtrosCarmesiCount);
+            if (currentInteractable != null)
+            {
+                if (!currentInteractable.activeInHierarchy ||
+                    Vector3.Distance(transform.position, currentInteractable.transform.position) > 4.2f)
+                {
+                    if (currentInteractable.TryGetComponent<CraftingTable>(out CraftingTable table))
+                    {
+                        table.CloseMenu();
+                    }
+                    currentInteractable = null;
+                }
+            }
+
+            if (currentInteractable != null) return;
+
+            float bestDist = 3.8f;
+            GameObject bestCandidate = null;
+
+            // 1. Personajes Duales en modo pacífico/aliado
+            for (int i = 0; i < DualRoleCharacter.ActiveCharacters.Count; i++)
+            {
+                DualRoleCharacter drc = DualRoleCharacter.ActiveCharacters[i];
+                if (drc == null || !drc.gameObject.activeInHierarchy || drc.IsCurrentlyFeral) continue;
+                float d = Vector3.Distance(transform.position, drc.transform.position);
+                if (d <= bestDist)
+                {
+                    bestDist = d;
+                    bestCandidate = drc.gameObject;
+                }
+            }
+
+            // 2. Mecanismos de Historia
+            for (int i = 0; i < StoryMechanismPrototipo3.ActiveMechanisms.Count; i++)
+            {
+                StoryMechanismPrototipo3 mech = StoryMechanismPrototipo3.ActiveMechanisms[i];
+                if (mech == null || !mech.gameObject.activeInHierarchy || !mech.CanInteract) continue;
+                float d = Vector3.Distance(transform.position, mech.transform.position);
+                if (d <= bestDist)
+                {
+                    bestDist = d;
+                    bestCandidate = mech.gameObject;
+                }
+            }
+
+            // 3. Colliders cercanos con tag Interactable o Door
+            Collider[] nearby = Physics.OverlapSphere(transform.position, 3.4f, ~0, QueryTriggerInteraction.Collide);
+            for (int i = 0; i < nearby.Length; i++)
+            {
+                Collider col = nearby[i];
+                if (col == null) continue;
+                if (col.CompareTag("Interactable") || col.CompareTag("Door"))
+                {
+                    float d = Vector3.Distance(transform.position, col.transform.position);
+                    if (d <= bestDist)
+                    {
+                        bestDist = d;
+                        bestCandidate = col.gameObject;
+                    }
+                }
+            }
+
+            if (bestCandidate != null)
+            {
+                currentInteractable = bestCandidate;
+            }
         }
 
-        public void AcquireKeycard()
+        private void HandleInteractionProto()
         {
-            hasKeycardTorreNorte = true;
-            Debug.Log("[HamsterControllerPrototipo3] ¡Keycard_TorreNorte adquirida!");
-            Prototipo3.Narrative.StoryManagerPrototipo3.Instance?.OnItemCollected("Keycard_TorreNorte", 1);
+            if (currentInteractable != null && !currentInteractable.activeInHierarchy)
+            {
+                currentInteractable = null;
+            }
+
+            if ((FeralInput.Pressed(KeyCode.F) || Input.GetKeyDown(KeyCode.F)) && currentInteractable != null)
+            {
+                if (currentInteractable.TryGetComponent<DualRoleCharacter>(out DualRoleCharacter dualChar))
+                {
+                    dualChar.InteractWithCharacter();
+                }
+                else if (currentInteractable.TryGetComponent<StoryMechanismPrototipo3>(out StoryMechanismPrototipo3 mechanism))
+                {
+                    mechanism.Interact();
+                }
+                else if (currentInteractable.TryGetComponent<CraftingTable>(out CraftingTable craftingTable))
+                {
+                    craftingTable.ToggleCraftingMenu();
+                }
+                else if (currentInteractable.TryGetComponent<LootContainer>(out LootContainer lootContainer))
+                {
+                    lootContainer.InteractuarConLoot();
+                }
+                else if (currentInteractable.TryGetComponent<LuluNPCPrototipo3>(out LuluNPCPrototipo3 luluProto))
+                {
+                    luluProto.InteractuarConLulu();
+                }
+                else if (currentInteractable.TryGetComponent<LuluNPC>(out LuluNPC lulu))
+                {
+                    lulu.InteractuarConLulu();
+                }
+                else if (currentInteractable.TryGetComponent<PuertaTrampa>(out PuertaTrampa puerta))
+                {
+                    if (trampaSeleccionada == TipoTrampa.Ninguna) return;
+
+                    if (puerta.trampaActual == TipoTrampa.Ninguna)
+                    {
+                        if (InventoryManager.Instance != null && InventoryManager.Instance.HasTrampa(trampaSeleccionada))
+                        {
+                            puerta.InstalarTrampa(trampaSeleccionada);
+                            InventoryManager.Instance.RemoveTrampa(trampaSeleccionada);
+                            InvokeOnTrapInstalled(trampaSeleccionada, puerta);
+                            Debug.Log($"[HamsterControllerPrototipo3] Trampa de {trampaSeleccionada} instalada.");
+                        }
+                    }
+                }
+            }
         }
 
-        public void AcquireLithiumBattery()
+        public override void RespawnOrHeal(Vector3? newPosition = null)
         {
-            hasLithiumBattery = true;
-            Debug.Log("[HamsterControllerPrototipo3] ¡Batería de Litio obtenida!");
-            Prototipo3.Narrative.StoryManagerPrototipo3.Instance?.OnItemCollected("Batería de Litio", 1);
+            base.RespawnOrHeal(newPosition);
+            isGrounded = true;
+            isJumping = false;
+            externalSlowMultiplier = 1f;
+            externalSlowTimer = 0f;
+        }
+
+        private void OnTriggerEnter(Collider other)
+        {
+            if (other.CompareTag("Interactable") || other.CompareTag("Door"))
+            {
+                currentInteractable = other.gameObject;
+            }
+        }
+
+        private void OnTriggerStay(Collider other)
+        {
+            if (currentInteractable == null && (other.CompareTag("Interactable") || other.CompareTag("Door")))
+            {
+                currentInteractable = other.gameObject;
+            }
+        }
+
+        private void OnTriggerExit(Collider other)
+        {
+            if ((other.CompareTag("Interactable") || other.CompareTag("Door")) && other.gameObject == currentInteractable)
+            {
+                if (currentInteractable.TryGetComponent<CraftingTable>(out CraftingTable table))
+                {
+                    table.CloseMenu();
+                }
+                currentInteractable = null;
+            }
         }
     }
 }

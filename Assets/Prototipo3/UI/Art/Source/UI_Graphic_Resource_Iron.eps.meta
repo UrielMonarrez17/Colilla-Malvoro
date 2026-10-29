@@ -1,8 +1,15 @@
 fileFormatVersion: 2
-guid: dfca395ff6fbc8b4c85302c4997efb1a
+guid: 0f749a8e491416c4aacd7ca459ab6a0d
 timeCreated: 1507241447
 licenseType: Store
 DefaultImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 101998
+  packageName: Resource Vector Graphics
+  packageVersion: 0.2
+  assetPath: Assets/UI/Resource Vector Graphics/Source/UI_Graphic_Resource_Iron.eps
+  uploadId: 207244

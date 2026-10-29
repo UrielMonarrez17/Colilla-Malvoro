@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 619a9060f28f8de4e8c86e70b997f6ca
+guid: f8f05d58d8066954a9c02445bf564ade
 TextureImporter:
   externalObjects: {}
   serializedVersion: 13
@@ -37,6 +37,6 @@ TextureImporter:
     crunchedCompression: 0
     allowsAlphaSplitting: 0
     overridden: 0
-  userData: 
-  assetBundleName: 
-  assetBundleVariant: 
+  userData:
+  assetBundleName:
+  assetBundleVariant:

@@ -1,5 +1,12 @@
 fileFormatVersion: 2
-guid: 75161b05a62fba844b7de22f4d62a826
+guid: 2932b062b91bf874a949fc8a596b4ab5
+AssetOrigin:
+  serializedVersion: 1
+  productId: 101998
+  packageName: Resource Vector Graphics
+  packageVersion: 0.2
+  assetPath: Assets/UI/Resource Vector Graphics/UI_Graphic_Resource_Wood.png
+  uploadId: 207244
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}

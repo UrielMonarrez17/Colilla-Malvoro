@@ -1,5 +1,12 @@
 fileFormatVersion: 2
-guid: 457e923763349314d9d0aa7ad2fbf767
+guid: 66356c1d2756b21498f7af5a8543bb3a
+AssetOrigin:
+  serializedVersion: 1
+  productId: 101998
+  packageName: Resource Vector Graphics
+  packageVersion: 0.2
+  assetPath: Assets/UI/Resource Vector Graphics/Sample/SImpleVectorIcons_Background.png
+  uploadId: 207244
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}

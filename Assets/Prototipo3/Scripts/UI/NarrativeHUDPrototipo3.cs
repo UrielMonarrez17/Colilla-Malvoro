@@ -5,7 +5,7 @@ using UnityEngine.UI;
 using TMPro;
 using Prototipo3.Narrative;
 
-namespace Prototipo3.UI
+namespace Prototipo3
 {
     public class NarrativeHUDPrototipo3 : MonoBehaviour
     {
@@ -16,19 +16,19 @@ namespace Prototipo3.UI
         private TextMeshProUGUI textoTituloMision;
         private TextMeshProUGUI textoDescripcionMision;
         private TextMeshProUGUI textoGrafoBreadcrumb;
-        private TextMeshProUGUI textoInventarioNarrativo;
         private TextMeshProUGUI textoDialogoPopup;
         private GameObject panelDialogoObj;
         private GameObject panelVictoriaObj;
 
         private void Start()
         {
+            if (Prototipo3.UI.FeralGameUI.Instance != null) { UseUnifiedPresentation(); return; }
             if (targetCanvas == null)
             {
-                targetCanvas = FindFirstObjectByType<Canvas>();
+                targetCanvas = FindAnyObjectByType<Canvas>();
                 if (targetCanvas == null)
                 {
-                    GameObject canvasObj = new GameObject("Prototipo3_HUD_Canvas");
+                    GameObject canvasObj = new GameObject("HUD_Canvas");
                     targetCanvas = canvasObj.AddComponent<Canvas>();
                     targetCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
                     CanvasScaler cs = canvasObj.AddComponent<CanvasScaler>();
@@ -40,225 +40,196 @@ namespace Prototipo3.UI
 
             ConstruirUI();
 
-            if (StoryManagerPrototipo3.Instance != null)
+            StoryManagerPrototipo3 sm = FindAnyObjectByType<StoryManagerPrototipo3>();
+            if (sm != null)
             {
-                StoryManagerPrototipo3.Instance.OnActiveNodeChanged += ActualizarMision;
-                StoryManagerPrototipo3.Instance.OnDialogueTriggered += MostrarDialogo;
-                StoryManagerPrototipo3.Instance.OnStoryCompleted += MostrarVictoria;
+                sm.OnActiveNodeChanged += ActualizarMision;
+                sm.OnDialogueTriggered += MostrarDialogo;
+                sm.OnDemoCompleted += MostrarVictoria;
 
-                if (StoryManagerPrototipo3.Instance.CurrentActiveNode != null)
+                if (sm.CurrentActiveNode != null)
                 {
-                    ActualizarMision(StoryManagerPrototipo3.Instance.CurrentActiveNode);
+                    ActualizarMision(sm.CurrentActiveNode);
                 }
             }
         }
 
-        private void OnDestroy()
+        public void UseUnifiedPresentation()
         {
-            if (StoryManagerPrototipo3.Instance != null)
+            enabled = false;
+            StopAllCoroutines();
+            var sm = StoryManagerPrototipo3.Instance;
+            if (sm != null)
             {
-                StoryManagerPrototipo3.Instance.OnActiveNodeChanged -= ActualizarMision;
-                StoryManagerPrototipo3.Instance.OnDialogueTriggered -= MostrarDialogo;
-                StoryManagerPrototipo3.Instance.OnStoryCompleted -= MostrarVictoria;
+                sm.OnActiveNodeChanged -= ActualizarMision;
+                sm.OnDialogueTriggered -= MostrarDialogo;
+                sm.OnDemoCompleted -= MostrarVictoria;
             }
+            var canvas = targetCanvas ? targetCanvas : GetComponentInParent<Canvas>();
+            if (canvas != null)
+                foreach (var child in canvas.GetComponentsInChildren<RectTransform>(true))
+                    if (child.name == "PanelMisionNarrativa" || child.name == "PanelDialogoPopup" || child.name == "PanelVictoria")
+                        child.gameObject.SetActive(false);
         }
 
         private void ConstruirUI()
         {
             if (targetCanvas == null) return;
 
-            // Panel de Misión (Esquina Superior Izquierda)
-            panelMisionObj = new GameObject("Panel_Mision_Prototipo3");
+            panelMisionObj = new GameObject("PanelMisionNarrativa");
             panelMisionObj.transform.SetParent(targetCanvas.transform, false);
-            RectTransform rtMision = panelMisionObj.AddComponent<RectTransform>();
-            rtMision.anchorMin = new Vector2(0f, 1f);
-            rtMision.anchorMax = new Vector2(0f, 1f);
-            rtMision.pivot = new Vector2(0f, 1f);
-            rtMision.anchoredPosition = new Vector2(25f, -25f);
-            rtMision.sizeDelta = new Vector2(480f, 210f);
 
-            Image bgMision = panelMisionObj.AddComponent<Image>();
-            bgMision.color = new Color(0.06f, 0.05f, 0.12f, 0.88f);
+            RectTransform rtPanel = panelMisionObj.AddComponent<RectTransform>();
+            rtPanel.anchorMin = new Vector2(0, 1);
+            rtPanel.anchorMax = new Vector2(0, 1);
+            rtPanel.pivot = new Vector2(0, 1);
+            rtPanel.anchoredPosition = new Vector2(25, -25);
+            rtPanel.sizeDelta = new Vector2(460, 160);
 
-            // Título de la Misión
-            GameObject tituloObj = new GameObject("Texto_TituloMision");
-            tituloObj.transform.SetParent(panelMisionObj.transform, false);
-            RectTransform rtTitulo = tituloObj.AddComponent<RectTransform>();
-            rtTitulo.anchorMin = new Vector2(0f, 1f);
-            rtTitulo.anchorMax = new Vector2(1f, 1f);
-            rtTitulo.pivot = new Vector2(0.5f, 1f);
-            rtTitulo.anchoredPosition = new Vector2(0f, -12f);
-            rtTitulo.sizeDelta = new Vector2(-24f, 32f);
+            Image bg = panelMisionObj.AddComponent<Image>();
+            bg.color = new Color(0.08f, 0.08f, 0.12f, 0.85f);
 
-            textoTituloMision = tituloObj.AddComponent<TextMeshProUGUI>();
-            textoTituloMision.fontSize = 20f;
+            GameObject objTitulo = new GameObject("TextoTitulo");
+            objTitulo.transform.SetParent(panelMisionObj.transform, false);
+            RectTransform rtTitulo = objTitulo.AddComponent<RectTransform>();
+            rtTitulo.anchorMin = new Vector2(0, 1);
+            rtTitulo.anchorMax = new Vector2(1, 1);
+            rtTitulo.pivot = new Vector2(0, 1);
+            rtTitulo.anchoredPosition = new Vector2(15, -10);
+            rtTitulo.sizeDelta = new Vector2(-30, 32);
+
+            textoTituloMision = objTitulo.AddComponent<TextMeshProUGUI>();
+            textoTituloMision.fontSize = 20;
             textoTituloMision.fontStyle = FontStyles.Bold;
-            textoTituloMision.color = new Color(1f, 0.88f, 0.35f, 1f);
-            textoTituloMision.text = "PROTOTIPO 3: HISTORIA PROCEDURAL";
+            textoTituloMision.color = new Color(1f, 0.85f, 0.25f);
+            textoTituloMision.text = "OBJETIVO NARRATIVO";
 
-            // Descripción y Pistas
-            GameObject descObj = new GameObject("Texto_DescMision");
-            descObj.transform.SetParent(panelMisionObj.transform, false);
-            RectTransform rtDesc = descObj.AddComponent<RectTransform>();
-            rtDesc.anchorMin = new Vector2(0f, 1f);
-            rtDesc.anchorMax = new Vector2(1f, 1f);
-            rtDesc.pivot = new Vector2(0.5f, 1f);
-            rtDesc.anchoredPosition = new Vector2(0f, -48f);
-            rtDesc.sizeDelta = new Vector2(-24f, 75f);
+            GameObject objDesc = new GameObject("TextoDescripcion");
+            objDesc.transform.SetParent(panelMisionObj.transform, false);
+            RectTransform rtDesc = objDesc.AddComponent<RectTransform>();
+            rtDesc.anchorMin = new Vector2(0, 0);
+            rtDesc.anchorMax = new Vector2(1, 1);
+            rtDesc.pivot = new Vector2(0, 1);
+            rtDesc.anchoredPosition = new Vector2(15, -45);
+            rtDesc.sizeDelta = new Vector2(-30, 65);
 
-            textoDescripcionMision = descObj.AddComponent<TextMeshProUGUI>();
-            textoDescripcionMision.fontSize = 15f;
-            textoDescripcionMision.color = new Color(0.92f, 0.94f, 0.98f, 0.95f);
-            textoDescripcionMision.text = "Iniciando secuencia de escape...";
+            textoDescripcionMision = objDesc.AddComponent<TextMeshProUGUI>();
+            textoDescripcionMision.fontSize = 14;
+            textoDescripcionMision.color = Color.white;
+            textoDescripcionMision.text = "Cargando grafo narrativo no lineal...";
 
-            // Contador de Items Narrativos (Filtros Carmesí / Keycard)
-            GameObject invObj = new GameObject("Texto_InventarioNarrativo");
-            invObj.transform.SetParent(panelMisionObj.transform, false);
-            RectTransform rtInv = invObj.AddComponent<RectTransform>();
-            rtInv.anchorMin = new Vector2(0f, 0f);
-            rtInv.anchorMax = new Vector2(1f, 0f);
-            rtInv.pivot = new Vector2(0.5f, 0f);
-            rtInv.anchoredPosition = new Vector2(0f, 34f);
-            rtInv.sizeDelta = new Vector2(-24f, 26f);
+            GameObject objGrafo = new GameObject("TextoGrafoDAG");
+            objGrafo.transform.SetParent(panelMisionObj.transform, false);
+            RectTransform rtGrafo = objGrafo.AddComponent<RectTransform>();
+            rtGrafo.anchorMin = new Vector2(0, 0);
+            rtGrafo.anchorMax = new Vector2(1, 0);
+            rtGrafo.pivot = new Vector2(0, 0);
+            rtGrafo.anchoredPosition = new Vector2(15, 8);
+            rtGrafo.sizeDelta = new Vector2(-30, 26);
 
-            textoInventarioNarrativo = invObj.AddComponent<TextMeshProUGUI>();
-            textoInventarioNarrativo.fontSize = 13f;
-            textoInventarioNarrativo.fontStyle = FontStyles.Bold;
-            textoInventarioNarrativo.color = new Color(1f, 0.35f, 0.35f, 1f);
-            textoInventarioNarrativo.text = "Filtros Carmesí: 0/3 | Tarjeta Torre: NO";
+            textoGrafoBreadcrumb = objGrafo.AddComponent<TextMeshProUGUI>();
+            textoGrafoBreadcrumb.fontSize = 12;
+            textoGrafoBreadcrumb.fontStyle = FontStyles.Italic;
+            textoGrafoBreadcrumb.color = new Color(0.7f, 0.85f, 1f);
+            textoGrafoBreadcrumb.text = "[Grafo DAG Activo]";
 
-            // Breadcrumb del Grafo Narrativo
-            GameObject breadcrumbObj = new GameObject("Texto_GrafoBreadcrumb");
-            breadcrumbObj.transform.SetParent(panelMisionObj.transform, false);
-            RectTransform rtBreadcrumb = breadcrumbObj.AddComponent<RectTransform>();
-            rtBreadcrumb.anchorMin = new Vector2(0f, 0f);
-            rtBreadcrumb.anchorMax = new Vector2(1f, 0f);
-            rtBreadcrumb.pivot = new Vector2(0.5f, 0f);
-            rtBreadcrumb.anchoredPosition = new Vector2(0f, 8f);
-            rtBreadcrumb.sizeDelta = new Vector2(-24f, 22f);
-
-            textoGrafoBreadcrumb = breadcrumbObj.AddComponent<TextMeshProUGUI>();
-            textoGrafoBreadcrumb.fontSize = 11f;
-            textoGrafoBreadcrumb.color = new Color(0.6f, 0.7f, 0.85f, 0.8f);
-            textoGrafoBreadcrumb.text = "[Madriguera] -> [Lulú] -> [Filtros] -> [Ciervo] -> [Barón] -> [Torre] -> [Reactor]";
-
-            // Popup de Diálogo Narrativo (Inferior Central)
-            panelDialogoObj = new GameObject("Panel_Dialogo_Prototipo3");
+            panelDialogoObj = new GameObject("PanelDialogoPopup");
             panelDialogoObj.transform.SetParent(targetCanvas.transform, false);
-            RectTransform rtDialogo = panelDialogoObj.AddComponent<RectTransform>();
-            rtDialogo.anchorMin = new Vector2(0.5f, 0f);
-            rtDialogo.anchorMax = new Vector2(0.5f, 0f);
-            rtDialogo.pivot = new Vector2(0.5f, 0f);
-            rtDialogo.anchoredPosition = new Vector2(0f, 50f);
-            rtDialogo.sizeDelta = new Vector2(850f, 130f);
+            RectTransform rtDia = panelDialogoObj.AddComponent<RectTransform>();
+            rtDia.anchorMin = new Vector2(0.5f, 0);
+            rtDia.anchorMax = new Vector2(0.5f, 0);
+            rtDia.pivot = new Vector2(0.5f, 0);
+            rtDia.anchoredPosition = new Vector2(0, 60);
+            rtDia.sizeDelta = new Vector2(600, 90);
 
-            Image bgDialogo = panelDialogoObj.AddComponent<Image>();
-            bgDialogo.color = new Color(0.04f, 0.03f, 0.08f, 0.94f);
+            Image bgDia = panelDialogoObj.AddComponent<Image>();
+            bgDia.color = new Color(0.05f, 0.05f, 0.08f, 0.92f);
 
-            GameObject textoDialogoChild = new GameObject("Texto_DialogoPopup");
-            textoDialogoChild.transform.SetParent(panelDialogoObj.transform, false);
-            RectTransform rtTextoDialogo = textoDialogoChild.AddComponent<RectTransform>();
-            rtTextoDialogo.anchorMin = new Vector2(0f, 0f);
-            rtTextoDialogo.anchorMax = new Vector2(1f, 1f);
-            rtTextoDialogo.sizeDelta = new Vector2(-30f, -20f);
+            GameObject objTextoDia = new GameObject("TextoDialogo");
+            objTextoDia.transform.SetParent(panelDialogoObj.transform, false);
+            RectTransform rtTextoDia = objTextoDia.AddComponent<RectTransform>();
+            rtTextoDia.anchorMin = new Vector2(0, 0);
+            rtTextoDia.anchorMax = new Vector2(1, 1);
+            rtTextoDia.offsetMin = new Vector2(15, 10);
+            rtTextoDia.offsetMax = new Vector2(-15, -10);
 
-            textoDialogoPopup = textoDialogoChild.AddComponent<TextMeshProUGUI>();
-            textoDialogoPopup.fontSize = 18f;
+            textoDialogoPopup = objTextoDia.AddComponent<TextMeshProUGUI>();
+            textoDialogoPopup.fontSize = 16;
+            textoDialogoPopup.color = new Color(1f, 0.95f, 0.75f);
             textoDialogoPopup.alignment = TextAlignmentOptions.Center;
-            textoDialogoPopup.color = new Color(0.95f, 0.95f, 1f, 1f);
 
             panelDialogoObj.SetActive(false);
 
-            // Panel de Victoria (Centro)
-            panelVictoriaObj = new GameObject("Panel_Victoria_Prototipo3");
+            panelVictoriaObj = new GameObject("PanelVictoria");
             panelVictoriaObj.transform.SetParent(targetCanvas.transform, false);
             RectTransform rtVic = panelVictoriaObj.AddComponent<RectTransform>();
             rtVic.anchorMin = new Vector2(0.5f, 0.5f);
             rtVic.anchorMax = new Vector2(0.5f, 0.5f);
-            rtVic.pivot = new Vector2(0.5f, 0.5f);
             rtVic.anchoredPosition = Vector2.zero;
-            rtVic.sizeDelta = new Vector2(700f, 320f);
+            rtVic.sizeDelta = new Vector2(700, 220);
 
             Image bgVic = panelVictoriaObj.AddComponent<Image>();
-            bgVic.color = new Color(0.05f, 0.08f, 0.15f, 0.96f);
+            bgVic.color = new Color(0.04f, 0.12f, 0.06f, 0.95f);
 
-            GameObject txtVicTitle = new GameObject("VicTitle");
-            txtVicTitle.transform.SetParent(panelVictoriaObj.transform, false);
-            RectTransform rtVT = txtVicTitle.AddComponent<RectTransform>();
-            rtVT.anchoredPosition = new Vector2(0, 90);
-            rtVT.sizeDelta = new Vector2(650, 60);
-            var tmVT = txtVicTitle.AddComponent<TextMeshProUGUI>();
-            tmVT.text = "¡MISIÓN CUMPLIDA!";
-            tmVT.fontSize = 36f;
-            tmVT.fontStyle = FontStyles.Bold;
-            tmVT.alignment = TextAlignmentOptions.Center;
-            tmVT.color = new Color(0.2f, 1f, 0.4f, 1f);
+            GameObject objVicTxt = new GameObject("TextoVictoria");
+            objVicTxt.transform.SetParent(panelVictoriaObj.transform, false);
+            RectTransform rtVicTxt = objVicTxt.AddComponent<RectTransform>();
+            rtVicTxt.anchorMin = Vector2.zero;
+            rtVicTxt.anchorMax = Vector2.one;
+            rtVicTxt.offsetMin = new Vector2(20, 20);
+            rtVicTxt.offsetMax = new Vector2(-20, -20);
 
-            GameObject txtVicDesc = new GameObject("VicDesc");
-            txtVicDesc.transform.SetParent(panelVictoriaObj.transform, false);
-            RectTransform rtVD = txtVicDesc.AddComponent<RectTransform>();
-            rtVD.anchoredPosition = new Vector2(0, 0);
-            rtVD.sizeDelta = new Vector2(650, 100);
-            var tmVD = txtVicDesc.AddComponent<TextMeshProUGUI>();
-            tmVD.text = "El Reactor Carmesí ha sido destruido y el Aditivo Cero neutralizado.\nBarnaby contempla el amanecer sobre las cenizas de Malvoro Tobacco Corp.";
-            tmVD.fontSize = 18f;
-            tmVD.alignment = TextAlignmentOptions.Center;
-            tmVD.color = Color.white;
+            TextMeshProUGUI vicTmp = objVicTxt.AddComponent<TextMeshProUGUI>();
+            vicTmp.fontSize = 24;
+            vicTmp.fontStyle = FontStyles.Bold;
+            vicTmp.alignment = TextAlignmentOptions.Center;
+            vicTmp.color = Color.green;
+            vicTmp.text = "¡HISTORIA COMPLETADA!\n\nEl Suero Alba-Puro ha sido dispersado desde la Torre Aethelgard. Sofía y los habitantes de Solis están a salvo.\n¡Gracias por jugar!";
 
             panelVictoriaObj.SetActive(false);
         }
 
-        public void ActualizarMision(StoryNodePrototipo3 node)
+        public void ActualizarMision(StoryNode node)
         {
             if (node == null) return;
 
             if (textoTituloMision != null)
             {
-                textoTituloMision.text = node.title;
+                textoTituloMision.text = $"MISIÓN: {node.title.ToUpper()}";
             }
 
             if (textoDescripcionMision != null)
             {
-                textoDescripcionMision.text = $"{node.description}\n<color=#FFD700><size=85%>{node.hint}</size></color>";
+                StoryManagerPrototipo3 sm = StoryManagerPrototipo3.Instance;
+                string summary = sm != null ? sm.GetActiveBranchesSummaryText() : node.description;
+                textoDescripcionMision.text = $"{summary}\n<color=#FFD700>Pista: {node.hint}</color>";
             }
 
-            ActualizarInventario();
-            ActualizarBreadcrumb(node.id);
+            ActualizarBreadcrumb();
         }
 
-        public void ActualizarInventario()
+        private void ActualizarBreadcrumb()
         {
-            if (textoInventarioNarrativo == null) return;
+            StoryManagerPrototipo3 sm = StoryManagerPrototipo3.Instance;
+            if (sm == null || sm.CurrentGraph == null || textoGrafoBreadcrumb == null) return;
 
-            var player = FindFirstObjectByType<Prototipo3.Player.HamsterControllerPrototipo3>();
-            int filtros = player != null ? player.filtrosCarmesiCount : 0;
-            string keycard = (player != null && player.hasKeycardTorreNorte) ? "<color=#00FF66>SÍ</color>" : "<color=#FF4444>NO</color>";
-
-            textoInventarioNarrativo.text = $"Filtros Carmesí: {filtros}/3 | Tarjeta Torre: {keycard}";
-        }
-
-        private void ActualizarBreadcrumb(string activeNodeId)
-        {
-            if (textoGrafoBreadcrumb == null) return;
-
-            var sb = new StringBuilder();
-            string[] flow = { "node_start", "node_lulu", "node_loot_filters", "node_miniboss", "node_baron", "node_key", "node_lock", "node_final_boss", "node_exit" };
-            string[] labels = { "Drenaje", "Lulú", "Filtros", "Ciervo Alfa", "Barón", "Llave", "Torre", "Reactor", "Victoria" };
-
-            for (int i = 0; i < flow.Length; i++)
+            StringBuilder sb = new StringBuilder();
+            foreach (var n in sm.CurrentGraph.nodes)
             {
-                if (flow[i] == activeNodeId)
+                string tag = n.branchTag;
+                switch (n.state)
                 {
-                    sb.Append($"<color=#FFD700><b>[{labels[i]}]</b></color>");
+                    case StoryNodeState.Completed:
+                        sb.Append($"<color=#32CD32>[✓ {tag}]</color> ");
+                        break;
+                    case StoryNodeState.Active:
+                        sb.Append($"<color=#FFD700>[▶ {tag}]</color> ");
+                        break;
+                    default:
+                        sb.Append($"<color=#808080>[{tag}]</color> ");
+                        break;
                 }
-                else
-                {
-                    sb.Append($"[{labels[i]}]");
-                }
-
-                if (i < flow.Length - 1) sb.Append(" -> ");
             }
-
             textoGrafoBreadcrumb.text = sb.ToString();
         }
 
@@ -272,8 +243,8 @@ namespace Prototipo3.UI
         private IEnumerator DialogoRoutine(string speaker, string text)
         {
             panelDialogoObj.SetActive(true);
-            textoDialogoPopup.text = $"<color=#FFD700><b>{speaker}</b></color>\n«{text}»";
-            yield return new WaitForSeconds(6.5f);
+            textoDialogoPopup.text = $"<color=#00FFFF><b>{speaker}:</b></color> \"{text}\"";
+            yield return new WaitForSeconds(6f);
             panelDialogoObj.SetActive(false);
         }
 

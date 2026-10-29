@@ -177,9 +177,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 670722706951747809}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4c64072cc09637a4cb1daf193ea4932a, type: 3}
+  m_Script: {fileID: 11500000, guid: 6f5548cbeb28f51478c3ce14162a3129, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Prototipo2.EnemyAIPrototipo2
+  m_EditorClassIdentifier: Assembly-CSharp::Prototipo3.EnemyAIPrototipo3
   currentState: 0
   player: {fileID: 0}
   visionRadiusNormal: 35
