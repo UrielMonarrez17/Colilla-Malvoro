@@ -22,6 +22,7 @@ namespace Prototipo2
 
         private void Start()
         {
+            if (Prototipo2.UI.FeralGameUI.Instance != null) { UseUnifiedPresentation(); return; }
             if (targetCanvas == null)
             {
                 targetCanvas = FindAnyObjectByType<Canvas>();
@@ -51,6 +52,24 @@ namespace Prototipo2
                     ActualizarMision(sm.CurrentActiveNode);
                 }
             }
+        }
+
+        public void UseUnifiedPresentation()
+        {
+            enabled = false;
+            StopAllCoroutines();
+            var sm = StoryManagerPrototipo2.Instance;
+            if (sm != null)
+            {
+                sm.OnActiveNodeChanged -= ActualizarMision;
+                sm.OnDialogueTriggered -= MostrarDialogo;
+                sm.OnDemoCompleted -= MostrarVictoria;
+            }
+            var canvas = targetCanvas ? targetCanvas : GetComponentInParent<Canvas>();
+            if (canvas != null)
+                foreach (var child in canvas.GetComponentsInChildren<RectTransform>(true))
+                    if (child.name == "PanelMisionNarrativa" || child.name == "PanelDialogoPopup" || child.name == "PanelVictoria")
+                        child.gameObject.SetActive(false);
         }
 
         private void ConstruirUI()

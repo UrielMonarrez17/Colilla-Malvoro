@@ -79,7 +79,12 @@ public class EnemyAI : MonoBehaviour
     private bool hasVertParam = false;
     private bool hasStateParam = false;
 
-    private void Awake()
+    // Sistema Anti-Stuck / Anti-Stall
+    private float chaseStuckTimer = 0f;
+    private float chaseRepathTimer = 0f;
+    private Vector3 lastChaseSampledPos = Vector3.zero;
+
+    protected virtual void Awake()
     {
         // Desactivar AnimationShowcase o MovePlayerInput si vienen del paquete Animals_FREE
         // para que las teclas W/S del jugador no controlen las animaciones del enemigo
@@ -144,12 +149,12 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
-    private void OnEnable()
+    protected virtual void OnEnable()
     {
         SubscribeToTimeManager();
     }
 
-    private void OnDisable()
+    protected virtual void OnDisable()
     {
         UnsubscribeFromTimeManager();
     }
@@ -283,6 +288,9 @@ public class EnemyAI : MonoBehaviour
                 break;
 
             case EnemyState.Chase:
+                chaseStuckTimer = 0f;
+                chaseRepathTimer = 0f;
+                lastChaseSampledPos = Vector3.zero;
                 if (agent != null && agent.enabled && agent.isOnNavMesh)
                 {
                     agent.speed = chaseSpeed;
@@ -414,11 +422,94 @@ public class EnemyAI : MonoBehaviour
         if (HasLineOfSight() && distanceToPlayer <= visionRadiusNormal)
         {
             agent.isStopped = false;
-            agent.SetDestination(player.position);
+
+            // Muestreo seguro del destino en el NavMesh (evita enviar al agente fuera de la malla)
+            Vector3 targetNavPos = player.position;
+            if (NavMesh.SamplePosition(player.position, out NavMeshHit navHit, 4.0f, NavMesh.AllAreas))
+            {
+                targetNavPos = navHit.position;
+            }
+
+            chaseRepathTimer += Time.deltaTime;
+            if (chaseRepathTimer >= 0.12f || (targetNavPos - lastChaseSampledPos).sqrMagnitude > 1.0f)
+            {
+                chaseRepathTimer = 0f;
+                lastChaseSampledPos = targetNavPos;
+                agent.SetDestination(targetNavPos);
+            }
+
+            // DETECCIÓN Y RECUPERACIÓN DE ATASCO (ANTI-STALL)
+            // Si el agente está en persecución pero casi no tiene velocidad y está lejos del jugador
+            bool isStuck = !agent.pathPending && 
+                           agent.velocity.sqrMagnitude < 0.08f && 
+                           distanceToPlayer > attackRange + 0.35f;
+
+            if (isStuck)
+            {
+                chaseStuckTimer += Time.deltaTime;
+                if (chaseStuckTimer >= 0.8f)
+                {
+                    chaseStuckTimer = 0f;
+                    RecoverFromChaseStuck(targetNavPos);
+                }
+            }
+            else
+            {
+                chaseStuckTimer = Mathf.Max(0f, chaseStuckTimer - Time.deltaTime * 2f);
+            }
         }
         else
         {
             ChangeState(EnemyState.Wander);
+        }
+    }
+
+    private void RecoverFromChaseStuck(Vector3 targetNavPos)
+    {
+        if (agent == null || !agent.enabled || !agent.isOnNavMesh) return;
+
+        // 1. Si el camino es parcial, forzar navegación a la esquina más avanzada
+        if (agent.hasPath && agent.pathStatus == NavMeshPathStatus.PathPartial && agent.path.corners.Length > 1)
+        {
+            Vector3 lastCorner = agent.path.corners[agent.path.corners.Length - 1];
+            if ((lastCorner - transform.position).sqrMagnitude > 0.4f)
+            {
+                agent.SetDestination(lastCorner);
+                return;
+            }
+        }
+
+        // 2. Probar puntos laterales/frontales en abanico para sortear la esquina o borde
+        Vector3 forwardDir = (targetNavPos - transform.position);
+        forwardDir.y = 0f;
+        if (forwardDir.sqrMagnitude < 0.01f) forwardDir = transform.forward;
+        forwardDir.Normalize();
+
+        float[] probeAngles = new float[] { 45f, -45f, 90f, -90f, 135f, -135f };
+        for (int i = 0; i < probeAngles.Length; i++)
+        {
+            Vector3 probeDir = Quaternion.Euler(0f, probeAngles[i], 0f) * forwardDir;
+            Vector3 candidate = transform.position + probeDir * 2.2f;
+
+            if (NavMesh.SamplePosition(candidate, out NavMeshHit probeHit, 2.0f, NavMesh.AllAreas))
+            {
+                NavMeshPath probePath = new NavMeshPath();
+                if (agent.CalculatePath(probeHit.position, probePath) && probePath.status != NavMeshPathStatus.PathInvalid)
+                {
+                    agent.ResetPath();
+                    agent.SetDestination(probeHit.position);
+                    return;
+                }
+            }
+        }
+
+        // 3. Si sigue atascado contra un borde, alinearlo con la superficie más cercana
+        if (NavMesh.SamplePosition(transform.position, out NavMeshHit snapHit, 1.5f, NavMesh.AllAreas))
+        {
+            if ((snapHit.position - transform.position).sqrMagnitude > 0.04f)
+            {
+                agent.Warp(snapHit.position);
+            }
         }
     }
 

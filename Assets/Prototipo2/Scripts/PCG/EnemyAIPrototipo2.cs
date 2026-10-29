@@ -21,8 +21,10 @@ namespace Prototipo2
         private float obstacleRedirectCooldown = 0f;
         private Vector3 lastValidCityPosition;
 
-        private void Awake()
+        protected override void Awake()
         {
+            base.Awake();
+
             // Desactivar scripts de demostración / input del paquete Animals_FREE
             MonoBehaviour[] scripts = GetComponents<MonoBehaviour>();
             for (int i = 0; i < scripts.Length; i++)
@@ -40,27 +42,35 @@ namespace Prototipo2
                 gameObject.tag = "Enemy";
             }
 
-            // Asegurar que no use waypoints de patrulla y tenga un radio amplio de deambulación
-            SetPatrolWaypoints(null);
-            if (wanderRadius < 30f)
+            // En Prototipo2 PCG configurar radio amplio
+            if (CityGeneratorPrototipo2.Instance != null)
             {
-                wanderRadius = 35f;
+                SetPatrolWaypoints(null);
+                if (wanderRadius < 30f)
+                {
+                    wanderRadius = 35f;
+                }
             }
         }
 
-        private void OnEnable()
+        protected override void OnEnable()
         {
+            base.OnEnable();
+
             protoAgent = GetComponent<NavMeshAgent>();
             protoRb = GetComponent<Rigidbody>();
 
             if (CityGeneratorPrototipo2.Instance != null)
             {
                 minCitySurfaceY = CityGeneratorPrototipo2.Instance.roadHeightY;
+                ConfigureAgentForCity();
+                SnapToCitySurfaceImmediate();
+                SetPatrolWaypoints(null);
             }
-
-            ConfigureAgentForCity();
-            SnapToCitySurfaceImmediate();
-            SetPatrolWaypoints(null);
+            else
+            {
+                ConfigureAgentForCity();
+            }
         }
 
         private void ConfigureAgentForCity()
@@ -115,6 +125,18 @@ namespace Prototipo2
 
         private void EnforceCitySurfaceHeight()
         {
+            if (CityGeneratorPrototipo2.Instance == null)
+            {
+                if (transform.position.y < -8.0f && protoAgent != null && protoAgent.enabled)
+                {
+                    if (NavMesh.SamplePosition(transform.position, out NavMeshHit fallbackHit, 15f, NavMesh.AllAreas))
+                    {
+                        protoAgent.Warp(fallbackHit.position);
+                    }
+                }
+                return;
+            }
+
             Vector3 pos = transform.position;
             if (pos.y < minCitySurfaceY - 0.15f)
             {
@@ -216,14 +238,16 @@ namespace Prototipo2
                         {
                             pushDir.Normalize();
                             Vector3 safePos = transform.position + pushDir * (pushDist + 0.25f);
-                            safePos.y = Mathf.Max(safePos.y, minCitySurfaceY);
-                            if (NavMesh.SamplePosition(safePos, out NavMeshHit navHit, 3.0f, NavMesh.AllAreas) && navHit.position.y >= minCitySurfaceY - 0.2f)
+                            if (CityGeneratorPrototipo2.Instance != null)
                             {
-                                protoAgent.Warp(navHit.position);
+                                safePos.y = Mathf.Max(safePos.y, minCitySurfaceY);
                             }
-                            else
+                            if (NavMesh.SamplePosition(safePos, out NavMeshHit navHit, 3.0f, NavMesh.AllAreas))
                             {
-                                transform.position = safePos;
+                                if (CityGeneratorPrototipo2.Instance == null || navHit.position.y >= minCitySurfaceY - 0.25f)
+                                {
+                                    protoAgent.Warp(navHit.position);
+                                }
                             }
                         }
                     }
