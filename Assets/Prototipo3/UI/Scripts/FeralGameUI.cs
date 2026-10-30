@@ -54,6 +54,14 @@ namespace Prototipo3.UI
         {
             if (Instance != null && Instance != this) { Destroy(gameObject); return; }
             Instance = this;
+            // The HUD is built at runtime. Discard a previously saved generated
+            // canvas before rebuilding so scene copies cannot overlap it.
+            foreach (Transform child in transform)
+            {
+                if (child.name != "Feral Canvas" || !child.GetComponent<Canvas>()) continue;
+                child.gameObject.SetActive(false);
+                Destroy(child.gameObject);
+            }
             var root = new GameObject("Feral Canvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             root.transform.SetParent(transform, false);
             Canvas = root.GetComponent<Canvas>();
@@ -388,14 +396,15 @@ namespace Prototipo3.UI
 
         void SuppressLegacy()
         {
+            foreach (var old in FindObjectsByType<Prototipo2.UI.InGameInventoryUIPrototipo2>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                old.gameObject.SetActive(false);
+                Destroy(old.gameObject);
+            }
+
             foreach (var old in FindObjectsByType<NarrativeHUDPrototipo3>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 old.UseUnifiedPresentation();
-            foreach (var old in FindObjectsByType<InGameInventoryUIPrototipo3>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-            {
-                old.enabled = false;
-                foreach (var t in old.GetComponentsInChildren<Transform>(true))
-                    if (t.name == "Inventory" || t.name == "InventoryHint" || t.name == "ReturnConfirmation") t.gameObject.SetActive(false);
-            }
+
             foreach (var old in FindObjectsByType<Feral.UI.FeralInventoryUI>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
                 old.enabled = false;

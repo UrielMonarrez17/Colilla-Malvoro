@@ -30,10 +30,14 @@ namespace Prototipo3
         public float groundSnapForce = 12f;
 
         [Header("Controles de Dash y Regeneración")]
-        public KeyCode dashKeyPrimary = KeyCode.Space;
-        public KeyCode dashKeySecondary = KeyCode.Q;
+        public KeyCode dashKeyPrimary = KeyCode.Q;
+        public KeyCode dashKeySecondary = KeyCode.LeftControl;
         public KeyCode regenerateCityKey = KeyCode.G;
         public bool rightClickDash = true;
+
+        [Header("Movimiento relativo a la cámara")]
+        [Tooltip("Cámara que orienta WASD. Si no se asigna, se usa Main Camera.")]
+        public Transform movementCamera;
 
         // Estado interno de físicas
         private bool isGrounded = true;
@@ -112,7 +116,7 @@ namespace Prototipo3
             // 1. Capturar Input de movimiento (WASD/Joystick)
             float horizontal = FeralInput.Horizontal;
             float vertical = FeralInput.Vertical;
-            moveInput = new Vector3(horizontal, 0f, vertical).normalized;
+            moveInput = GetCameraRelativeMovement(horizontal, vertical);
 
             // 2. Regenerar ciudad en tiempo real con [G]
             if (FeralInput.Pressed(regenerateCityKey) || Input.GetKeyDown(regenerateCityKey))
@@ -154,6 +158,22 @@ namespace Prototipo3
             {
                 TrapSystemPrototipo3.EnsureInstance().TryDeployTrap(tipo, transform);
             }
+        }
+
+        private Vector3 GetCameraRelativeMovement(float horizontal, float vertical)
+        {
+            Vector3 input = Vector3.ClampMagnitude(new Vector3(horizontal, 0f, vertical), 1f);
+            Transform cameraTransform = movementCamera;
+            if (cameraTransform == null)
+            {
+                Camera mainCamera = Camera.main;
+                if (mainCamera != null) cameraTransform = mainCamera.transform;
+            }
+
+            // Only yaw affects movement: camera pitch must not push the player
+            // into the floor. Match the isometric view even before a camera exists.
+            float yaw = cameraTransform != null ? cameraTransform.eulerAngles.y : 45f;
+            return Quaternion.Euler(0f, yaw, 0f) * input;
         }
 
         private void FixedUpdate()
@@ -261,31 +281,31 @@ namespace Prototipo3
 
         private void HandleJumpAndDash()
         {
-            bool dashTriggered = IsDashInputTriggered();
+            if (isDashing || FeralInput.Held(KeyCode.C)) return;
 
-            // En Prototipo 3: Espacio (además de Q / Click Derecho) ejecuta Dash cuando nos movemos
-            if (dashTriggered && Time.time >= nextDashTime && !FeralInput.Held(KeyCode.C))
+            // Space is reserved for jumping, including with old Inspector bindings.
+            if (FeralInput.Pressed(KeyCode.Space))
             {
-                StartCoroutine(DashRoutineProto());
+                if (isGrounded && !isJumping && Time.time >= nextJumpTime) PerformJump();
                 return;
             }
 
-            bool spacePressed = FeralInput.Pressed(KeyCode.Space) || Input.GetKeyDown(KeyCode.Space);
-            if (spacePressed && isGrounded && !isJumping && Time.time >= nextJumpTime && !FeralInput.Held(KeyCode.C))
+            if (IsDashInputTriggered() && Time.time >= nextDashTime)
             {
-                PerformJump();
+                StartCoroutine(DashRoutineProto());
             }
         }
 
         private bool IsDashInputTriggered()
         {
-            if ((FeralInput.Pressed(KeyCode.Space) || Input.GetKeyDown(KeyCode.Space)) && moveInput != Vector3.zero) return true;
-            if (FeralInput.Pressed(dashKeySecondary) || Input.GetKeyDown(dashKeySecondary)) return true;
-            if (rightClickDash && Input.GetMouseButtonDown(1)) return true;
+            KeyCode primary = dashKeyPrimary == KeyCode.Space ? KeyCode.Q : dashKeyPrimary;
+            KeyCode secondary = dashKeySecondary == KeyCode.Space ? KeyCode.LeftControl : dashKeySecondary;
+            if (FeralInput.Pressed(primary) || FeralInput.Pressed(secondary)) return true;
 
 #if ENABLE_INPUT_SYSTEM
             if (rightClickDash && UnityEngine.InputSystem.Mouse.current != null && UnityEngine.InputSystem.Mouse.current.rightButton.wasPressedThisFrame) return true;
-            if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.qKey.wasPressedThisFrame) return true;
+#else
+            if (rightClickDash && Input.GetMouseButtonDown(1)) return true;
 #endif
             return false;
         }
