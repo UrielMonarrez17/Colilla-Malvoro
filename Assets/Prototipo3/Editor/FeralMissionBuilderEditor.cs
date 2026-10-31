@@ -342,12 +342,22 @@ namespace Prototipo3.Editor
             signObj.transform.SetParent(root.transform, false);
             signObj.transform.localPosition = new Vector3(0f, dimensions.y + 1.1f, 0f);
             TMPro.TextMeshPro tmp = signObj.AddComponent<TMPro.TextMeshPro>();
+            if (TMPro.TMP_Settings.defaultFontAsset != null)
+            {
+                tmp.font = TMPro.TMP_Settings.defaultFontAsset;
+            }
             tmp.text = signText;
             tmp.fontSize = 3.8f;
             tmp.alignment = TMPro.TextAlignmentOptions.Center;
             tmp.color = Color.white;
             tmp.outlineWidth = 0.22f;
             tmp.outlineColor = Color.black;
+
+            MeshRenderer mr = signObj.GetComponent<MeshRenderer>();
+            if (mr != null && TMPro.TMP_Settings.defaultFontAsset != null)
+            {
+                mr.sharedMaterial = TMPro.TMP_Settings.defaultFontAsset.material;
+            }
 
             GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, path);
             UnityEngine.Object.DestroyImmediate(root);
@@ -474,14 +484,34 @@ namespace Prototipo3.Editor
         private static void AssignColoredMaterial(Renderer renderer, Color color, bool emissive)
         {
             if (renderer == null) return;
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard") ?? Shader.Find("Sprites/Default");
-            Material mat = new Material(shader);
-            mat.color = color;
-            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
-            if (emissive && mat.HasProperty("_EmissionColor"))
+            string materialsFolder = "Assets/Prototipo3/Materials";
+            if (!AssetDatabase.IsValidFolder(materialsFolder))
             {
-                mat.EnableKeyword("_EMISSION");
-                mat.SetColor("_EmissionColor", color * 1.8f);
+                if (!AssetDatabase.IsValidFolder("Assets/Prototipo3"))
+                {
+                    AssetDatabase.CreateFolder("Assets", "Prototipo3");
+                }
+                AssetDatabase.CreateFolder("Assets/Prototipo3", "Materials");
+            }
+
+            string hexColor = ColorUtility.ToHtmlStringRGBA(color);
+            string matName = $"Mat_{hexColor}_{(emissive ? "Emissive" : "Solid")}";
+            string assetPath = $"{materialsFolder}/{matName}.mat";
+
+            Material mat = AssetDatabase.LoadAssetAtPath<Material>(assetPath);
+            if (mat == null)
+            {
+                Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard") ?? Shader.Find("Sprites/Default");
+                mat = new Material(shader);
+                mat.name = matName;
+                mat.color = color;
+                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+                if (emissive && mat.HasProperty("_EmissionColor"))
+                {
+                    mat.EnableKeyword("_EMISSION");
+                    mat.SetColor("_EmissionColor", color * 1.8f);
+                }
+                AssetDatabase.CreateAsset(mat, assetPath);
             }
             renderer.sharedMaterial = mat;
         }
@@ -514,9 +544,30 @@ namespace Prototipo3.Editor
                 cityGen.prefabHospitalSanJudas = prefabHospital;
                 cityGen.prefabTorreAethelgard = prefabTorre;
                 cityGen.prefabMarcoTejon = prefabMarco;
+
+                // Limpiar hijos residuales guardados en modo edición dentro de cityManager
+                for (int i = cityGen.transform.childCount - 1; i >= 0; i--)
+                {
+                    Transform child = cityGen.transform.GetChild(i);
+                    UnityEngine.Object.DestroyImmediate(child.gameObject);
+                }
+
                 EditorUtility.SetDirty(cityGen);
             }
 
+            // Separar responsabilidades en GameObjects dedicados (SOLID)
+            // 1. Spawners de Población y Loot
+            GameObject popObj = GameObject.Find("CityPopulationManager");
+            if (popObj == null) popObj = new GameObject("CityPopulationManager");
+            for (int i = popObj.transform.childCount - 1; i >= 0; i--)
+            {
+                UnityEngine.Object.DestroyImmediate(popObj.transform.GetChild(i).gameObject);
+            }
+            CityLootSpawner lootSpawner = popObj.GetComponent<CityLootSpawner>() ?? popObj.AddComponent<CityLootSpawner>();
+            CityEnemyPopulationSpawner enemySpawner = popObj.GetComponent<CityEnemyPopulationSpawner>() ?? popObj.AddComponent<CityEnemyPopulationSpawner>();
+            EditorUtility.SetDirty(popObj);
+
+            // 2. StoryManager
             StoryManagerPrototipo3 storyMgr = UnityEngine.Object.FindAnyObjectByType<StoryManagerPrototipo3>();
             if (storyMgr == null)
             {
@@ -524,23 +575,56 @@ namespace Prototipo3.Editor
                 storyMgr = storyObj.AddComponent<StoryManagerPrototipo3>();
             }
 
-            StoryWorldBinder binder = storyMgr.GetComponent<StoryWorldBinder>() ?? storyMgr.gameObject.AddComponent<StoryWorldBinder>();
+            // 3. StoryWorldBinder
+            GameObject binderObj = GameObject.Find("StoryWorldBinder_Prototipo3");
+            if (binderObj == null) binderObj = new GameObject("StoryWorldBinder_Prototipo3");
+            StoryWorldBinder binder = binderObj.GetComponent<StoryWorldBinder>() ?? binderObj.AddComponent<StoryWorldBinder>();
+            binder.luluPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Lulu_Prototipo3.prefab");
             storyMgr.worldBinder = binder;
+            EditorUtility.SetDirty(binder);
 
-            TrapSystemPrototipo3 trapSys = storyMgr.GetComponent<TrapSystemPrototipo3>() ?? UnityEngine.Object.FindAnyObjectByType<TrapSystemPrototipo3>() ?? storyMgr.gameObject.AddComponent<TrapSystemPrototipo3>();
+            if (cityGen != null && cityGen.gameObject != binderObj)
+            {
+                var dupBinder = cityGen.GetComponent<StoryWorldBinder>();
+                if (dupBinder != null) UnityEngine.Object.DestroyImmediate(dupBinder);
+            }
+
+            // 4. TrapSystem
+            GameObject trapObj = GameObject.Find("TrapSystem_Prototipo3");
+            if (trapObj == null) trapObj = new GameObject("TrapSystem_Prototipo3");
+            TrapSystemPrototipo3 trapSys = trapObj.GetComponent<TrapSystemPrototipo3>() ?? trapObj.AddComponent<TrapSystemPrototipo3>();
             trapSys.acousticDecoyPrefab = prefabTrampa1;
             trapSys.pollenCloudPrefab = prefabTrampa2;
             trapSys.staticDischargePrefab = prefabTrampa3;
             EditorUtility.SetDirty(trapSys);
-
-            if (storyMgr.GetComponent<CutsceneManager>() == null && UnityEngine.Object.FindAnyObjectByType<CutsceneManager>() == null)
+            if (cityGen != null && cityGen.gameObject != trapObj)
             {
-                storyMgr.gameObject.AddComponent<CutsceneManager>();
+                var dupTrap = cityGen.GetComponent<TrapSystemPrototipo3>();
+                if (dupTrap != null) UnityEngine.Object.DestroyImmediate(dupTrap);
             }
 
-            if (storyMgr.GetComponent<RespawnManagerPrototipo3>() == null && UnityEngine.Object.FindAnyObjectByType<RespawnManagerPrototipo3>() == null)
+            // 5. CutsceneManager
+            GameObject cutsceneObj = GameObject.Find("CutsceneManager_Prototipo3");
+            if (cutsceneObj == null) cutsceneObj = new GameObject("CutsceneManager_Prototipo3");
+            CutsceneManager cutsceneMgr = cutsceneObj.GetComponent<CutsceneManager>() ?? cutsceneObj.AddComponent<CutsceneManager>();
+            EditorUtility.SetDirty(cutsceneObj);
+            if (cityGen != null && cityGen.gameObject != cutsceneObj)
             {
-                storyMgr.gameObject.AddComponent<RespawnManagerPrototipo3>();
+                var dupCut = cityGen.GetComponent<CutsceneManager>();
+                if (dupCut != null) UnityEngine.Object.DestroyImmediate(dupCut);
+                var vps = cityGen.GetComponents<UnityEngine.Video.VideoPlayer>();
+                foreach (var vp in vps) UnityEngine.Object.DestroyImmediate(vp);
+            }
+
+            // 6. RespawnManager
+            GameObject respawnObj = GameObject.Find("RespawnManager_Prototipo3");
+            if (respawnObj == null) respawnObj = new GameObject("RespawnManager_Prototipo3");
+            RespawnManagerPrototipo3 respawnMgr = respawnObj.GetComponent<RespawnManagerPrototipo3>() ?? respawnObj.AddComponent<RespawnManagerPrototipo3>();
+            EditorUtility.SetDirty(respawnObj);
+            if (cityGen != null && cityGen.gameObject != respawnObj)
+            {
+                var dupRespawn = cityGen.GetComponent<RespawnManagerPrototipo3>();
+                if (dupRespawn != null) UnityEngine.Object.DestroyImmediate(dupRespawn);
             }
 
             HamsterControllerPrototipo3 hc3 = UnityEngine.Object.FindAnyObjectByType<HamsterControllerPrototipo3>();

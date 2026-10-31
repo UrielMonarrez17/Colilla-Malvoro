@@ -22,6 +22,24 @@ public class LootContainer : MonoBehaviour
     public bool YaFueSaqueado => yaFueSaqueado;
 
     public static event Action<LootContainer, List<ItemType>> OnContainerLooted;
+    public static event Action<LootContainer> OnContainerAlreadyLooted;
+
+    public static string FormatLootSummary(List<ItemType> items)
+    {
+        if (items == null || items.Count == 0) return "Nada";
+        var counts = new Dictionary<ItemType, int>();
+        foreach (var item in items)
+        {
+            if (!counts.ContainsKey(item)) counts[item] = 0;
+            counts[item]++;
+        }
+        var parts = new List<string>();
+        foreach (var kvp in counts)
+        {
+            parts.Add($"+{kvp.Value} {kvp.Key}");
+        }
+        return string.Join(", ", parts);
+    }
 
     private Renderer[] renderers;
     private Light glowLight;
@@ -88,6 +106,7 @@ public class LootContainer : MonoBehaviour
         if (yaFueSaqueado)
         {
             Debug.Log("Este contenedor ya está vacío.");
+            OnContainerAlreadyLooted?.Invoke(this);
             return;
         }
 
@@ -131,9 +150,12 @@ public class LootContainer : MonoBehaviour
         {
             for (int i = 0; i < renderers.Length; i++)
             {
-                if (renderers[i] != null && renderers[i].material != null)
+                Renderer r = renderers[i];
+                if (r == null || r is ParticleSystemRenderer || r is SpriteRenderer) continue;
+                if (r.GetComponent<TMPro.TMP_Text>() != null || r.GetComponent<TextMesh>() != null) continue;
+                if (r.material != null)
                 {
-                    renderers[i].material.color = Color.gray;
+                    r.material.color = Color.gray;
                 }
             }
         }

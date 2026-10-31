@@ -86,17 +86,24 @@ namespace Prototipo3
 
             if (worldBinder == null)
             {
-                worldBinder = GetComponent<StoryWorldBinder>() ?? gameObject.AddComponent<StoryWorldBinder>();
+                worldBinder = FindAnyObjectByType<StoryWorldBinder>() ?? GetComponent<StoryWorldBinder>();
+                if (worldBinder == null)
+                {
+                    GameObject binderObj = GameObject.Find("StoryWorldBinder_Prototipo3") ?? new GameObject("StoryWorldBinder_Prototipo3");
+                    worldBinder = binderObj.AddComponent<StoryWorldBinder>();
+                }
             }
 
-            if (GetComponent<CutsceneManager>() == null && CutsceneManager.Instance == null)
+            if (CutsceneManager.Instance == null && FindAnyObjectByType<CutsceneManager>() == null)
             {
-                gameObject.AddComponent<CutsceneManager>();
+                GameObject csObj = GameObject.Find("CutsceneManager_Prototipo3") ?? new GameObject("CutsceneManager_Prototipo3");
+                csObj.AddComponent<CutsceneManager>();
             }
 
-            if (GetComponent<RespawnManagerPrototipo3>() == null && RespawnManagerPrototipo3.Instance == null)
+            if (RespawnManagerPrototipo3.Instance == null && FindAnyObjectByType<RespawnManagerPrototipo3>() == null)
             {
-                gameObject.AddComponent<RespawnManagerPrototipo3>();
+                GameObject respawnObj = GameObject.Find("RespawnManager_Prototipo3") ?? new GameObject("RespawnManager_Prototipo3");
+                respawnObj.AddComponent<RespawnManagerPrototipo3>();
             }
         }
 
@@ -181,7 +188,7 @@ namespace Prototipo3
         {
             CityGeneratorPrototipo3 cityGen = FindAnyObjectByType<CityGeneratorPrototipo3>();
 
-            if (currentGraph == null || currentGraph.nodes == null || currentGraph.nodes.Count == 0)
+            if (currentGraph == null || currentGraph.nodes == null || currentGraph.nodes.Count == 0 || currentGraph.GetNode("node_0_apertura") == null)
             {
                 currentGraph = StoryGrammarEngine.GenerateStory(storySeed);
                 SetNodeState("node_0_apertura", StoryNodeState.Active, setFocus: true);

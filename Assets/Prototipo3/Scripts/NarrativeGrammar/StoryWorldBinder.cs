@@ -47,7 +47,8 @@ namespace Prototipo3
         {
             if (cityGen == null) return;
 
-            LimpiarArtefactos();
+            // 0. Lulú (Compañera / Guía narrativa) en el refugio inicial
+            EnsureLuluExists(cityGen);
 
             // 1. PUNTO 0: Marco (Tejón Conserje - Mini-Boss Cap 1) en la calle adyacente a la Base
             Vector3 marcoPos = cityGen.GetLandmarkPosition("Marco");
@@ -432,15 +433,92 @@ namespace Prototipo3
         {
             for (int i = 0; i < spawnedWorldArtifacts.Count; i++)
             {
-                if (spawnedWorldArtifacts[i] != null)
+                GameObject art = spawnedWorldArtifacts[i];
+                if (art != null)
                 {
-                    if (Application.isPlaying) Destroy(spawnedWorldArtifacts[i]);
-                    else DestroyImmediate(spawnedWorldArtifacts[i]);
+                    DualRoleCharacter drc = art.GetComponent<DualRoleCharacter>();
+                    if (drc != null) DualRoleCharacter.ActiveCharacters.Remove(drc);
+
+                    StoryMechanismPrototipo3 mech = art.GetComponent<StoryMechanismPrototipo3>();
+                    if (mech != null) StoryMechanismPrototipo3.ActiveMechanisms.Remove(mech);
+
+                    if (Application.isPlaying) Destroy(art);
+                    else DestroyImmediate(art);
                 }
             }
             spawnedWorldArtifacts.Clear();
             SpawnedLuluInstance = null;
             SpawnedLuluNPC = null;
+        }
+
+        public void EnsureLuluExists(CityGeneratorPrototipo3 cityGen)
+        {
+            if (cityGen == null) return;
+
+            Vector3 basePos = cityGen.PlayerSpawnPoint;
+            // Posicionar a ~5 metros de la base, orientada hacia el refugio
+            Vector3 targetPos = basePos + new Vector3(4.2f, 0f, 3.8f);
+            targetPos.y = cityGen.roadHeightY;
+
+            if (NavMesh.SamplePosition(targetPos, out NavMeshHit hit, 5.0f, NavMesh.AllAreas))
+            {
+                targetPos = hit.position;
+            }
+
+            if (SpawnedLuluInstance != null && SpawnedLuluNPC != null)
+            {
+                SpawnedLuluInstance.transform.position = targetPos;
+                SpawnedLuluNPC.SetHomeAnchor(targetPos);
+                return;
+            }
+
+            LuluNPCPrototipo3 existingLulu = FindAnyObjectByType<LuluNPCPrototipo3>();
+            if (existingLulu != null && !spawnedWorldArtifacts.Contains(existingLulu.gameObject))
+            {
+                SpawnedLuluInstance = existingLulu.gameObject;
+                SpawnedLuluNPC = existingLulu;
+                SpawnedLuluInstance.transform.position = targetPos;
+                existingLulu.SetHomeAnchor(targetPos);
+                return;
+            }
+
+            if (luluPrefab == null)
+            {
+#if UNITY_EDITOR
+                luluPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Lulu_Prototipo3.prefab");
+#endif
+            }
+
+            GameObject luluObj;
+            if (luluPrefab != null)
+            {
+                Vector3 lookDir = basePos - targetPos;
+                lookDir.y = 0f;
+                Quaternion rot = lookDir.sqrMagnitude > 0.01f ? Quaternion.LookRotation(lookDir) : Quaternion.identity;
+                luluObj = Instantiate(luluPrefab, targetPos, rot, cityGen.transform);
+                luluObj.name = "Lulu_Prototipo3";
+            }
+            else
+            {
+                luluObj = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                luluObj.name = "Lulu_Prototipo3_Fallback";
+                luluObj.transform.SetParent(cityGen.transform, false);
+                luluObj.transform.position = targetPos + new Vector3(0f, 0.6f, 0f);
+                luluObj.transform.localScale = new Vector3(0.6f, 0.6f, 0.6f);
+            }
+
+            luluObj.tag = "Interactable";
+            LuluNPCPrototipo3 luluComp = luluObj.GetComponent<LuluNPCPrototipo3>();
+            if (luluComp == null)
+            {
+                luluComp = luluObj.AddComponent<LuluNPCPrototipo3>();
+            }
+            luluComp.SetHomeAnchor(targetPos);
+
+            SpawnedLuluInstance = luluObj;
+            SpawnedLuluNPC = luluComp;
+            spawnedWorldArtifacts.Add(luluObj);
+            Debug.Log($"[StoryWorldBinder] Lulú NPC instanciada en posición {targetPos} cerca del refugio inicial.");
         }
     }
 }

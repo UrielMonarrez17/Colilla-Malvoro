@@ -1,11 +1,11 @@
 {
     "schema_version": 2,
-    "commit": "895a41307b2e0f858a63226cb98b4dc3e89bcab4",
-    "indexed_at": "2026-10-30T17:57:48Z",
-    "project": "C-Users-david-OneDrive-Documentos-UniversidadPanamericana-semestre-7-Gramaticas-computacional-Colilla-Malvoro",
-    "nodes": 2971,
-    "edges": 13062,
-    "original_size": 23199744,
-    "compressed_size": 2660815,
-    "compression_level": 3
+    "commit": "13a41d1f70350c03f3e5d0058b11a8db1db0c106",
+    "indexed_at": "2026-10-30T23:05:34Z",
+    "project": "C-Users-CIAC-Documents-Colilla-Malvoro",
+    "nodes": 3002,
+    "edges": 13196,
+    "original_size": 11206656,
+    "compressed_size": 2011179,
+    "compression_level": 9
 }

@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Prototipo3/Scenes/MainMenu_Prototipo3.unity
+    guid: a9f38d372becfaa478e3ad627f45a43e
+  - enabled: 1
     path: Assets/Prototipo2/Scenes/MainMenu_Prototipo2.unity
     guid: c4db2be12c7245a88e2bdaf026d08f44
   - enabled: 1
@@ -24,7 +27,7 @@ EditorBuildSettings:
     path: Assets/Scenes/RodrigoScene.unity
     guid: 99c9720ab356a0642a771bea13969a05
   - enabled: 1
-    path: Assets/Prototipo3/Scenes/Prototipo3.unity
-    guid: 3a4f8b2c1e7d4895a0e9c1234567890a
+    path: Assets/Prototipo3/Prototipo3.unity
+    guid: cebe8f9e9c47e8a419a7f96458a055af
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

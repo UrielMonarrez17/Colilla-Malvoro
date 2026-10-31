@@ -105,7 +105,7 @@ namespace Prototipo3
             videoRawImage = rawImgGo.GetComponent<RawImage>();
             videoRawImage.color = Color.black;
 
-            videoPlayer = gameObject.AddComponent<VideoPlayer>();
+            videoPlayer = GetComponent<VideoPlayer>() ?? gameObject.AddComponent<VideoPlayer>();
             videoPlayer.playOnAwake = false;
             videoPlayer.renderMode = VideoRenderMode.RenderTexture;
             videoPlayer.aspectRatio = VideoAspectRatio.FitInside;
@@ -203,6 +203,7 @@ namespace Prototipo3
         {
             string[] candidates =
             {
+                Path.Combine(Application.dataPath, "Prototipo3", "Scripts", "Cinematics", fileName),
                 Path.Combine(Application.streamingAssetsPath, "Cutscenes", fileName),
                 Path.Combine(Application.dataPath, "Prototipo3", "StreamingAssets", "Cutscenes", fileName),
                 Path.Combine(Application.dataPath, "StreamingAssets", "Cutscenes", fileName),

@@ -1948,7 +1948,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c6db99bcd481fac4282a18c2eda970f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Prototipo3.UI::MainMenuControllerPrototipo3
-  tutorialSceneName: Assets/Scenes/Tutorial.unity
+  tutorialSceneName: Assets/Prototipo3/Prototipo3.unity
   videoPlayer: {fileID: 0}
   videoDisplay: {fileID: 0}
   videoContainer: {fileID: 0}

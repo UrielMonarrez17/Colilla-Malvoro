@@ -148,15 +148,25 @@ namespace Prototipo3
                 kvp.Value.isOccluding = false;
             }
 
-            RaycastHit[] hits = Physics.SphereCastAll(camPos, sphereCastRadius, direction.normalized, maxDist, occlusionLayers);
+            RaycastHit[] hits = Physics.SphereCastAll(camPos, sphereCastRadius, direction.normalized, maxDist, occlusionLayers, QueryTriggerInteraction.Ignore);
 
             for (int i = 0; i < hits.Length; i++)
             {
                 RaycastHit hit = hits[i];
+                if (hit.collider == null || hit.collider.isTrigger) continue;
                 if (hit.transform == activeTarget || hit.transform.IsChildOf(activeTarget)) continue;
 
                 // Si impacta con el suelo directamente muy cerca del hamster, ignorar
                 if (hit.point.y <= 0.05f && Vector3.Distance(hit.point, targetCenter) < 1.0f) continue;
+
+                // Ignorar objetos interactivos, jugadores, enemigos, NPCs, mesas de crafteo, contenedores, etc.
+                if (hit.transform.CompareTag("Interactable") || hit.transform.CompareTag("Player") || hit.transform.CompareTag("Enemy") || hit.transform.CompareTag("Respawn")) continue;
+                if (hit.transform.GetComponentInParent<CraftingTable>() != null) continue;
+                if (hit.transform.GetComponentInParent<LootContainer>() != null) continue;
+                if (hit.transform.GetComponentInParent<HamsterController>() != null) continue;
+                if (hit.transform.GetComponentInParent<DualRoleCharacter>() != null) continue;
+                if (hit.transform.GetComponentInParent<LuluNPCPrototipo3>() != null) continue;
+                if (hit.transform.GetComponentInParent<StoryMechanismPrototipo3>() != null) continue;
 
                 Renderer[] renderers = hit.transform.GetComponentsInChildren<Renderer>();
                 for (int r = 0; r < renderers.Length; r++)
@@ -164,16 +174,37 @@ namespace Prototipo3
                     Renderer ren = renderers[r];
                     if (ren == null || !ren.enabled) continue;
 
-                    // Ignorar emisores de partículas
-                    if (ren is ParticleSystemRenderer) continue;
+                    // Ignorar emisores de partículas, sprites, carteles y textos UI / TextMeshPro
+                    if (ren is ParticleSystemRenderer || ren is SpriteRenderer || ren is BillboardRenderer) continue;
+                    if (ren.GetComponent<TMPro.TMP_Text>() != null || ren.GetComponent<TextMesh>() != null || ren.GetComponentInParent<Canvas>() != null) continue;
+                    if (ren.CompareTag("Interactable") || ren.CompareTag("Player") || ren.CompareTag("Enemy")) continue;
+                    if (ren.GetComponentInParent<CraftingTable>() != null || ren.GetComponentInParent<LootContainer>() != null) continue;
+                    if (ren.GetComponentInParent<DualRoleCharacter>() != null || ren.GetComponentInParent<LuluNPCPrototipo3>() != null) continue;
+                    if (ren.GetComponentInParent<StoryMechanismPrototipo3>() != null || ren.GetComponentInParent<PuertaTrampa>() != null) continue;
 
                     if (!activeFadedObjects.TryGetValue(ren, out FadedRendererData data))
                     {
+                        Material[] orig = ren.sharedMaterials;
+                        if (orig == null || orig.Length == 0) continue;
+                        bool hasNull = false;
+                        for (int m = 0; m < orig.Length; m++)
+                        {
+                            if (orig[m] == null) { hasNull = true; break; }
+                        }
+                        if (hasNull) continue;
+
+                        Material[] inst = new Material[orig.Length];
+                        for (int m = 0; m < orig.Length; m++)
+                        {
+                            inst[m] = new Material(orig[m]);
+                        }
+                        ren.sharedMaterials = inst;
+
                         data = new FadedRendererData
                         {
                             renderer = ren,
-                            originalMaterials = ren.sharedMaterials,
-                            instancedMaterials = ren.materials, // Clona las instancias para no afectar otros prefabs
+                            originalMaterials = orig,
+                            instancedMaterials = inst,
                             currentAlpha = 1.0f,
                             targetAlpha = fadedAlpha,
                             isOccluding = true
@@ -217,9 +248,25 @@ namespace Prototipo3
                     ren.sharedMaterials = data.originalMaterials;
                     for (int m = 0; m < data.instancedMaterials.Length; m++)
                     {
-                        if (data.instancedMaterials[m] != null)
+                        Material instMat = data.instancedMaterials[m];
+                        if (instMat != null)
                         {
-                            Destroy(data.instancedMaterials[m]);
+                            bool isOriginal = false;
+                            if (data.originalMaterials != null)
+                            {
+                                for (int j = 0; j < data.originalMaterials.Length; j++)
+                                {
+                                    if (data.originalMaterials[j] == instMat)
+                                    {
+                                        isOriginal = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!isOriginal)
+                            {
+                                Destroy(instMat);
+                            }
                         }
                     }
                     toRemoveKeys.Add(ren);
@@ -241,9 +288,22 @@ namespace Prototipo3
                     kvp.Key.sharedMaterials = kvp.Value.originalMaterials;
                     for (int m = 0; m < kvp.Value.instancedMaterials.Length; m++)
                     {
-                        if (kvp.Value.instancedMaterials[m] != null)
+                        Material instMat = kvp.Value.instancedMaterials[m];
+                        if (instMat != null)
                         {
-                            Destroy(kvp.Value.instancedMaterials[m]);
+                            bool isOriginal = false;
+                            for (int j = 0; j < kvp.Value.originalMaterials.Length; j++)
+                            {
+                                if (kvp.Value.originalMaterials[j] == instMat)
+                                {
+                                    isOriginal = true;
+                                    break;
+                                }
+                            }
+                            if (!isOriginal)
+                            {
+                                Destroy(instMat);
+                            }
                         }
                     }
                 }

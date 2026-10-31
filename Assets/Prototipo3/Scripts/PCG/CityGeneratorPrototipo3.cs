@@ -91,6 +91,43 @@ namespace Prototipo3
 
         public event Action OnCityGenerated;
 
+        private static int? pendingSeed = null;
+        private const string PendingSeedPrefKey = "Feral_PendingSeed";
+
+        public static void SetPendingSeed(int newSeed)
+        {
+            pendingSeed = newSeed;
+            PlayerPrefs.SetInt(PendingSeedPrefKey, newSeed);
+            PlayerPrefs.Save();
+            Debug.Log($"[CityGeneratorPrototipo3] Semilla pendiente configurada: {newSeed}");
+        }
+
+        public static bool TryConsumePendingSeed(out int consumedSeed)
+        {
+            if (pendingSeed.HasValue)
+            {
+                consumedSeed = pendingSeed.Value;
+                pendingSeed = null;
+                if (PlayerPrefs.HasKey(PendingSeedPrefKey))
+                {
+                    PlayerPrefs.DeleteKey(PendingSeedPrefKey);
+                    PlayerPrefs.Save();
+                }
+                return true;
+            }
+
+            if (PlayerPrefs.HasKey(PendingSeedPrefKey))
+            {
+                consumedSeed = PlayerPrefs.GetInt(PendingSeedPrefKey);
+                PlayerPrefs.DeleteKey(PendingSeedPrefKey);
+                PlayerPrefs.Save();
+                return true;
+            }
+
+            consumedSeed = 0;
+            return false;
+        }
+
         private void Awake()
         {
             if (Instance == null) Instance = this;
@@ -99,17 +136,19 @@ namespace Prototipo3
 
         private void OnEnable()
         {
-            LootContainer.OnContainerLooted -= HandleContainerLootedForRumor;
-            LootContainer.OnContainerLooted += HandleContainerLootedForRumor;
         }
 
         private void OnDisable()
         {
-            LootContainer.OnContainerLooted -= HandleContainerLootedForRumor;
         }
 
         private void Start()
         {
+            if (TryConsumePendingSeed(out int incomingSeed))
+            {
+                seed = incomingSeed;
+                Debug.Log($"[CityGeneratorPrototipo3] Semilla recibida aplicada: {seed}");
+            }
             GenerateCity();
         }
 
@@ -192,8 +231,9 @@ namespace Prototipo3
             UbicarRefugioInicialYMarco(grid);
 
             // 10. Poblar el interior/entorno de los 4 edificios clave (NPCs, Jefes Duales y Mecanismos)
+            // Si StoryManagerPrototipo3 existe, este poblará los artefactos mediante OnCityGenerated -> BindGraphToWorld
             StoryWorldBinder binder = FindAnyObjectByType<StoryWorldBinder>();
-            if (binder != null)
+            if (binder != null && StoryManagerPrototipo3.Instance == null)
             {
                 binder.PopulateLandmarkActorsAndMechanisms(this);
             }
@@ -636,24 +676,6 @@ namespace Prototipo3
             return cardinalNames[idx];
         }
 
-        private void HandleContainerLootedForRumor(LootContainer container, List<ItemType> items)
-        {
-            string dirEscuela = GetCardinalDirectionFromPlayer("Escuela");
-            string dirBosque = GetCardinalDirectionFromPlayer("Bosque");
-            string dirHospital = GetCardinalDirectionFromPlayer("Hospital");
-            string dirTorre = GetCardinalDirectionFromPlayer("Torre");
-
-            string rumorText =
-                $"Nota hallada en el contenedor: \"Si buscas suministros médicos: la Escuela Bellavista queda al {dirEscuela}, " +
-                $"el Bosque Ceniza al {dirBosque}, el Hospital San Judas al {dirHospital} y la Torre Aethelgard al {dirTorre}.\"";
-
-            Debug.Log($"[Brújula de Rumores] {rumorText}");
-
-            if (StoryManagerPrototipo3.Instance != null)
-            {
-                StoryManagerPrototipo3.Instance.NotifyRumorFromContainer(rumorText);
-            }
-        }
 
         private void ConfigurarNavegacionYColisionesCiudad()
         {
@@ -878,183 +900,36 @@ namespace Prototipo3
 
         private void GenerarLootEnSockets(CityGrid grid, CityRandom rng)
         {
-            GameObject dropRoot = new GameObject("SPAWNERS_DROPS");
-            dropRoot.transform.SetParent(transform, false);
-
-            int spawnerIndex = 1;
-
-            // Garantizar 3 contenedores cercanos a la Base para el Nodo 0 (con Metal, Desperdicios, Madera, Semillas y Goma)
-            Vector3[] starterOffsets =
+            CityLootSpawner spawner = FindAnyObjectByType<CityLootSpawner>() ?? GetComponent<CityLootSpawner>();
+            if (spawner == null)
             {
-                new Vector3(-3.2f, 0f, 2.5f),
-                new Vector3(3.5f, 0f, -2.8f),
-                new Vector3(-2.5f, 0f, -3.5f)
-            };
-            ItemType[][] starterPacks =
-            {
-                new[] { ItemType.Metal, ItemType.Desperdicios, ItemType.Madera },
-                new[] { ItemType.Metal, ItemType.Semillas, ItemType.Goma },
-                new[] { ItemType.Madera, ItemType.Goma, ItemType.Semillas }
-            };
-
-            for (int s = 0; s < starterOffsets.Length; s++)
-            {
-                Vector3 pos = PlayerSpawnPoint + starterOffsets[s];
-                pos.y = roadHeightY;
-                CreateLootContainerInstance(dropRoot.transform, $"StarterDrop_{s + 1}", pos, new List<ItemType>(starterPacks[s]));
-                LootSpawnPoints.Add(pos);
+                GameObject popMgr = GameObject.Find("CityPopulationManager");
+                if (popMgr == null) popMgr = new GameObject("CityPopulationManager");
+                spawner = popMgr.AddComponent<CityLootSpawner>();
             }
-
-            if (lootPrefab == null) return;
-
-            foreach (Vector3 deadEndPos in DeadEndPoints)
-            {
-                if (Vector3.Distance(deadEndPos, PlayerSpawnPoint) < 6.0f) continue;
-
-                Vector3 dropPos = deadEndPos + new Vector3((float)rng.Range(-1, 2), 0, (float)rng.Range(-1, 2));
-                dropPos.y = roadHeightY;
-
-                GameObject spawnerObj = new GameObject($"DropSpawner_Alley_{spawnerIndex++}");
-                spawnerObj.transform.SetParent(dropRoot.transform, false);
-                spawnerObj.transform.position = dropPos;
-
-                DropSpawner spawner = spawnerObj.AddComponent<DropSpawner>();
-                spawner.lootContainerPrefab = lootPrefab;
-                spawner.spawnChance = 0.95f;
-                spawner.guaranteedItems = new List<ItemType> { ItemType.Desperdicios, ItemType.Madera, ItemType.Goma };
-                spawner.SpawnDrop();
-
-                LootSpawnPoints.Add(dropPos);
-            }
-
-            CitySocket[] spawnedBuildings = GetComponentsInChildren<CitySocket>();
-            foreach (CitySocket socket in spawnedBuildings)
-            {
-                if (socket.frontSocket == null) continue;
-                if (!rng.Chance(lootProbability)) continue;
-
-                float z = socket.frontSocket.localPosition.z;
-                Vector3[] localOffsets = {
-                    new Vector3(z * 0.9f, 0, 0),
-                    new Vector3(-z * 0.9f, 0, 0),
-                    new Vector3(0, 0, -z * 0.9f)
-                };
-
-                for (int i = 0; i < localOffsets.Length; i++)
-                {
-                    int rand = rng.Range(i, localOffsets.Length);
-                    (localOffsets[i], localOffsets[rand]) = (localOffsets[rand], localOffsets[i]);
-                }
-
-                foreach (Vector3 offset in localOffsets)
-                {
-                    Vector3 worldPos = socket.transform.TransformPoint(offset);
-                    worldPos.y = roadHeightY;
-
-                    int gridX = Mathf.FloorToInt(worldPos.x / cellSize);
-                    int gridY = Mathf.FloorToInt(worldPos.z / cellSize);
-                    Vector2Int cell = new Vector2Int(gridX, gridY);
-
-                    if (grid.InBounds(cell))
-                    {
-                        GameObject spawnerObj = new GameObject($"DropSpawner_Building_{spawnerIndex++}");
-                        spawnerObj.transform.SetParent(dropRoot.transform, false);
-                        spawnerObj.transform.position = worldPos;
-
-                        DropSpawner spawner = spawnerObj.AddComponent<DropSpawner>();
-                        spawner.lootContainerPrefab = lootPrefab;
-                        spawner.spawnChance = 0.85f;
-                        spawner.guaranteedItems = new List<ItemType> { ItemType.Metal, ItemType.Semillas };
-                        spawner.SpawnDrop();
-
-                        LootSpawnPoints.Add(worldPos);
-                        break;
-                    }
-                }
-            }
+            spawner.SpawnLoot(this, grid, rng);
         }
 
-        private void CreateLootContainerInstance(Transform parent, string containerName, Vector3 pos, List<ItemType> guaranteed)
+        public GameObject CreateLootContainerInstance(Transform parent, string containerName, Vector3 pos, List<ItemType> guaranteed)
         {
-            GameObject obj;
-            if (lootPrefab != null)
+            CityLootSpawner spawner = FindAnyObjectByType<CityLootSpawner>() ?? GetComponent<CityLootSpawner>();
+            if (spawner != null)
             {
-                obj = Instantiate(lootPrefab, pos, Quaternion.identity, parent);
-                obj.name = containerName;
+                return spawner.CreateLootContainerInstance(parent, containerName, pos, guaranteed, lootPrefab);
             }
-            else
-            {
-                obj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                obj.name = containerName;
-                obj.transform.SetParent(parent, false);
-                obj.transform.position = pos + new Vector3(0f, 0.35f, 0f);
-                obj.transform.localScale = new Vector3(0.8f, 0.7f, 0.8f);
-                BoxCollider bc = obj.GetComponent<BoxCollider>();
-                if (bc != null)
-                {
-                    bc.isTrigger = true;
-                    bc.size = new Vector3(2.4f, 2.2f, 2.4f);
-                }
-            }
-
-            obj.tag = "Interactable";
-            LootContainer lc = obj.GetComponent<LootContainer>();
-            if (lc == null) lc = obj.AddComponent<LootContainer>();
-            lc.itemsGarantizados = guaranteed;
-            lc.ConfigurarEfectoResplandor();
+            return null;
         }
 
         private void GenerarEnemigosFerales(CityRandom rng)
         {
-            if (enemyPrefabs == null || enemyPrefabs.Count == 0) return;
-
-            GameObject enemyRoot = new GameObject("SPAWNERS_ENEMIGOS");
-            enemyRoot.transform.SetParent(transform, false);
-
-            List<Vector3> candidatePoints = new List<Vector3>();
-            candidatePoints.AddRange(LoopCenterPoints);
-            candidatePoints.AddRange(IntersectionPoints);
-            candidatePoints.AddRange(DeadEndPoints);
-
-            List<Vector3> safeEnemySpawns = new List<Vector3>();
-            foreach (Vector3 pt in candidatePoints)
+            CityEnemyPopulationSpawner spawner = FindAnyObjectByType<CityEnemyPopulationSpawner>() ?? GetComponent<CityEnemyPopulationSpawner>();
+            if (spawner == null)
             {
-                if (Vector3.Distance(pt, PlayerSpawnPoint) >= minEnemyDistanceFromSpawn)
-                {
-                    safeEnemySpawns.Add(pt);
-                }
+                GameObject popMgr = GameObject.Find("CityPopulationManager");
+                if (popMgr == null) popMgr = new GameObject("CityPopulationManager");
+                spawner = popMgr.AddComponent<CityEnemyPopulationSpawner>();
             }
-
-            for (int i = 0; i < safeEnemySpawns.Count; i++)
-            {
-                int r = rng.Range(i, safeEnemySpawns.Count);
-                (safeEnemySpawns[i], safeEnemySpawns[r]) = (safeEnemySpawns[r], safeEnemySpawns[i]);
-            }
-
-            int countToSpawn = Mathf.Min(maxEnemiesToSpawn, safeEnemySpawns.Count);
-            for (int i = 0; i < countToSpawn; i++)
-            {
-                Vector3 spawnPos = safeEnemySpawns[i];
-                spawnPos.y = roadHeightY;
-
-                int prefabIdx = rng.Range(0, enemyPrefabs.Count);
-                GameObject chosenPrefab = enemyPrefabs[prefabIdx];
-                if (chosenPrefab != null)
-                {
-                    GameObject spawnerObj = new GameObject($"EnemySpawner_{i + 1}_{chosenPrefab.name}");
-                    spawnerObj.transform.SetParent(enemyRoot.transform, false);
-                    spawnerObj.transform.position = spawnPos;
-                    spawnerObj.transform.rotation = Quaternion.Euler(0, rng.Range(0, 360), 0);
-
-                    EnemySpawner spawner = spawnerObj.AddComponent<EnemySpawner>();
-                    spawner.enemyPrefab = chosenPrefab;
-                    spawner.spawnOnAwake = false;
-                    spawner.spawnOnlyAtNight = false;
-                    spawner.SpawnEnemy();
-
-                    EnemySpawnPoints.Add(spawnPos);
-                }
-            }
+            spawner.SpawnEnemies(this, rng);
         }
 
         [ContextMenu("Limpiar Ciudad")]
@@ -1081,6 +956,24 @@ namespace Prototipo3
                 {
                     DestroyImmediate(child.gameObject);
                 }
+            }
+
+            StoryWorldBinder binder = FindAnyObjectByType<StoryWorldBinder>();
+            if (binder != null)
+            {
+                binder.LimpiarArtefactos();
+            }
+
+            CityLootSpawner lootSpawner = FindAnyObjectByType<CityLootSpawner>();
+            if (lootSpawner != null)
+            {
+                lootSpawner.ClearLoot();
+            }
+
+            CityEnemyPopulationSpawner enemySpawner = FindAnyObjectByType<CityEnemyPopulationSpawner>();
+            if (enemySpawner != null)
+            {
+                enemySpawner.ClearEnemies();
             }
 
             if (!Application.isPlaying)

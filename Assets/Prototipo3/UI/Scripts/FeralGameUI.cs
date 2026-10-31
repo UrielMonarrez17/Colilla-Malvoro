@@ -22,7 +22,8 @@ namespace Prototipo3.UI
         public bool DialogueOpen => CurrentPage == Page.Dialogue;
 
         RectTransform hud, modal, content;
-        Text health, staminaText, clock, objective, guide, phase, interaction, radioBanner, status;
+        Text health, staminaText, clock, objective, guide, phase, interaction, radioBanner, status, lootFeedback;
+        float lootFeedbackExpiryTime;
         MenuBrushGraphic staminaFill, healthFill;
         Text[] trapAmounts = new Text[3];
         MenuBrushGraphic[] trapFrames = new MenuBrushGraphic[3];
@@ -84,6 +85,8 @@ namespace Prototipo3.UI
             CraftingTable.OnTrapCrafted += Crafted;
             TrapSystemPrototipo3.OnProto3TrapCrafted += Crafted;
             TrapSystemPrototipo3.OnProto3TrapDeployed += Crafted;
+            LootContainer.OnContainerLooted += HandleContainerLooted;
+            LootContainer.OnContainerAlreadyLooted += HandleContainerAlreadyLooted;
             SuppressLegacy();
         }
 
@@ -175,6 +178,12 @@ namespace Prototipo3.UI
                     Open(Page.Defeat);
                 }
             }
+
+            if (lootFeedback != null && lootFeedback.gameObject.activeSelf && Time.unscaledTime >= lootFeedbackExpiryTime)
+            {
+                lootFeedback.gameObject.SetActive(false);
+                lootFeedback.text = "";
+            }
         }
 
         public void Open(Page page)
@@ -239,8 +248,31 @@ namespace Prototipo3.UI
             CraftingTable.OnTrapCrafted -= Crafted;
             TrapSystemPrototipo3.OnProto3TrapCrafted -= Crafted;
             TrapSystemPrototipo3.OnProto3TrapDeployed -= Crafted;
+            LootContainer.OnContainerLooted -= HandleContainerLooted;
+            LootContainer.OnContainerAlreadyLooted -= HandleContainerAlreadyLooted;
             ReleasePause();
             if (Instance == this) Instance = null;
+        }
+
+        void HandleContainerLooted(LootContainer container, System.Collections.Generic.List<ItemType> items)
+        {
+            string summary = LootContainer.FormatLootSummary(items);
+            ShowLootFeedback($"Saqueado:  {summary}", 4f);
+        }
+
+        void HandleContainerAlreadyLooted(LootContainer container)
+        {
+            ShowLootFeedback("Este contenedor ya fue saqueado (Vacío)", 3f);
+        }
+
+        public void ShowLootFeedback(string msg, float duration)
+        {
+            if (lootFeedback != null)
+            {
+                lootFeedback.text = msg;
+                lootFeedback.gameObject.SetActive(true);
+                lootFeedbackExpiryTime = Time.unscaledTime + duration;
+            }
         }
 
         void CraftingToggled(CraftingTable source, bool opened)
@@ -319,6 +351,14 @@ namespace Prototipo3.UI
             interaction.rectTransform.anchoredPosition = new Vector2(0, 140);
             interaction.alignment = TextAnchor.MiddleCenter;
             interaction.gameObject.AddComponent<Shadow>().effectDistance = new Vector2(2, -2);
+
+            lootFeedback = FeralTheme.Label("LootFeedback", hud, "", 0, 0, 800, 50, 20);
+            lootFeedback.rectTransform.anchorMin = lootFeedback.rectTransform.anchorMax = lootFeedback.rectTransform.pivot = new Vector2(.5f, 0);
+            lootFeedback.rectTransform.anchoredPosition = new Vector2(0, 210);
+            lootFeedback.alignment = TextAnchor.MiddleCenter;
+            lootFeedback.color = FeralTheme.Gold;
+            lootFeedback.gameObject.AddComponent<Shadow>().effectDistance = new Vector2(2, -2);
+            lootFeedback.gameObject.SetActive(false);
         }
 
         static string Clean(string text) => System.Text.RegularExpressions.Regex.Replace(text ?? "", "<.*?>", "");
@@ -351,11 +391,15 @@ namespace Prototipo3.UI
                 {
                     interaction.text = !dualChar.IsCurrentlyFeral ? $"[ F ]  Hablar con {dualChar.displayName}" : $"¡{dualChar.displayName} está en modo FERAL!";
                 }
-                else if (target.GetComponent<LootContainer>() != null)
+                else if (target.GetComponentInParent<LuluNPCPrototipo3>() != null || target.GetComponentInParent<LuluNPC>() != null)
                 {
-                    interaction.text = "[ F ]  Buscar materiales y pistas";
+                    interaction.text = "[ F ]  Hablar con Lulú";
                 }
-                else if (target.GetComponent<PuertaTrampa>() != null)
+                else if (target.GetComponentInParent<LootContainer>() is LootContainer lc)
+                {
+                    interaction.text = lc.YaFueSaqueado ? "Contenedor ya saqueado (Vacío)" : "[ F ]  Buscar materiales y pistas";
+                }
+                else if (target.GetComponentInParent<PuertaTrampa>() != null)
                 {
                     interaction.text = "[ F ]  Colocar trampa";
                 }

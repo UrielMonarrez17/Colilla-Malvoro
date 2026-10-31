@@ -440,31 +440,31 @@ namespace Prototipo3
 
             if ((FeralInput.Pressed(KeyCode.F) || Input.GetKeyDown(KeyCode.F)) && currentInteractable != null)
             {
-                if (currentInteractable.TryGetComponent<DualRoleCharacter>(out DualRoleCharacter dualChar))
+                if (currentInteractable.GetComponentInParent<DualRoleCharacter>() is DualRoleCharacter dualChar)
                 {
                     dualChar.InteractWithCharacter();
                 }
-                else if (currentInteractable.TryGetComponent<StoryMechanismPrototipo3>(out StoryMechanismPrototipo3 mechanism))
+                else if (currentInteractable.GetComponentInParent<StoryMechanismPrototipo3>() is StoryMechanismPrototipo3 mechanism)
                 {
                     mechanism.Interact();
                 }
-                else if (currentInteractable.TryGetComponent<CraftingTable>(out CraftingTable craftingTable))
+                else if (currentInteractable.GetComponentInParent<CraftingTable>() is CraftingTable craftingTable)
                 {
                     craftingTable.ToggleCraftingMenu();
                 }
-                else if (currentInteractable.TryGetComponent<LootContainer>(out LootContainer lootContainer))
+                else if (currentInteractable.GetComponentInParent<LootContainer>() is LootContainer lootContainer)
                 {
                     lootContainer.InteractuarConLoot();
                 }
-                else if (currentInteractable.TryGetComponent<LuluNPCPrototipo3>(out LuluNPCPrototipo3 luluProto))
+                else if (currentInteractable.GetComponentInParent<LuluNPCPrototipo3>() is LuluNPCPrototipo3 luluProto)
                 {
                     luluProto.InteractuarConLulu();
                 }
-                else if (currentInteractable.TryGetComponent<LuluNPC>(out LuluNPC lulu))
+                else if (currentInteractable.GetComponentInParent<LuluNPC>() is LuluNPC lulu)
                 {
                     lulu.InteractuarConLulu();
                 }
-                else if (currentInteractable.TryGetComponent<PuertaTrampa>(out PuertaTrampa puerta))
+                else if (currentInteractable.GetComponentInParent<PuertaTrampa>() is PuertaTrampa puerta)
                 {
                     if (trampaSeleccionada == TipoTrampa.Ninguna) return;
 

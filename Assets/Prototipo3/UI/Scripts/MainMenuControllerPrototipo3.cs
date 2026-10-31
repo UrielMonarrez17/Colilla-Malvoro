@@ -207,9 +207,12 @@ namespace Prototipo3.UI
             if (isLoading) return;
             isLoading = true;
 
+            int randomSeed = UnityEngine.Random.Range(100000, 999999);
+            CityGeneratorPrototipo3.SetPendingSeed(randomSeed);
+
             if (status != null)
             {
-                status.text = "Iniciando Tutorial...";
+                status.text = $"Iniciando partida (Semilla {randomSeed})...";
             }
 
             if (InventoryManager.Instance != null)
@@ -219,21 +222,39 @@ namespace Prototipo3.UI
 
             PlayerPrefs.Save();
 
-            // Cargar escena de Tutorial
-            if (Application.CanStreamedLevelBeLoaded(tutorialSceneName))
+            // Cargar escena de destino
+            string sceneToLoad = null;
+            if (!string.IsNullOrEmpty(tutorialSceneName) && Application.CanStreamedLevelBeLoaded(tutorialSceneName))
             {
-                SceneManager.LoadScene(tutorialSceneName);
+                sceneToLoad = tutorialSceneName;
+            }
+            else if (Application.CanStreamedLevelBeLoaded("Prototipo3"))
+            {
+                sceneToLoad = "Prototipo3";
+            }
+            else if (Application.CanStreamedLevelBeLoaded("Assets/Prototipo3/Prototipo3.unity"))
+            {
+                sceneToLoad = "Assets/Prototipo3/Prototipo3.unity";
             }
             else if (Application.CanStreamedLevelBeLoaded("Tutorial"))
             {
-                SceneManager.LoadScene("Tutorial");
+                sceneToLoad = "Tutorial";
+            }
+            else if (SceneUtility.GetBuildIndexByScenePath("Assets/Prototipo3/Prototipo3.unity") >= 0)
+            {
+                sceneToLoad = "Assets/Prototipo3/Prototipo3.unity";
+            }
+
+            if (!string.IsNullOrEmpty(sceneToLoad))
+            {
+                SceneManager.LoadScene(sceneToLoad);
             }
             else
             {
                 isLoading = false;
                 ShowPage(1);
-                if (status != null) status.text = "No se encontró el tutorial. Agrégalo a las escenas del build.";
-                Debug.LogError("[MainMenuControllerPrototipo3] No se encontró la escena Tutorial en Build Settings.");
+                if (status != null) status.text = "No se encontró la escena destino. Agrégala a las escenas del build.";
+                Debug.LogError("[MainMenuControllerPrototipo3] No se encontró la escena Prototipo3/Tutorial en Build Settings.");
             }
         }
 
