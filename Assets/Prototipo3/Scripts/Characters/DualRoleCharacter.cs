@@ -616,7 +616,7 @@ namespace Prototipo3
                 case BossProfileType.Marco_Tejon:
                     return "¡ADVERTENCIA! Marco muestra síntomas de fiebre por el gas. Habla con él de día [F] y fabrica una herramienta antes de salir de noche.";
                 case BossProfileType.Morales_Buho:
-                    return "¡ADVERTENCIA DE JEFE! El Rector Morales tiene oído ultrasensible y es invencible sin el Señuelo Acústico [Tecla 1]. ¡Habla primero con Toby en la Escuela!";
+                    return "¡ADVERTENCIA DE JEFE! El Rector Morales tiene oído ultrasensible y es invencible sin el Señuelo Acústico [Tecla 1]. ¡Habla primero con Toby en su taller de robótica (Edificio Especial)!";
                 case BossProfileType.Sultan_Lobo:
                     return "¡ADVERTENCIA DE JEFE! Sultán 'Colmillo de Brasa' es letal en la noche. ¡Necesitas fabricar la Bomba de Polen [Tecla 2] y reparar los 3 postes reflectores!";
                 case BossProfileType.Clara_Cisne:

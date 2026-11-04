@@ -377,8 +377,14 @@ namespace Prototipo3
         {
             if (currentInteractable != null)
             {
+                Vector3 interactablePos = currentInteractable.transform.position;
+                if (currentInteractable.GetComponentInParent<SpecialBuildingEntrance>() is SpecialBuildingEntrance entrance && entrance.entranceSocket != null)
+                {
+                    interactablePos = entrance.entranceSocket.position;
+                }
+
                 if (!currentInteractable.activeInHierarchy ||
-                    Vector3.Distance(transform.position, currentInteractable.transform.position) > 4.2f)
+                    Vector3.Distance(transform.position, interactablePos) > 4.2f)
                 {
                     if (currentInteractable.TryGetComponent<CraftingTable>(out CraftingTable table))
                     {
@@ -419,6 +425,20 @@ namespace Prototipo3
                 }
             }
 
+            // 2.5. Entradas a Edificios Especiales
+            for (int i = 0; i < SpecialBuildingEntrance.ActiveEntrances.Count; i++)
+            {
+                SpecialBuildingEntrance ent = SpecialBuildingEntrance.ActiveEntrances[i];
+                if (ent == null || !ent.gameObject.activeInHierarchy) continue;
+                Vector3 entPos = ent.entranceSocket != null ? ent.entranceSocket.position : ent.transform.position;
+                float d = Vector3.Distance(transform.position, entPos);
+                if (d <= bestDist && d <= ent.interactionRadius)
+                {
+                    bestDist = d;
+                    bestCandidate = ent.gameObject;
+                }
+            }
+
             // 3. Colliders cercanos con tag Interactable o Door
             Collider[] nearby = Physics.OverlapSphere(transform.position, 3.4f, ~0, QueryTriggerInteraction.Collide);
             for (int i = 0; i < nearby.Length; i++)
@@ -451,7 +471,11 @@ namespace Prototipo3
 
             if ((FeralInput.Pressed(KeyCode.F) || Input.GetKeyDown(KeyCode.F)) && currentInteractable != null)
             {
-                if (currentInteractable.GetComponentInParent<DualRoleCharacter>() is DualRoleCharacter dualChar)
+                if (currentInteractable.GetComponentInParent<SpecialBuildingEntrance>() is SpecialBuildingEntrance entrance)
+                {
+                    entrance.Interact();
+                }
+                else if (currentInteractable.GetComponentInParent<DualRoleCharacter>() is DualRoleCharacter dualChar)
                 {
                     dualChar.InteractWithCharacter();
                 }

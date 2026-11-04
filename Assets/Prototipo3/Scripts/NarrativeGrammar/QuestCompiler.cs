@@ -91,8 +91,8 @@ namespace Prototipo3.Narrative
             }
             else if (storyNodeId.Contains("escuela") || act.argument.Contains("Toby"))
             {
-                targetNpc = WorldRegistry.Get("Escuela");
-                act.readableDescription = "Habla con Toby en el taller de la Escuela [F]";
+                targetNpc = WorldRegistry.Get("Toby") ?? WorldRegistry.Get("Escuela");
+                act.readableDescription = "Habla con Toby en su taller de robótica (Edificio Especial) [F]";
             }
             else if (storyNodeId.Contains("bosque") || act.argument.Contains("Moka") || act.argument.Contains("Sultan"))
             {

@@ -87,6 +87,12 @@ namespace Prototipo3
         public GameObject SpawnedTorre { get; private set; }
         public GameObject SpawnedMarco { get; private set; }
 
+        public List<GameObject> SpawnedSpecialBuildings { get; private set; } = new List<GameObject>();
+        public GameObject SpawnedTobyBuilding { get; private set; }
+        public Vector2Int TobyBuildingCell { get; private set; }
+        public Vector3 TobySpecialBuildingPosition { get; private set; }
+        public Vector3 TobySpecialBuildingEntrancePosition { get; private set; }
+
         private readonly Dictionary<string, Vector3> landmarkPositions = new Dictionary<string, Vector3>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Vector3> landmarkEntrancePositions = new Dictionary<string, Vector3>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Vector3> landmarkBossPositions = new Dictionary<string, Vector3>(StringComparer.OrdinalIgnoreCase);
@@ -213,10 +219,27 @@ namespace Prototipo3
             // 3. Colocar los 4 Edificios Importantes por Anclas de Distancia Manhattan desde BaseCell
             PlaceStoryLandmarkAnchors(grid, network, spawner, rng);
 
-            // 4. Especiales secundarios opcionales
+            // 4. Edificios Especiales y selección del Taller de Toby
+            EnsureStoryBuildingPrefabsLoaded();
+            EnsureSpecialBuildingsListReady();
+            SpawnedSpecialBuildings.Clear();
+            SpawnedTobyBuilding = null;
+
+            var specialPlacer = new SpecialBuildingPlacer(settings, rng, network, spawner);
             if (specialBuildings != null && specialBuildings.Count > 0)
             {
-                new SpecialBuildingPlacer(settings, rng, network, spawner).PlaceAll(specialBuildings);
+                specialPlacer.PlaceAll(specialBuildings);
+            }
+            SpawnedSpecialBuildings.AddRange(specialPlacer.PlacedInstances);
+
+            // Seleccionar y configurar el edificio especial asignado a Toby
+            try
+            {
+                SetupTobySpecialBuilding(grid, network, spawner, rng);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[CityGeneratorPrototipo3] Error configurando edificio especial de Toby: {ex}");
             }
 
             // 5. Relleno con edificios normales
@@ -695,7 +718,235 @@ namespace Prototipo3
                 prefabMarcoTejon = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/Boss_Marco_Tejon.prefab")
                     ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/NPC_Marco_Tejon.prefab");
             }
+
+            if (specialBuildings == null)
+            {
+                specialBuildings = new List<GameObject>();
+            }
+            if (specialBuildings.Count == 0)
+            {
+                GameObject sp = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/special_temp Variant.prefab")
+                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/specialBuildingPrefab.prefab");
+                if (sp != null)
+                {
+                    for (int i = 0; i < 5; i++)
+                    {
+                        specialBuildings.Add(sp);
+                    }
+                }
+            }
 #endif
+        }
+
+        private void EnsureSpecialBuildingsListReady()
+        {
+            if (specialBuildings == null) specialBuildings = new List<GameObject>();
+            specialBuildings.RemoveAll(b => b == null);
+            if (specialBuildings.Count == 0)
+            {
+#if UNITY_EDITOR
+                GameObject sp = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/special_temp Variant.prefab")
+                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/specialBuildingPrefab.prefab");
+                if (sp != null)
+                {
+                    for (int i = 0; i < 5; i++)
+                    {
+                        specialBuildings.Add(sp);
+                    }
+                }
+#endif
+            }
+        }
+
+        private void SetupTobySpecialBuilding(CityGrid grid, RoadNetwork network, BuildingSpawner spawner, CityRandom rng)
+        {
+            GameObject chosenBuilding = null;
+
+            // 1. Elegir entre los edificios especiales generados por SpecialBuildingPlacer
+            if (SpawnedSpecialBuildings.Count > 0)
+            {
+                float bestScore = float.MinValue;
+                for (int i = 0; i < SpawnedSpecialBuildings.Count; i++)
+                {
+                    GameObject b = SpawnedSpecialBuildings[i];
+                    if (b == null) continue;
+
+                    Vector2Int cell = new Vector2Int(
+                        Mathf.FloorToInt(b.transform.position.x / cellSize),
+                        Mathf.FloorToInt(b.transform.position.z / cellSize)
+                    );
+                    int dBase = ManhattanDistance(BaseCell, cell);
+                    int dEscuela = ManhattanDistance(EscuelaCell, cell);
+
+                    float score = 1000f;
+                    // Preferir anillo cercano/medio (4 a 8 celdas de la Base)
+                    if (dBase >= 4 && dBase <= 8)
+                    {
+                        score += 500f - Mathf.Abs(dBase - 5) * 40f;
+                    }
+                    else
+                    {
+                        score -= Mathf.Abs(dBase - 6) * 80f;
+                    }
+                    // Proximidad o afinidad al cuadrante de la Escuela
+                    score -= dEscuela * 15f;
+
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        chosenBuilding = b;
+                    }
+                }
+            }
+
+            // 2. Si no se generó ningún especial (por restricciones de espacio), colocación asistida de rescate
+            if (chosenBuilding == null)
+            {
+                chosenBuilding = RescuePlaceTobyBuilding(grid, network, spawner, rng);
+            }
+
+            SpawnedTobyBuilding = chosenBuilding;
+
+            if (SpawnedTobyBuilding != null)
+            {
+                SpawnedTobyBuilding.name = "SpecialBuilding_TallerToby";
+                TobyBuildingCell = new Vector2Int(
+                    Mathf.FloorToInt(SpawnedTobyBuilding.transform.position.x / cellSize),
+                    Mathf.FloorToInt(SpawnedTobyBuilding.transform.position.z / cellSize)
+                );
+                TobySpecialBuildingPosition = SpawnedTobyBuilding.transform.position;
+
+                // Determinar posición de fachada/entrada (frontSocket o calle adyacente)
+                CitySocket socket = BuildingSpawner.GetSocket(SpawnedTobyBuilding);
+                Transform entranceSocketTrans = null;
+                Vector3 entrancePos;
+
+                if (socket != null && socket.frontSocket != null)
+                {
+                    entranceSocketTrans = socket.frontSocket;
+                    entrancePos = socket.frontSocket.position;
+                    entrancePos.y = roadHeightY;
+                }
+                else
+                {
+                    Vector2Int entranceCell = TobyBuildingCell;
+                    for (int d = 0; d < 4; d++)
+                    {
+                        Vector2Int n = TobyBuildingCell + CityGrid.Directions[d];
+                        if (grid.IsRoad(n))
+                        {
+                            entranceCell = n;
+                            break;
+                        }
+                    }
+                    entrancePos = CellToWorldCenter(entranceCell);
+                }
+
+                TobySpecialBuildingEntrancePosition = entrancePos;
+
+                // Registrar en diccionarios de puntos cardinales
+                landmarkPositions["Toby"] = TobySpecialBuildingPosition;
+                landmarkPositions["TallerToby"] = TobySpecialBuildingPosition;
+                landmarkPositions["Taller_Toby"] = TobySpecialBuildingPosition;
+                landmarkEntrancePositions["Toby"] = TobySpecialBuildingEntrancePosition;
+                landmarkEntrancePositions["TallerToby"] = TobySpecialBuildingEntrancePosition;
+                landmarkEntrancePositions["Taller_Toby"] = TobySpecialBuildingEntrancePosition;
+                landmarkBossPositions["Toby"] = TobySpecialBuildingEntrancePosition;
+
+                // Registrar en WorldRegistry
+                WorldRegistry.Register("Toby", SpawnedTobyBuilding.transform);
+                WorldRegistry.Register("TallerToby", SpawnedTobyBuilding.transform);
+                WorldRegistry.Register("SpecialBuilding_TallerToby", SpawnedTobyBuilding.transform);
+
+                // Configurar componente de entrada para el taller de Toby
+                SpecialBuildingEntrance entrance = SpawnedTobyBuilding.GetComponent<SpecialBuildingEntrance>();
+                if (entrance == null)
+                {
+                    entrance = SpawnedTobyBuilding.AddComponent<SpecialBuildingEntrance>();
+                }
+                entrance.Configure("TallerToby", "Taller de Robótica de Toby", "TallerToby_Interior", entranceSocketTrans != null ? entranceSocketTrans : SpawnedTobyBuilding.transform);
+            }
+
+            // Configurar entradas en los demás edificios especiales para homogeneidad
+            for (int i = 0; i < SpawnedSpecialBuildings.Count; i++)
+            {
+                GameObject sb = SpawnedSpecialBuildings[i];
+                if (sb == null || sb == SpawnedTobyBuilding) continue;
+
+                sb.name = $"SpecialBuilding_{i + 1}";
+                SpecialBuildingEntrance sbEnt = sb.GetComponent<SpecialBuildingEntrance>();
+                if (sbEnt == null)
+                {
+                    sbEnt = sb.AddComponent<SpecialBuildingEntrance>();
+                }
+                CitySocket sbSock = BuildingSpawner.GetSocket(sb);
+                Transform sockT = (sbSock != null && sbSock.frontSocket != null) ? sbSock.frontSocket : sb.transform;
+                sbEnt.Configure($"EdificioEspecial_{i + 1}", $"Edificio Especial #{i + 1}", "", sockT);
+            }
+        }
+
+        private GameObject RescuePlaceTobyBuilding(CityGrid grid, RoadNetwork network, BuildingSpawner spawner, CityRandom rng)
+        {
+            GameObject prefab = (specialBuildings != null && specialBuildings.Count > 0 && specialBuildings[0] != null)
+                ? specialBuildings[0]
+                : null;
+
+#if UNITY_EDITOR
+            if (prefab == null)
+            {
+                prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/special_temp Variant.prefab")
+                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/specialBuildingPrefab.prefab");
+            }
+#endif
+            if (prefab == null)
+            {
+                return CreateFallbackSimplePolyBuilding("Toby", CellToWorldCenter(BaseCell + new Vector2Int(4, 0)));
+            }
+
+            BuildingData data = BuildingSpawner.GetData(prefab);
+            List<Vector2Int> candidates = new List<Vector2Int>();
+
+            for (int x = 2; x < grid.Width - 2; x++)
+            {
+                for (int y = 2; y < grid.Length - 2; y++)
+                {
+                    Vector2Int c = new Vector2Int(x, y);
+                    int dM = ManhattanDistance(BaseCell, c);
+                    if (dM >= 4 && dM <= 7 && grid.CanPlaceFootprint(c.x, c.y, data.gridWidth, data.gridLength))
+                    {
+                        candidates.Add(c);
+                    }
+                }
+            }
+
+            candidates.Sort((a, b) =>
+            {
+                int scoreA = grid.RoadNeighborCount(a) * 100 - ManhattanDistance(EscuelaCell, a);
+                int scoreB = grid.RoadNeighborCount(b) * 100 - ManhattanDistance(EscuelaCell, b);
+                return scoreB.CompareTo(scoreA);
+            });
+
+            Vector2Int chosen = candidates.Count > 0 ? candidates[0] : (BaseCell + new Vector2Int(4, 0));
+            GameObject go = spawner.Spawn(prefab, chosen.x, chosen.y, data);
+            grid.MarkFootprint(chosen.x, chosen.y, data.gridWidth, data.gridLength, CellType.SpecialBuilding);
+
+            CitySocket socket = BuildingSpawner.GetSocket(go);
+            if (socket != null)
+            {
+                for (int r = 0; r < 4; r++)
+                {
+                    Vector2Int entrance = spawner.GetFrontCell(socket);
+                    if (network.TryConnectToMain(entrance, settings.maxAccessPathLength)) break;
+                    go.transform.Rotate(0f, 90f, 0f);
+                }
+            }
+            else
+            {
+                EnsureAdjacentRoadConnection(chosen, grid, network);
+            }
+
+            SpawnedSpecialBuildings.Add(go);
+            return go;
         }
 
         public Vector3 CellToWorldCenter(Vector2Int cell)
@@ -708,6 +959,8 @@ namespace Prototipo3
             if (string.IsNullOrEmpty(locationId)) return PlayerSpawnPoint;
             if (landmarkPositions.TryGetValue(locationId, out Vector3 pos)) return pos;
 
+            if (locationId.IndexOf("Toby", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Toby", out pos)) return pos;
+            if (locationId.IndexOf("Taller", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("TallerToby", out pos)) return pos;
             if (locationId.IndexOf("Escuela", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Escuela", out pos)) return pos;
             if (locationId.IndexOf("Bosque", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Bosque", out pos)) return pos;
             if (locationId.IndexOf("Hospital", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Hospital", out pos)) return pos;
@@ -717,13 +970,15 @@ namespace Prototipo3
         }
 
         /// <summary>
-        /// Devuelve la posición de la celda de entrada transitable en la calle frente al edificio de historia.
+        /// Devuelve la posición de la celda de entrada transitable en la calle frente al edificio de historia o especial.
         /// </summary>
         public Vector3 GetLandmarkEntrancePosition(string locationId)
         {
             if (string.IsNullOrEmpty(locationId)) return PlayerSpawnPoint;
             if (landmarkEntrancePositions.TryGetValue(locationId, out Vector3 pos)) return pos;
 
+            if (locationId.IndexOf("Toby", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Toby", out pos)) return pos;
+            if (locationId.IndexOf("Taller", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("TallerToby", out pos)) return pos;
             if (locationId.IndexOf("Escuela", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Escuela", out pos)) return pos;
             if (locationId.IndexOf("Bosque", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Bosque", out pos)) return pos;
             if (locationId.IndexOf("Hospital", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Hospital", out pos)) return pos;
@@ -741,6 +996,8 @@ namespace Prototipo3
             if (string.IsNullOrEmpty(locationId)) return PlayerSpawnPoint;
             if (landmarkBossPositions.TryGetValue(locationId, out Vector3 pos)) return pos;
 
+            if (locationId.IndexOf("Toby", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("Toby", out pos)) return pos;
+            if (locationId.IndexOf("Taller", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("TallerToby", out pos)) return pos;
             if (locationId.IndexOf("Escuela", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("Escuela", out pos)) return pos;
             if (locationId.IndexOf("Bosque", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("Bosque", out pos)) return pos;
             if (locationId.IndexOf("Hospital", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("Hospital", out pos)) return pos;
@@ -1165,7 +1422,8 @@ namespace Prototipo3
 
         private void GenerarLootEnSockets(CityGrid grid, CityRandom rng)
         {
-            CityLootSpawner spawner = FindAnyObjectByType<CityLootSpawner>() ?? GetComponent<CityLootSpawner>();
+            CityLootSpawner spawner = FindAnyObjectByType<CityLootSpawner>();
+            if (spawner == null) spawner = GetComponent<CityLootSpawner>();
             if (spawner == null)
             {
                 GameObject popMgr = GameObject.Find("CityPopulationManager");
@@ -1177,7 +1435,8 @@ namespace Prototipo3
 
         public GameObject CreateLootContainerInstance(Transform parent, string containerName, Vector3 pos, List<ItemType> guaranteed)
         {
-            CityLootSpawner spawner = FindAnyObjectByType<CityLootSpawner>() ?? GetComponent<CityLootSpawner>();
+            CityLootSpawner spawner = FindAnyObjectByType<CityLootSpawner>();
+            if (spawner == null) spawner = GetComponent<CityLootSpawner>();
             if (spawner != null)
             {
                 return spawner.CreateLootContainerInstance(parent, containerName, pos, guaranteed, lootPrefab);
@@ -1187,7 +1446,8 @@ namespace Prototipo3
 
         private void GenerarEnemigosFerales(CityRandom rng)
         {
-            CityEnemyPopulationSpawner spawner = FindAnyObjectByType<CityEnemyPopulationSpawner>() ?? GetComponent<CityEnemyPopulationSpawner>();
+            CityEnemyPopulationSpawner spawner = FindAnyObjectByType<CityEnemyPopulationSpawner>();
+            if (spawner == null) spawner = GetComponent<CityEnemyPopulationSpawner>();
             if (spawner == null)
             {
                 GameObject popMgr = GameObject.Find("CityPopulationManager");
@@ -1208,6 +1468,8 @@ namespace Prototipo3
             landmarkPositions.Clear();
             landmarkEntrancePositions.Clear();
             landmarkBossPositions.Clear();
+            SpawnedSpecialBuildings.Clear();
+            SpawnedTobyBuilding = null;
             WorldRegistry.Clear();
 
             for (int i = transform.childCount - 1; i >= 0; i--)

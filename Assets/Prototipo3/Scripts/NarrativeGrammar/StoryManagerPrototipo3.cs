@@ -250,7 +250,18 @@ namespace Prototipo3
                     hasReachedSchool = true;
                     CompleteNodeAndUnlockChildren("node_a1_escuela");
                     EmitRadioTransmission("Dra. Elena Vargas [Radio]",
-                        "Estás frente a la Escuela Secundaria Bellavista. Busca a Toby el Mapache en el taller de robótica; él sabe cómo distraer los oídos del Rector Morales.");
+                        "Estás frente a la Escuela Secundaria Bellavista. Busca a Toby el Mapache en su taller de robótica (Edificio Especial); él sabe cómo distraer los oídos del Rector Morales.");
+                }
+            }
+
+            // Verificar proximidad al Taller de Robótica de Toby (Edificio Especial)
+            StoryNode nodeA2 = currentGraph.GetNode("node_a2_toby");
+            if (nodeA2 != null && (nodeA2.state == StoryNodeState.Active || hasReachedSchool))
+            {
+                Vector3 tobyPos = cityGen.GetLandmarkPosition("Toby");
+                if (Vector3.Distance(player.position, tobyPos) <= 13.5f)
+                {
+                    NotifyProximityToLandmark("Toby");
                 }
             }
 
@@ -1214,18 +1225,40 @@ namespace Prototipo3
             }
         }
 
+        private readonly HashSet<string> visitedProximityLandmarks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        public void NotifyProximityToLandmark(string landmarkId)
+        {
+            if (string.IsNullOrEmpty(landmarkId)) return;
+            if (visitedProximityLandmarks.Contains(landmarkId)) return;
+            visitedProximityLandmarks.Add(landmarkId);
+
+            if (landmarkId.IndexOf("Toby", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                landmarkId.IndexOf("Taller", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                EmitRadioTransmission("Dra. Elena Vargas [Radio]",
+                    "Has llegado al taller de robótica de Toby (Edificio Especial). Habla con él con [F] para aprender sobre el Señuelo Acústico.");
+            }
+            else if (landmarkId.IndexOf("Escuela", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                EmitRadioTransmission("Dra. Elena Vargas [Radio]",
+                    "Estás frente a la Escuela Secundaria Bellavista. Cuidado con el Rector Morales de día y el perro guardián.");
+            }
+        }
+
         public void InteractuarConLulu(LuluNPCPrototipo3 luluNpc = null)
         {
             if (Prototipo3.UI.FeralGameUI.BlocksGameplay) return;
             CityGeneratorPrototipo3 cityGen = CityGeneratorPrototipo3.Instance;
             if (cityGen != null)
             {
+                string dirToby = cityGen.GetCardinalDirectionFromPlayer("Toby");
                 string dirEsc = cityGen.GetCardinalDirectionFromPlayer("Escuela");
                 string dirBos = cityGen.GetCardinalDirectionFromPlayer("Bosque");
                 string dirHos = cityGen.GetCardinalDirectionFromPlayer("Hospital");
                 string dirTor = cityGen.GetCardinalDirectionFromPlayer("Torre");
                 OnDialogueTriggered?.Invoke("Lulú (Informante)",
-                    $"\"¡Hola, Kilo! Según mis notas: la Escuela Bellavista queda al {dirEsc}, el Bosque Ceniza al {dirBos}, el Hospital San Judas al {dirHos} y la Torre Aethelgard al {dirTor}.\"");
+                    $"\"¡Hola, Kilo! Según mis notas: el taller de Toby queda al {dirToby}, la Escuela Bellavista al {dirEsc}, el Bosque Ceniza al {dirBos}, el Hospital San Judas al {dirHos} y la Torre Aethelgard al {dirTor}.\"");
             }
             else
             {

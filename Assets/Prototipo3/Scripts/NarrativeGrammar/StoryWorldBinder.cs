@@ -65,23 +65,45 @@ namespace Prototipo3
                 "¡Kilo, perdóname! Anoche el humo me cegó de furia... Escuché que en la Escuela Bellavista y en el Bosque Ceniza buscan una forma de filtrar esta toxina."
             );
 
-            // 2. ANILLO CERCANO: Escuela Secundaria Bellavista
-            Transform escuelaRoot = cityGen.SpawnedEscuela != null ? cityGen.SpawnedEscuela.transform : cityGen.transform;
-            Vector3 escEntrance = cityGen.GetLandmarkEntrancePosition("Escuela");
-            Vector3 escBoss = cityGen.GetLandmarkBossPosition("Escuela");
+            // 1.5. EDIFICIO ESPECIAL: Taller de Robótica de Toby
+            Transform tobyRoot = cityGen.SpawnedTobyBuilding != null ? cityGen.SpawnedTobyBuilding.transform : cityGen.transform;
+            Vector3 tobyEntrance = cityGen.GetLandmarkEntrancePosition("Toby");
+            Vector3 tobyPos = tobyEntrance;
+            if (cityGen.SpawnedTobyBuilding != null)
+            {
+                // Situar ligeramente a un lado de la entrada para dejar el paso despejado hacia la puerta
+                Vector3 right = cityGen.SpawnedTobyBuilding.transform.right;
+                Vector3 fwd = cityGen.SpawnedTobyBuilding.transform.forward;
+                tobyPos = tobyEntrance + right * 1.6f + fwd * 0.4f;
+            }
 
-            EnsureCharacterExists(
+            DualRoleCharacter tobyChar = EnsureCharacterExists(
                 "Toby",
                 "Toby",
                 "Mapache • Taller de Robótica",
                 CharacterRoleType.PureAlly,
                 BossProfileType.None,
-                escEntrance + new Vector3(-1.8f, 0f, 0.5f),
-                escuelaRoot,
+                tobyPos,
+                tobyRoot,
                 new Color(0.45f, 0.48f, 0.52f),
-                "¡Kilo! El Rector H. Morales tiene el oído de un búho real: si corres con [Shift] sin agacharte [C] te detectará de inmediato. Usa el Señuelo Acústico [Tecla 1] para distraerlo y espía su oficina antes de entrar al Laboratorio de Química.",
+                "¡Kilo! Bienvenido a mi taller de robótica. El Rector H. Morales tiene el oído de un búho real: si corres con [Shift] sin agacharte [C] te detectará de inmediato. Usa el Señuelo Acústico [Tecla 1] para distraerlo y espía su oficina antes de entrar al Laboratorio de Química de la Escuela Bellavista.",
                 ""
             );
+
+            if (cityGen.SpawnedTobyBuilding != null)
+            {
+                tobyChar.transform.rotation = Quaternion.LookRotation(cityGen.SpawnedTobyBuilding.transform.forward);
+                SpecialBuildingEntrance entranceComp = cityGen.SpawnedTobyBuilding.GetComponent<SpecialBuildingEntrance>();
+                if (entranceComp != null)
+                {
+                    entranceComp.residentNPC = tobyChar;
+                }
+            }
+
+            // 2. ANILLO CERCANO: Escuela Secundaria Bellavista
+            Transform escuelaRoot = cityGen.SpawnedEscuela != null ? cityGen.SpawnedEscuela.transform : cityGen.transform;
+            Vector3 escEntrance = cityGen.GetLandmarkEntrancePosition("Escuela");
+            Vector3 escBoss = cityGen.GetLandmarkBossPosition("Escuela");
 
             EnsureCharacterExists(
                 "PerroGuardian",

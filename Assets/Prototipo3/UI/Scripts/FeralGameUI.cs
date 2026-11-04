@@ -379,6 +379,10 @@ namespace Prototipo3.UI
                 {
                     interaction.text = "";
                 }
+                else if (target.GetComponentInParent<SpecialBuildingEntrance>() is SpecialBuildingEntrance entrance)
+                {
+                    interaction.text = $"[ F ]  Puerta: {entrance.buildingDisplayName}";
+                }
                 else if (target.GetComponentInParent<CraftingTable>() != null)
                 {
                     interaction.text = "[ F ]  Usar mesa de fabricación";

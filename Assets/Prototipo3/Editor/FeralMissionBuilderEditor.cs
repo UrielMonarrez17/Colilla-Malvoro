@@ -572,6 +572,24 @@ namespace Prototipo3.Editor
                 cityGen.prefabTorreAethelgard = prefabTorre;
                 cityGen.prefabMarcoTejon = prefabMarco;
 
+                if (cityGen.specialBuildings == null)
+                {
+                    cityGen.specialBuildings = new System.Collections.Generic.List<GameObject>();
+                }
+                cityGen.specialBuildings.RemoveAll(b => b == null);
+                if (cityGen.specialBuildings.Count == 0)
+                {
+                    GameObject specialPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/special_temp Variant.prefab")
+                        ?? AssetDatabase.LoadAssetAtPath<GameObject>("Assets/specialBuildingPrefab.prefab");
+                    if (specialPrefab != null)
+                    {
+                        for (int i = 0; i < 5; i++)
+                        {
+                            cityGen.specialBuildings.Add(specialPrefab);
+                        }
+                    }
+                }
+
                 // Limpiar hijos residuales guardados en modo edición dentro de cityManager
                 for (int i = cityGen.transform.childCount - 1; i >= 0; i--)
                 {
