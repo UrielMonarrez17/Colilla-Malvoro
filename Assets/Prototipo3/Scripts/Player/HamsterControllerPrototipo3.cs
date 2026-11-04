@@ -244,6 +244,11 @@ namespace Prototipo3
         private void HandleStealthAndSpeedManagementProto()
         {
             bool crouching = FeralInput.Held(KeyCode.C);
+            if (FeralInput.Pressed(KeyCode.C))
+            {
+                Prototipo3.Narrative.QuestCompiler.Instance?.AdvanceActionIfMatches("agacharse_sigilo");
+                Prototipo3.Narrative.QuestCompiler.Instance?.AdvanceActionIfMatches("espiar_rutina");
+            }
             isCrouching = crouching;
             if (crouching)
             {
@@ -261,6 +266,7 @@ namespace Prototipo3
 
             if (isTryingToSprint)
             {
+                Prototipo3.Narrative.QuestCompiler.Instance?.AdvanceActionIfMatches("correr_estamina");
                 currentBaseSpeed = sprintSpeed;
                 currentStamina -= staminaDrainRate * Time.deltaTime;
             }
@@ -326,6 +332,11 @@ namespace Prototipo3
             isDashing = true;
             nextDashTime = Time.time + dashCooldown;
             InvokeOnDashUsed();
+            if (Prototipo3.Narrative.QuestCompiler.Instance != null)
+            {
+                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("dash_escape");
+                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("romper_linea_vision");
+            }
 
             Vector3 dashDir = moveInput != Vector3.zero ? moveInput : transform.forward;
 

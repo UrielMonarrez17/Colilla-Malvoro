@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace Prototipo3
 {
@@ -32,19 +33,21 @@ namespace Prototipo3
 
         private void Awake()
         {
-            if (Instance != null && Instance != this)
-            {
-                Destroy(gameObject);
-                return;
-            }
-            Instance = this;
+            if (Instance == null) Instance = this;
+            else if (Instance != this && Application.isPlaying) Destroy(gameObject);
+        }
+
+        private void OnEnable()
+        {
+            if (Instance == null) Instance = this;
         }
 
         public static TrapSystemPrototipo3 EnsureInstance()
         {
             if (Instance != null) return Instance;
             GameObject go = new GameObject("TrapSystemPrototipo3");
-            return go.AddComponent<TrapSystemPrototipo3>();
+            Instance = go.AddComponent<TrapSystemPrototipo3>();
+            return Instance;
         }
 
         private void Update()
@@ -78,9 +81,9 @@ namespace Prototipo3
         {
             switch (t)
             {
-                case TipoTrampa.Puas: return "Señuelo Acústico";
-                case TipoTrampa.Red: return "Bomba de Polen";
-                case TipoTrampa.Madera: return "Descargador Estático";
+                case TipoTrampa.Puas: return "Trampa de Púas";
+                case TipoTrampa.Red: return "Trampa de Red";
+                case TipoTrampa.Madera: return "Trampa de Madera (Barricada)";
                 default: return "Ninguna";
             }
         }
@@ -89,9 +92,9 @@ namespace Prototipo3
         {
             switch (t)
             {
-                case TipoTrampa.Puas: return "2 Metal + 1 Desperdicios";
-                case TipoTrampa.Red: return "2 Semillas + 1 Madera";
-                case TipoTrampa.Madera: return "2 Goma + 1 Metal + 1 Madera";
+                case TipoTrampa.Puas: return "2 Metal + 1 Madera";
+                case TipoTrampa.Red: return "1 Goma + 1 Desperdicios";
+                case TipoTrampa.Madera: return "2 Madera";
                 default: return "";
             }
         }
@@ -101,11 +104,11 @@ namespace Prototipo3
             switch (t)
             {
                 case TipoTrampa.Puas:
-                    return "Tecla [1]: Emite ondas sonoras durante 8 s y obliga a los enemigos en un radio de 18 m a investigar ese punto.";
+                    return "Tecla [1]: Reduce al 50% la velocidad enemiga por 6 s con chispas eléctricas y sobrecarga paneles de arena.";
                 case TipoTrampa.Red:
-                    return "Tecla [2]: Nube de polen verde durante 15 s que anula el olfato enemigo y reduce a la mitad su distancia visual.";
+                    return "Tecla [2]: Red en el suelo que inmoviliza al enemigo por 5 s y anula su olfato / detección de proximidad.";
                 case TipoTrampa.Madera:
-                    return "Tecla [3]: Paraliza por 5 s al enemigo más cercano en 8 m y sobrecarga mecanismos eléctricos críticos.";
+                    return "Tecla [3]: Barricada física por 10 s con NavMeshObstacle que bloquea pasillos y fuerza el recálculo de ruta del enemigo.";
                 default:
                     return "";
             }
@@ -119,16 +122,19 @@ namespace Prototipo3
             switch (t)
             {
                 case TipoTrampa.Puas:
-                    // Costo: 2 Metal + 1 Desperdicios
-                    return inv.HasEnoughItem(ItemType.Metal, 2) && inv.HasEnoughItem(ItemType.Desperdicios, 1);
+                    // Costo principal: 2 Metal + 1 Madera (con fallback a 1 Desperdicios si tiene receta antigua)
+                    return (inv.HasEnoughItem(ItemType.Metal, 2) && inv.HasEnoughItem(ItemType.Madera, 1)) ||
+                           (inv.HasEnoughItem(ItemType.Metal, 2) && inv.HasEnoughItem(ItemType.Desperdicios, 1));
 
                 case TipoTrampa.Red:
-                    // Costo: 2 Semillas + 1 Madera
-                    return inv.HasEnoughItem(ItemType.Semillas, 2) && inv.HasEnoughItem(ItemType.Madera, 1);
+                    // Costo principal: 1 Goma + 1 Desperdicios (con soporte adicional a 2 Semillas + 1 Madera)
+                    return (inv.HasEnoughItem(ItemType.Goma, 1) && inv.HasEnoughItem(ItemType.Desperdicios, 1)) ||
+                           (inv.HasEnoughItem(ItemType.Semillas, 2) && inv.HasEnoughItem(ItemType.Madera, 1));
 
                 case TipoTrampa.Madera:
-                    // Costo: 2 Goma + 1 Metal + 1 Madera
-                    return inv.HasEnoughItem(ItemType.Goma, 2) && inv.HasEnoughItem(ItemType.Metal, 1) && inv.HasEnoughItem(ItemType.Madera, 1);
+                    // Costo principal: 2 Madera
+                    return inv.HasEnoughItem(ItemType.Madera, 2) ||
+                           (inv.HasEnoughItem(ItemType.Goma, 2) && inv.HasEnoughItem(ItemType.Metal, 1) && inv.HasEnoughItem(ItemType.Madera, 1));
 
                 default:
                     return false;
@@ -147,27 +153,57 @@ namespace Prototipo3
             switch (t)
             {
                 case TipoTrampa.Puas:
-                    inv.RemoveItem(ItemType.Metal, 2);
-                    inv.RemoveItem(ItemType.Desperdicios, 1);
+                    if (inv.HasEnoughItem(ItemType.Metal, 2) && inv.HasEnoughItem(ItemType.Madera, 1))
+                    {
+                        inv.RemoveItem(ItemType.Metal, 2);
+                        inv.RemoveItem(ItemType.Madera, 1);
+                    }
+                    else
+                    {
+                        inv.RemoveItem(ItemType.Metal, 2);
+                        inv.RemoveItem(ItemType.Desperdicios, 1);
+                    }
                     inv.AddTrampa(TipoTrampa.Puas);
                     break;
 
                 case TipoTrampa.Red:
-                    inv.RemoveItem(ItemType.Semillas, 2);
-                    inv.RemoveItem(ItemType.Madera, 1);
+                    if (inv.HasEnoughItem(ItemType.Goma, 1) && inv.HasEnoughItem(ItemType.Desperdicios, 1))
+                    {
+                        inv.RemoveItem(ItemType.Goma, 1);
+                        inv.RemoveItem(ItemType.Desperdicios, 1);
+                    }
+                    else
+                    {
+                        inv.RemoveItem(ItemType.Semillas, 2);
+                        inv.RemoveItem(ItemType.Madera, 1);
+                    }
                     inv.AddTrampa(TipoTrampa.Red);
                     break;
 
                 case TipoTrampa.Madera:
-                    inv.RemoveItem(ItemType.Goma, 2);
-                    inv.RemoveItem(ItemType.Metal, 1);
-                    inv.RemoveItem(ItemType.Madera, 1);
+                    if (inv.HasEnoughItem(ItemType.Madera, 2))
+                    {
+                        inv.RemoveItem(ItemType.Madera, 2);
+                    }
+                    else
+                    {
+                        inv.RemoveItem(ItemType.Goma, 2);
+                        inv.RemoveItem(ItemType.Metal, 1);
+                        inv.RemoveItem(ItemType.Madera, 1);
+                    }
                     inv.AddTrampa(TipoTrampa.Madera);
                     break;
             }
 
             Debug.Log($"[TrapSystemPrototipo3] ¡Fabricado con éxito: {GetTrapDisplayName(t)}!");
             OnProto3TrapCrafted?.Invoke(t);
+
+            if (Prototipo3.Narrative.QuestCompiler.Instance != null)
+            {
+                string actionName = t == TipoTrampa.Madera ? "fabricar_trampa_madera" : (t == TipoTrampa.Red ? "fabricar_trampa_red" : "fabricar_trampa_puas");
+                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches(actionName);
+            }
+
             return true;
         }
 
@@ -192,20 +228,130 @@ namespace Prototipo3
             switch (tipo)
             {
                 case TipoTrampa.Puas:
-                    DeployAcousticDecoy(playerTransform);
+                    DeploySpikesTrap(playerTransform);
                     break;
 
                 case TipoTrampa.Red:
-                    DeployPollenBomb(playerTransform);
+                    DeployNetTrap(playerTransform);
                     break;
 
                 case TipoTrampa.Madera:
-                    DeployStaticDischarger(playerTransform);
+                    DeployWoodBarricade(playerTransform);
                     break;
             }
 
             OnProto3TrapDeployed?.Invoke(tipo);
+
+            if (Prototipo3.Narrative.QuestCompiler.Instance != null)
+            {
+                string actionName = tipo == TipoTrampa.Madera ? "colocar_trampa_madera" : (tipo == TipoTrampa.Red ? "colocar_trampa_red" : "colocar_trampa_puas");
+                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches(actionName);
+            }
+
             return true;
+        }
+
+        // ===================================================================================
+        //  LÓGICA FÍSICA Y EFECTOS TÁCTICOS DE LAS 3 TRAMPAS
+        // ===================================================================================
+
+        public void DeployWoodBarricade(Transform playerTransform)
+        {
+            Vector3 spawnPos = playerTransform.position + playerTransform.forward * 1.5f;
+            if (CityGeneratorPrototipo3.Instance != null)
+            {
+                spawnPos.y = CityGeneratorPrototipo3.Instance.roadHeightY + 0.5f;
+            }
+
+            GameObject barricade = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            barricade.name = "Barricada_Madera_Activa_10s";
+            barricade.transform.position = spawnPos;
+            barricade.transform.rotation = playerTransform.rotation;
+            barricade.transform.localScale = new Vector3(2.4f, 1.2f, 0.45f);
+
+            Renderer r = barricade.GetComponent<Renderer>();
+            if (r != null)
+            {
+                Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard") ?? Shader.Find("Sprites/Default");
+                Material m = new Material(sh) { color = new Color(0.48f, 0.28f, 0.12f) };
+                r.material = m;
+            }
+
+            NavMeshObstacle obstacle = barricade.AddComponent<NavMeshObstacle>();
+            obstacle.shape = NavMeshObstacleShape.Box;
+            obstacle.size = new Vector3(2.4f, 1.2f, 0.45f);
+            obstacle.carving = true;
+            obstacle.carveOnlyStationary = false;
+
+            // Recalcular ruta de todos los enemigos cercanos (radio 14m)
+            EnemyAIPrototipo3[] enemies = FindObjectsByType<EnemyAIPrototipo3>(FindObjectsSortMode.None);
+            for (int i = 0; i < enemies.Length; i++)
+            {
+                EnemyAIPrototipo3 e = enemies[i];
+                if (e != null && e.isActiveAndEnabled && Vector3.Distance(spawnPos, e.transform.position) <= 14f)
+                {
+                    e.ApplyWoodBarricadeRepath(spawnPos, 10f);
+                }
+            }
+
+            // Destruir la barricada tras 10 segundos
+            Destroy(barricade, 10f);
+            Debug.Log("[TrapSystemPrototipo3] ¡TRAMPA DE MADERA desplegada! Barricada física activa con NavMeshObstacle durante 10 s.");
+        }
+
+        public void DeployNetTrap(Transform playerTransform)
+        {
+            Vector3 center = playerTransform.position;
+            float radius = 8f;
+
+            // 1. Inmovilizar por 5s y apagar detección extrema a los enemigos cercanos
+            EnemyAIPrototipo3[] enemies = FindObjectsByType<EnemyAIPrototipo3>(FindObjectsSortMode.None);
+            for (int i = 0; i < enemies.Length; i++)
+            {
+                EnemyAIPrototipo3 e = enemies[i];
+                if (e != null && e.isActiveAndEnabled && Vector3.Distance(center, e.transform.position) <= radius)
+                {
+                    e.ApplyNetImmobilization(5f);
+                    Debug.Log($"[TrapSystemPrototipo3] ¡TRAMPA DE RED inmovilizó a {e.name} por 5 segundos y anuló su proximidad extrema!");
+                }
+            }
+
+            // 2. Activar la nube de polen protectora de 15s para Kilo
+            DeployPollenBomb(playerTransform);
+        }
+
+        public void DeploySpikesTrap(Transform playerTransform)
+        {
+            Vector3 center = playerTransform.position;
+            float radius = 8f;
+
+            // 1. Reducir al 50% la velocidad de los enemigos en un radio de 8m por 6s con chispas
+            EnemyAIPrototipo3[] enemies = FindObjectsByType<EnemyAIPrototipo3>(FindObjectsSortMode.None);
+            for (int i = 0; i < enemies.Length; i++)
+            {
+                EnemyAIPrototipo3 e = enemies[i];
+                if (e != null && e.isActiveAndEnabled && Vector3.Distance(center, e.transform.position) <= radius)
+                {
+                    e.ApplySpikeSlowAndSparks(0.5f, 6f);
+                    Debug.Log($"[TrapSystemPrototipo3] ¡TRAMPA DE PÚAS ralentizó a {e.name} al 50% por 6 s con chispas eléctricas!");
+                }
+            }
+
+            // 2. Sobrecargar paneles y mecanismos en la arena
+            StoryMechanismPrototipo3[] mechanisms = FindObjectsByType<StoryMechanismPrototipo3>(FindObjectsSortMode.None);
+            for (int i = 0; i < mechanisms.Length; i++)
+            {
+                StoryMechanismPrototipo3 mech = mechanisms[i];
+                if (mech == null || !mech.gameObject.activeInHierarchy) continue;
+                float d = Vector3.Distance(center, mech.transform.position);
+                if (d <= radius)
+                {
+                    mech.OnStaticDischargeHit();
+                }
+            }
+
+            // 3. Emitir el señuelo acústico de distracción por compatibilidad
+            DeployAcousticDecoy(playerTransform);
         }
 
         private void DeployAcousticDecoy(Transform playerTransform)
@@ -235,7 +381,7 @@ namespace Prototipo3
             decoyComp.duration = 8f;
             decoyComp.attractionRadius = 18f;
 
-            Debug.Log("[TrapSystemPrototipo3] ¡TRAMPA 1 (Señuelo Acústico) desplegada! Atrayendo enemigos en 18 m durante 8 s.");
+            Debug.Log("[TrapSystemPrototipo3] ¡Señuelo Acústico activo durante 8 s!");
         }
 
         private void DeployPollenBomb(Transform playerTransform)
@@ -274,7 +420,7 @@ namespace Prototipo3
                 }
             }
 
-            Debug.Log("[TrapSystemPrototipo3] ¡TRAMPA 2 (Bomba de Polen de Helecho) activada! Olfato desactivado y visión enemiga al 50% por 15 s.");
+            Debug.Log("[TrapSystemPrototipo3] ¡Aura de Polen activada! Olfato desactivado y visión enemiga al 50% por 15 s.");
         }
 
         private void DeployStaticDischarger(Transform playerTransform)
@@ -300,7 +446,7 @@ namespace Prototipo3
             }
             effect.radius = radius;
 
-            // 1. Paralizar por 5 segundos al enemigo más cercano en un radio de 8 metros
+            // Paralizar por 5 segundos al enemigo más cercano en 8m
             EnemyAIPrototipo3[] enemies = FindObjectsByType<EnemyAIPrototipo3>(FindObjectsSortMode.None);
             EnemyAIPrototipo3 closestEnemy = null;
             float bestDist = radius;
@@ -320,10 +466,8 @@ namespace Prototipo3
             if (closestEnemy != null)
             {
                 closestEnemy.ApplyStaticParalysis(5f);
-                Debug.Log($"[TrapSystemPrototipo3] ¡TRAMPA 3 (Descargador Estático) paralizó a {closestEnemy.name} por 5 segundos!");
             }
 
-            // 2. Activar/sobrecargar mecanismos eléctricos críticos cercanos (Válvula Hiperbárica de Clara / Condensadores UV de Kross)
             StoryMechanismPrototipo3[] mechanisms = FindObjectsByType<StoryMechanismPrototipo3>(FindObjectsSortMode.None);
             for (int i = 0; i < mechanisms.Length; i++)
             {

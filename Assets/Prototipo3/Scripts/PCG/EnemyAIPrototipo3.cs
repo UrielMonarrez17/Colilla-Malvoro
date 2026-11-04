@@ -69,11 +69,21 @@ namespace Prototipo3
         private float staticParalysisTimer = 0f;
         private GameObject paralysisVfxObj;
 
-        // Temporizador de gas de Clara
+        // Estado de Trampa 2 (Red Inmovilizadora por 5s)
+        private float netImmobilizationTimer = 0f;
+        private GameObject netVfxObj;
+
+        // Estado de Trampa 1/3 (Púas: ralentización al 50% por 6s con chispas)
+        private float spikeSlowTimer = 0f;
+        private float spikeSlowMultiplier = 0.5f;
+        private GameObject sparksVfxObj;
+
         private float gasTrailTimer = 0f;
 
         public bool IsDistractedByDecoy => acousticDecoyTimer > 0f;
         public bool IsParalyzedByStatic => staticParalysisTimer > 0f;
+        public bool IsNetImmobilized => netImmobilizationTimer > 0f;
+        public bool IsSpikeSlowed => spikeSlowTimer > 0f;
 
         public bool IsFeralActiveNow()
         {
@@ -248,6 +258,115 @@ namespace Prototipo3
             paralysisVfxObj.SetActive(true);
         }
 
+        /// <summary>
+        /// Trampa de Madera: Barricada física por 10s. Fuerza el recálculo de ruta del NavMeshAgent evitando la barricada.
+        /// </summary>
+        public void ApplyWoodBarricadeRepath(Vector3 barricadePos, float duration = 10f)
+        {
+            if (protoAgent == null) protoAgent = GetComponent<NavMeshAgent>();
+            if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+            {
+                protoAgent.ResetPath();
+                RedirectAwayFromBuilding(barricadePos);
+            }
+            ForceBaseState(EnemyState.Wander);
+        }
+
+        /// <summary>
+        /// Trampa de Red: Inmoviliza al NavMeshAgent por 5s y apaga temporalmente la detección por proximidad extrema.
+        /// </summary>
+        public void ApplyNetImmobilization(float duration = 5f)
+        {
+            CacheBaseDetectionValues();
+            netImmobilizationTimer = Mathf.Max(netImmobilizationTimer, duration);
+            ForceBaseState(EnemyState.Wander);
+
+            if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+            {
+                protoAgent.isStopped = true;
+                protoAgent.velocity = Vector3.zero;
+            }
+
+            EnsureNetVfx(true);
+        }
+
+        private void EnsureNetVfx(bool active)
+        {
+            if (!active)
+            {
+                if (netVfxObj != null) netVfxObj.SetActive(false);
+                return;
+            }
+
+            if (netVfxObj == null)
+            {
+                netVfxObj = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                netVfxObj.name = "NetTrapVisualRing";
+                netVfxObj.transform.SetParent(transform, false);
+                netVfxObj.transform.localPosition = new Vector3(0f, 0.4f, 0f);
+                netVfxObj.transform.localScale = new Vector3(1.8f, 0.6f, 1.8f);
+                Collider c = netVfxObj.GetComponent<Collider>();
+                if (c != null) Destroy(c);
+
+                Renderer r = netVfxObj.GetComponent<Renderer>();
+                if (r != null)
+                {
+                    Material m = new Material(Shader.Find("Sprites/Default") ?? Shader.Find("Standard"));
+                    m.color = new Color(0.85f, 0.85f, 0.25f, 0.5f);
+                    r.material = m;
+                }
+            }
+
+            netVfxObj.SetActive(true);
+        }
+
+        /// <summary>
+        /// Trampa de Púas: Reduce la velocidad de persecución/patrulla al 50% por 6s con chispas eléctricas.
+        /// </summary>
+        public void ApplySpikeSlowAndSparks(float slowMultiplier = 0.5f, float duration = 6f)
+        {
+            CacheBaseDetectionValues();
+            spikeSlowTimer = Mathf.Max(spikeSlowTimer, duration);
+            spikeSlowMultiplier = Mathf.Clamp(slowMultiplier, 0.2f, 0.8f);
+
+            if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+            {
+                protoAgent.speed *= spikeSlowMultiplier;
+            }
+
+            EnsureSparksVfx(true);
+        }
+
+        private void EnsureSparksVfx(bool active)
+        {
+            if (!active)
+            {
+                if (sparksVfxObj != null) sparksVfxObj.SetActive(false);
+                return;
+            }
+
+            if (sparksVfxObj == null)
+            {
+                sparksVfxObj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                sparksVfxObj.name = "SpikeElectricSparksRing";
+                sparksVfxObj.transform.SetParent(transform, false);
+                sparksVfxObj.transform.localPosition = new Vector3(0f, 0.3f, 0f);
+                sparksVfxObj.transform.localScale = new Vector3(1.4f, 0.2f, 1.4f);
+                Collider c = sparksVfxObj.GetComponent<Collider>();
+                if (c != null) Destroy(c);
+
+                Renderer r = sparksVfxObj.GetComponent<Renderer>();
+                if (r != null)
+                {
+                    Material m = new Material(Shader.Find("Sprites/Default") ?? Shader.Find("Standard"));
+                    m.color = new Color(0.2f, 0.6f, 1f, 0.65f);
+                    r.material = m;
+                }
+            }
+
+            sparksVfxObj.SetActive(true);
+        }
+
         private void Update()
         {
             CacheBaseDetectionValues();
@@ -260,9 +379,9 @@ namespace Prototipo3
             bool baseImmobilized = FiIsImmobilized != null && (bool)FiIsImmobilized.GetValue(this);
             if (protoAgent == null || !protoAgent.enabled || baseImmobilized) return;
 
-            // Si está paralizado (Trampa 3) o distraído por el Señuelo Acústico (Trampa 1),
+            // Si está paralizado (Trampa 3), atrapado en red (Trampa 2) o distraído por el Señuelo Acústico (Trampa 1),
             // bloqueamos por completo la persecución y el ataque hacia el jugador.
-            if (staticParalysisTimer > 0f || acousticDecoyTimer > 0f)
+            if (staticParalysisTimer > 0f || acousticDecoyTimer > 0f || netImmobilizationTimer > 0f)
             {
                 ForceBaseState(EnemyState.Wander);
                 return;
@@ -342,6 +461,32 @@ namespace Prototipo3
 
         private void UpdateTrapAndBossModifiers()
         {
+            // 0. Inmovilización por Red (Trampa de Red - 5 segundos)
+            if (netImmobilizationTimer > 0f)
+            {
+                netImmobilizationTimer -= Time.deltaTime;
+                visionRadiusNormal = 0.05f;
+                visionRadiusCrouched = 0.05f;
+                backDetectionRadius = 0f;
+                ForceBaseState(EnemyState.Wander);
+
+                if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+                {
+                    protoAgent.isStopped = true;
+                    protoAgent.velocity = Vector3.zero;
+                }
+
+                if (netImmobilizationTimer <= 0f)
+                {
+                    EnsureNetVfx(false);
+                    if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+                    {
+                        protoAgent.isStopped = false;
+                    }
+                }
+                return;
+            }
+
             // 1. Parálisis eléctrica (Trampa 3)
             if (staticParalysisTimer > 0f)
             {
@@ -366,6 +511,25 @@ namespace Prototipo3
                     }
                 }
                 return;
+            }
+
+            // Ralentización por Púas (Trampa de Púas - 50% por 6s con chispas)
+            if (spikeSlowTimer > 0f)
+            {
+                spikeSlowTimer -= Time.deltaTime;
+                if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+                {
+                    protoAgent.speed = (CurrentState == EnemyState.Chase ? chaseSpeed : wanderSpeed) * spikeSlowMultiplier;
+                }
+
+                if (spikeSlowTimer <= 0f)
+                {
+                    EnsureSparksVfx(false);
+                    if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+                    {
+                        protoAgent.speed = (CurrentState == EnemyState.Chase ? chaseSpeed : wanderSpeed);
+                    }
+                }
             }
 
             // 2. Distracción por Señuelo Acústico (Trampa 1)
@@ -422,6 +586,19 @@ namespace Prototipo3
                     if (dist <= noisySprintDetectionRadius)
                     {
                         ForceChasePlayer();
+                    }
+                }
+            }
+
+            if (player != null && CurrentState == EnemyState.Wander && Prototipo3.Narrative.QuestCompiler.Instance != null && !Prototipo3.Narrative.QuestCompiler.Instance.IsCurrentQuestComplete)
+            {
+                var cur = Prototipo3.Narrative.QuestCompiler.Instance.CurrentAction;
+                if (cur != null && cur.actionType == "espiar_rutina")
+                {
+                    HamsterController hc = player.GetComponent<HamsterController>();
+                    if (hc != null && hc.isCrouching && Vector3.Distance(transform.position, player.position) <= 22f)
+                    {
+                        Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("espiar_rutina", "", transform);
                     }
                 }
             }

@@ -105,6 +105,10 @@ namespace Prototipo3
                 GameObject respawnObj = GameObject.Find("RespawnManager_Prototipo3") ?? new GameObject("RespawnManager_Prototipo3");
                 respawnObj.AddComponent<RespawnManagerPrototipo3>();
             }
+
+            WorldRegistry.EnsureInstance();
+            StoryDirector.EnsureInstance();
+            QuestCompiler.EnsureInstance();
         }
 
         private void OnEnable()
@@ -358,6 +362,11 @@ namespace Prototipo3
 
             EmitRadioTransmission("Dra. Elena Vargas [Radio 94.7 MHz]",
                 $"¡Sobreviviste a la transformación de Marco! Se abren dos rutas en paralelo: la Escuela Bellavista está hacia el {dirEscuela} y el Bosque Ceniza hacia el {dirBosque}. Revisa los contenedores con [F] para orientarte.");
+
+            if (StoryDirector.Instance != null && !StoryDirector.Instance.IsNodeCompleted(StoryDirector.NODE_0_PROLOGO))
+            {
+                StoryDirector.Instance.CompletePrologoAndUnlockBranches();
+            }
 
             RefreshPointerAndUI();
         }
@@ -796,6 +805,10 @@ namespace Prototipo3
                 () =>
                 {
                     CompleteNodeAndUnlockChildren("node_a3_apagon");
+                    if (StoryDirector.Instance != null && !StoryDirector.Instance.IsNodeCompleted(StoryDirector.RAMA_A_ESCUELA))
+                    {
+                        StoryDirector.Instance.CompleteRamaAEscuela();
+                    }
                     CheckHospitalConvergenceUnlock();
                     EmitRadioTransmission("Dra. Elena Vargas [Radio]",
                         "¡Tienes el Vial de Enzima Base! ¡Agáchate con [C] y lanza un Señuelo Acústico [1] para distraer al Búho Morales y salir de la escuela!");
@@ -904,6 +917,10 @@ namespace Prototipo3
                 () =>
                 {
                     CompleteNodeAndUnlockChildren("node_b3_sultan");
+                    if (StoryDirector.Instance != null && !StoryDirector.Instance.IsNodeCompleted(StoryDirector.RAMA_B_BOSQUE))
+                    {
+                        StoryDirector.Instance.CompleteRamaBBosque();
+                    }
                     CheckHospitalConvergenceUnlock();
                     OnDialogueTriggered?.Invoke("Sultán (Guardabosques)",
                         "\"Me devolviste el alma, pequeño Kilo. Toma el Filtro de Carbón Biológico y la Llave del Hospital San Judas. Nunca olvidaré lo que hiciste por mí.\"");
@@ -1011,6 +1028,10 @@ namespace Prototipo3
                 () =>
                 {
                     CompleteNodeAndUnlockChildren("node_c2_clara");
+                    if (StoryDirector.Instance != null && !StoryDirector.Instance.IsNodeCompleted(StoryDirector.CONVERGENCIA_HOSPITAL))
+                    {
+                        StoryDirector.Instance.CompleteHospitalConvergence(playCutscene: false);
+                    }
                     SetNodeState("node_d1_torre", StoryNodeState.Active, setFocus: true);
                     CityGeneratorPrototipo3 cityGen = CityGeneratorPrototipo3.Instance;
                     string dirTorre = cityGen != null ? cityGen.GetCardinalDirectionFromPlayer("Torre") : "Noreste";
@@ -1091,6 +1112,10 @@ namespace Prototipo3
                 () =>
                 {
                     CompleteNodeIfNotDone("node_d2_kross");
+                    if (StoryDirector.Instance != null && !StoryDirector.Instance.IsNodeCompleted(StoryDirector.FINAL_TORRE))
+                    {
+                        StoryDirector.Instance.CompleteFinalTorre(playCutscene: false);
+                    }
                     if (TimeManager.Instance != null)
                     {
                         TimeManager.Instance.SetExactHour(6.0f);
@@ -1204,7 +1229,7 @@ namespace Prototipo3
         // UTILIDADES DEL GRAFO NARRATIVO (DAG)
         // =========================================================================================
 
-        private void CompleteNodeIfNotDone(string nodeId)
+        public void CompleteNodeIfNotDone(string nodeId)
         {
             if (currentGraph == null) return;
             StoryNode node = currentGraph.GetNode(nodeId);
@@ -1240,7 +1265,7 @@ namespace Prototipo3
             RefreshPointerAndUI();
         }
 
-        private void SetNodeState(string nodeId, StoryNodeState state, bool setFocus)
+        public void SetNodeState(string nodeId, StoryNodeState state, bool setFocus)
         {
             if (currentGraph == null) return;
             StoryNode node = currentGraph.GetNode(nodeId);

@@ -382,6 +382,27 @@ namespace Prototipo3
                 grid, network, rng,
                 out Vector2Int torreCell);
             TorreCell = torreCell;
+
+            if (SpawnedEscuela != null)
+            {
+                WorldRegistry.Register("Escuela", SpawnedEscuela.transform);
+                WorldRegistry.Register("Prefab_EscuelaBellavista", SpawnedEscuela.transform);
+            }
+            if (SpawnedBosque != null)
+            {
+                WorldRegistry.Register("Bosque", SpawnedBosque.transform);
+                WorldRegistry.Register("Prefab_BosqueCeniza", SpawnedBosque.transform);
+            }
+            if (SpawnedHospital != null)
+            {
+                WorldRegistry.Register("Hospital", SpawnedHospital.transform);
+                WorldRegistry.Register("Prefab_HospitalSanJudas", SpawnedHospital.transform);
+            }
+            if (SpawnedTorre != null)
+            {
+                WorldRegistry.Register("Torre", SpawnedTorre.transform);
+                WorldRegistry.Register("Prefab_TorreAethelgard", SpawnedTorre.transform);
+            }
         }
 
         private int GetQuadrantRelativeToBase(Vector2Int cell)
@@ -676,6 +697,140 @@ namespace Prototipo3
             return cardinalNames[idx];
         }
 
+        /// <summary>
+        /// Compara coordenadas en el plano horizontal y devuelve una pista cardinal descriptiva y dinámica
+        /// con contexto urbano (ej. "al Noreste, cruzando la avenida comercial", "hacia el Sur, cerca de los almacenes").
+        /// </summary>
+        public string GetCardinalDirectionHint(Vector3 fromPosition, Vector3 targetPosition)
+        {
+            Vector3 delta = targetPosition - fromPosition;
+            delta.y = 0f;
+            float dist = delta.magnitude;
+            if (dist < 4f)
+            {
+                return "aquí mismo en este sector";
+            }
+
+            float angle = Mathf.Atan2(delta.x, delta.z) * Mathf.Rad2Deg;
+            if (angle < 0f) angle += 360f;
+
+            string dir;
+            int idx = Mathf.RoundToInt(angle / 45f) % 8;
+            switch (idx)
+            {
+                case 0: dir = "al Norte"; break;
+                case 1: dir = "al Noreste"; break;
+                case 2: dir = "al Este"; break;
+                case 3: dir = "al Sureste"; break;
+                case 4: dir = "al Sur"; break;
+                case 5: dir = "al Suroeste"; break;
+                case 6: dir = "al Oeste"; break;
+                default: dir = "al Noroeste"; break;
+            }
+
+            string urbanContext;
+            if (dist > 70f)
+            {
+                urbanContext = (idx % 2 == 0) ? ", en la periferia industrial de la ciudad" : ", cruzando los distritos comerciales lejanos";
+            }
+            else if (dist > 35f)
+            {
+                urbanContext = (idx == 1 || idx == 2 || idx == 3) ? ", cruzando la gran avenida comercial" : ", cerca de los almacenes y callejones residenciales";
+            }
+            else
+            {
+                urbanContext = ", pasando las manzanas adyacentes";
+            }
+
+            return $"{dir}{urbanContext}";
+        }
+
+        /// <summary>
+        /// Busca contenedores aún no saqueados (isLooted == false) a una distancia Manhattan mínima respecto a un punto,
+        /// permitiendo filtrar por cuadrante preferido para obligar al jugador a explorar la ciudad.
+        /// </summary>
+        public List<LootContainer> GetUnlootedContainersFarFrom(Vector3 fromWorldPos, int minCellDistance, int preferredQuadrant = -1)
+        {
+            List<LootContainer> result = new List<LootContainer>();
+            LootContainer[] all = FindObjectsByType<LootContainer>(FindObjectsSortMode.None);
+            float minDistanceMeters = minCellDistance * cellSize;
+
+            for (int i = 0; i < all.Length; i++)
+            {
+                LootContainer c = all[i];
+                if (c == null || c.isLooted) continue;
+                float d = Vector3.Distance(fromWorldPos, c.transform.position);
+                if (d < minDistanceMeters) continue;
+
+                if (preferredQuadrant >= 0)
+                {
+                    Vector2Int cell = new Vector2Int(
+                        Mathf.FloorToInt(c.transform.position.x / cellSize),
+                        Mathf.FloorToInt(c.transform.position.z / cellSize)
+                    );
+                    if (GetQuadrantRelativeToBase(cell) != preferredQuadrant) continue;
+                }
+
+                result.Add(c);
+            }
+
+            if (result.Count == 0 && preferredQuadrant >= 0)
+            {
+                for (int i = 0; i < all.Length; i++)
+                {
+                    LootContainer c = all[i];
+                    if (c == null || c.isLooted) continue;
+                    if (Vector3.Distance(fromWorldPos, c.transform.position) >= minDistanceMeters)
+                    {
+                        result.Add(c);
+                    }
+                }
+            }
+
+            result.Sort((a, b) =>
+                Vector3.Distance(fromWorldPos, b.transform.position)
+                    .CompareTo(Vector3.Distance(fromWorldPos, a.transform.position)));
+
+            return result;
+        }
+
+        /// <summary>
+        /// Obtiene una celda transitable de carretera en el cuadrante solicitado con separación mínima.
+        /// </summary>
+        public bool TryGetWalkableRoadCellInQuadrant(int quadrant, Vector3 minDistanceFromPos, int minCells, out Vector3 worldPos)
+        {
+            worldPos = Vector3.zero;
+            if (Grid == null) return false;
+
+            List<Vector2Int> candidates = new List<Vector2Int>();
+            float minDist = minCells * cellSize;
+
+            for (int x = 2; x < Grid.Width - 2; x++)
+            {
+                for (int y = 2; y < Grid.Length - 2; y++)
+                {
+                    Vector2Int c = new Vector2Int(x, y);
+                    if (!Grid.IsRoad(c)) continue;
+                    if (quadrant >= 0 && GetQuadrantRelativeToBase(c) != quadrant) continue;
+
+                    Vector3 pos = CellToWorldCenter(c);
+                    if (Vector3.Distance(minDistanceFromPos, pos) >= minDist)
+                    {
+                        candidates.Add(c);
+                    }
+                }
+            }
+
+            if (candidates.Count > 0)
+            {
+                Vector2Int chosen = candidates[UnityEngine.Random.Range(0, candidates.Count)];
+                worldPos = CellToWorldCenter(chosen);
+                return true;
+            }
+
+            return false;
+        }
+
 
         private void ConfigurarNavegacionYColisionesCiudad()
         {
@@ -886,7 +1041,14 @@ namespace Prototipo3
                     ren.material = mat;
                 }
 
-                tableObj.AddComponent<CraftingTable>();
+                existingTable = tableObj.AddComponent<CraftingTable>();
+            }
+
+            WorldRegistry.Register("Base", shelterMarker.transform);
+            if (existingTable != null)
+            {
+                WorldRegistry.Register("CraftTable", existingTable.transform);
+                WorldRegistry.Register("MesaFabricacion", existingTable.transform);
             }
 
             // Registrar posición de Marco en la calle adyacente (Punto 0)
@@ -896,6 +1058,12 @@ namespace Prototipo3
                 marcoWorldPos = marcoNavHit.position;
             }
             landmarkPositions["Marco"] = marcoWorldPos;
+
+            GameObject marcoMarker = new GameObject("MARKER_MARCO_ZONE");
+            marcoMarker.transform.SetParent(transform, false);
+            marcoMarker.transform.position = marcoWorldPos;
+            WorldRegistry.Register("Marco", marcoMarker.transform);
+            WorldRegistry.Register("Marco_Zone", marcoMarker.transform);
         }
 
         private void GenerarLootEnSockets(CityGrid grid, CityRandom rng)
@@ -941,6 +1109,7 @@ namespace Prototipo3
             DeadEndPoints.Clear();
             LoopCenterPoints.Clear();
             landmarkPositions.Clear();
+            WorldRegistry.Clear();
 
             for (int i = transform.childCount - 1; i >= 0; i--)
             {

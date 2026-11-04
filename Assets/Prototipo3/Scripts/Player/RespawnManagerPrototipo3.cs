@@ -136,7 +136,7 @@ namespace Prototipo3
             titleTxt.fontStyle = FontStyle.Bold;
             titleTxt.color = new Color(0.92f, 0.25f, 0.18f, 1f);
             titleTxt.alignment = TextAnchor.MiddleCenter;
-            titleTxt.text = "FUISTE ATRAPADO EN LA OSCURIDAD";
+            titleTxt.text = "Atrapado en la penumbra...";
 
             GameObject bodyGo = new GameObject("Details", typeof(RectTransform), typeof(Text));
             bodyGo.transform.SetParent(cardGo.transform, false);
@@ -254,7 +254,7 @@ namespace Prototipo3
             // 3. Avanzar el reloj al siguiente Amanecer (6:00 AM -> dispara OnDayStart en DualRoleCharacter y EnemyAI)
             if (TimeManager.Instance != null)
             {
-                TimeManager.Instance.SetExactHour(6.0f);
+                TimeManager.Instance.ForceDawnSunrise();
             }
 
             foreach (DualRoleCharacter drc in DualRoleCharacter.ActiveCharacters)

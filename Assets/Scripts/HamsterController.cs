@@ -163,7 +163,13 @@ public class HamsterController : MonoBehaviour
     private void HandleStealthAndSpeedManagement()
     {
         // --- Mecánica de Sigilo (Crouch) ---
-        isCrouching = FeralInput.Held(KeyCode.C);
+        bool crouching = FeralInput.Held(KeyCode.C);
+        if (FeralInput.Pressed(KeyCode.C))
+        {
+            Prototipo3.Narrative.QuestCompiler.Instance?.AdvanceActionIfMatches("agacharse_sigilo");
+            Prototipo3.Narrative.QuestCompiler.Instance?.AdvanceActionIfMatches("espiar_rutina");
+        }
+        isCrouching = crouching;
         
         if (isCrouching) 
         {
@@ -184,6 +190,7 @@ public class HamsterController : MonoBehaviour
 
         if (isTryingToSprint)
         {
+            Prototipo3.Narrative.QuestCompiler.Instance?.AdvanceActionIfMatches("correr_estamina");
             currentBaseSpeed = sprintSpeed;
             currentStamina -= staminaDrainRate * Time.deltaTime;
         }
@@ -215,6 +222,11 @@ public class HamsterController : MonoBehaviour
         isDashing = true;
         nextDashTime = Time.time + dashCooldown;
         OnDashUsed?.Invoke();
+        if (Prototipo3.Narrative.QuestCompiler.Instance != null)
+        {
+            Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("dash_escape");
+            Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("romper_linea_vision");
+        }
 
         rb.linearVelocity = Vector3.zero; 
         rb.AddForce(moveInput * dashForce, ForceMode.Impulse);

@@ -126,6 +126,23 @@ namespace Prototipo3
                 return;
             }
 
+            if (QuestCompiler.Instance != null && QuestCompiler.Instance.CurrentAction != null)
+            {
+                var act = QuestCompiler.Instance.CurrentAction;
+                if (act.boundTarget != null)
+                {
+                    currentTargetWorldPos = act.boundTarget.position;
+                    hasValidTarget = true;
+                    return;
+                }
+                if (act.boundPosition != Vector3.zero)
+                {
+                    currentTargetWorldPos = act.boundPosition;
+                    hasValidTarget = true;
+                    return;
+                }
+            }
+
             StoryManagerPrototipo3 sm = StoryManagerPrototipo3.Instance ?? FindAnyObjectByType<StoryManagerPrototipo3>();
             if (sm != null && sm.CurrentGraph != null)
             {

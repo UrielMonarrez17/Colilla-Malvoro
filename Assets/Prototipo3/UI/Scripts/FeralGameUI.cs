@@ -423,8 +423,19 @@ namespace Prototipo3.UI
                 var n = story.CurrentActiveNode;
                 int activeCount = story.CurrentGraph != null ? story.CurrentGraph.GetActiveNodes().Count : 1;
                 phase.text = activeCount > 1 ? $"RUTAS ACTIVAS ({activeCount})   /   [ M ] DIARIO" : $"MISIÓN [{n.branchTag}]   /   [ M ] DIARIO";
-                objective.text = story.GetActiveBranchesSummaryText();
-                guide.text = "Pista: " + n.hint;
+                string baseSummary = story.GetActiveBranchesSummaryText();
+                if (QuestCompiler.Instance != null && QuestCompiler.Instance.CurrentAction != null)
+                {
+                    var act = QuestCompiler.Instance.CurrentAction;
+                    string opt = act.isOptional ? "[OPCIONAL] " : "";
+                    objective.text = $"{baseSummary}\n\n<color=#FFEE55>▶ {opt}{act.readableDescription}</color>";
+                    guide.text = !string.IsNullOrEmpty(act.cardinalHint) ? $"Rumbo: {act.cardinalHint}" : ("Pista: " + n.hint);
+                }
+                else
+                {
+                    objective.text = baseSummary;
+                    guide.text = "Pista: " + n.hint;
+                }
 
                 if (radioBanner != null)
                 {

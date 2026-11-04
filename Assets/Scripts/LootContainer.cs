@@ -20,9 +20,17 @@ public class LootContainer : MonoBehaviour
 
     private bool yaFueSaqueado = false;
     public bool YaFueSaqueado => yaFueSaqueado;
+    public bool isLooted => yaFueSaqueado;
+
+    [Header("Inyección de Gramática / Misiones")]
+    public string containerTagFilter = "recurso";
+    public string injectedNoteId = "";
+    public string injectedNoteText = "";
+    public string injectedKeyItemId = "";
 
     public static event Action<LootContainer, List<ItemType>> OnContainerLooted;
     public static event Action<LootContainer> OnContainerAlreadyLooted;
+    public static event Action<LootContainer, string, string> OnNoteFound;
 
     public static string FormatLootSummary(List<ItemType> items)
     {
@@ -172,6 +180,24 @@ public class LootContainer : MonoBehaviour
             {
                 puertaDesbloqueable.SetActive(false);
             }
+        }
+
+        if (!string.IsNullOrEmpty(injectedNoteText))
+        {
+            OnNoteFound?.Invoke(this, injectedNoteId, injectedNoteText);
+            if (Prototipo3.UI.FeralGameUI.Instance != null)
+            {
+                Prototipo3.UI.FeralGameUI.Instance.ShowDialogue("Nota Encontrada", injectedNoteText);
+            }
+            if (Prototipo3.Narrative.QuestCompiler.Instance != null)
+            {
+                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("leer_nota", injectedNoteId, transform);
+            }
+        }
+
+        if (Prototipo3.Narrative.QuestCompiler.Instance != null)
+        {
+            Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("saquear_contenedor", containerTagFilter, transform);
         }
 
         OnContainerLooted?.Invoke(this, obtenidos);

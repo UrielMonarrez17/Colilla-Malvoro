@@ -367,6 +367,10 @@ namespace Prototipo3
             drc.ApplyBossProfileConfiguration();
             drc.EvaluateCycleStateImmediate();
 
+            PlotGate gate = go.GetComponent<PlotGate>() ?? go.AddComponent<PlotGate>();
+            ConfigureCharacterPlotGate(gate, charId, bossProfile);
+            WorldRegistry.Register(charId, go.transform);
+
             spawnedWorldArtifacts.Add(go);
             return drc;
         }
@@ -385,6 +389,7 @@ namespace Prototipo3
                 if (existing != null && string.Equals(existing.mechanismId, mechId, StringComparison.OrdinalIgnoreCase))
                 {
                     existing.transform.position = worldPos;
+                    WorldRegistry.Register(mechId, existing.transform);
                     return existing;
                 }
             }
@@ -414,8 +419,78 @@ namespace Prototipo3
             mech.mechanismType = type;
             mech.indexNumber = indexNumber;
 
+            PlotGate mGate = go.GetComponent<PlotGate>() ?? go.AddComponent<PlotGate>();
+            ConfigureMechanismPlotGate(mGate, mechId, type);
+            WorldRegistry.Register(mechId, go.transform);
+
             spawnedWorldArtifacts.Add(go);
             return mech;
+        }
+
+        private void ConfigureCharacterPlotGate(PlotGate gate, string charId, BossProfileType profile)
+        {
+            if (gate == null) return;
+            string key = charId.ToLowerInvariant();
+            if (key.Contains("morales"))
+            {
+                gate.targetStoryNodeID = "node_a3_apagon";
+                gate.allowedStoryNodeIDs = new List<string> { "node_a1_escuela", "node_a2_toby", "node_a3_apagon" };
+                gate.mundaneDayDialogue = "Silencio en los pasillos de la escuela, pequeño Kilo. El recinto está cerrado de noche.";
+            }
+            else if (key.Contains("sultan"))
+            {
+                gate.targetStoryNodeID = "node_b3_sultan";
+                gate.allowedStoryNodeIDs = new List<string> { "node_b1_bosque", "node_b2_postes", "node_b3_sultan" };
+                gate.mundaneDayDialogue = "El bosque está tranquilo hoy, pequeño. Pero busca refugio antes del anochecer: se vuelve peligroso.";
+            }
+            else if (key.Contains("clara"))
+            {
+                gate.targetStoryNodeID = "node_c2_clara";
+                gate.allowedStoryNodeIDs = new List<string> { "node_c1_hospital", "node_c2_clara" };
+                gate.mundaneDayDialogue = "El hospital atiende en calma a los pacientes de día. Los pabellones quirúrgicos están sellados al público.";
+            }
+            else if (key.Contains("kross"))
+            {
+                gate.targetStoryNodeID = "node_d2_kross";
+                gate.allowedStoryNodeIDs = new List<string> { "node_d1_torre", "node_d2_kross" };
+                gate.mundaneDayDialogue = "La corporación Aethelgard vela por la ciudad... Vuelve a tu madriguera antes de la noche.";
+            }
+            else
+            {
+                gate.targetStoryNodeID = "node_0_apertura";
+            }
+        }
+
+        private void ConfigureMechanismPlotGate(PlotGate gate, string mechId, StoryMechanismType type)
+        {
+            if (gate == null) return;
+            switch (type)
+            {
+                case StoryMechanismType.MoralesOfficeDesk:
+                    gate.targetStoryNodeID = "node_a2_toby";
+                    break;
+                case StoryMechanismType.SchoolChemistryLab:
+                    gate.targetStoryNodeID = "node_a3_apagon";
+                    break;
+                case StoryMechanismType.ReflectorPole:
+                    gate.targetStoryNodeID = "node_b2_postes";
+                    break;
+                case StoryMechanismType.StreamSubstationSwitch:
+                    gate.targetStoryNodeID = "node_b3_sultan";
+                    break;
+                case StoryMechanismType.HyperbaricChamberValve:
+                case StoryMechanismType.PureOxygenCylinder:
+                    gate.targetStoryNodeID = "node_c2_clara";
+                    break;
+                case StoryMechanismType.ElenaReactorCell:
+                case StoryMechanismType.PhotonicUVCapacitor:
+                case StoryMechanismType.CentralSerumInjector:
+                    gate.targetStoryNodeID = "node_d2_kross";
+                    break;
+                default:
+                    gate.targetStoryNodeID = "node_0_apertura";
+                    break;
+            }
         }
 
         public void DesactivarBarricadaLock()

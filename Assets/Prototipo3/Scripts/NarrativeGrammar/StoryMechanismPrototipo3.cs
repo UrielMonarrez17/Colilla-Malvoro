@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
+using Prototipo3.Narrative;
 
 namespace Prototipo3
 {
@@ -185,6 +186,24 @@ namespace Prototipo3
         public void Interact()
         {
             if (Prototipo3.UI.FeralGameUI.BlocksGameplay) return;
+
+            var plotGate = GetComponent<PlotGate>();
+            if (plotGate != null && !plotGate.IsGateOpen())
+            {
+                if (Prototipo3.UI.FeralGameUI.Instance != null)
+                {
+                    Prototipo3.UI.FeralGameUI.Instance.ShowDialogue(displayName, plotGate.lockedMechanismMessage);
+                }
+                Debug.Log($"[StoryMechanismPrototipo3] {displayName} bloqueado por PlotGate ({plotGate.targetStoryNodeID}).");
+                return;
+            }
+
+            if (Prototipo3.Narrative.QuestCompiler.Instance != null)
+            {
+                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("activar_interruptor", mechanismId, transform);
+                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("colarse_ducto", mechanismId, transform);
+            }
+
             if (StoryManagerPrototipo3.Instance != null)
             {
                 StoryManagerPrototipo3.Instance.HandleMechanismInteraction(this, false);
@@ -197,6 +216,17 @@ namespace Prototipo3
         public void OnStaticDischargeHit()
         {
             if (isCompleted) return;
+
+            var plotGate = GetComponent<PlotGate>();
+            if (plotGate != null && !plotGate.IsGateOpen())
+            {
+                if (Prototipo3.UI.FeralGameUI.Instance != null)
+                {
+                    Prototipo3.UI.FeralGameUI.Instance.ShowDialogue(displayName, plotGate.lockedMechanismMessage);
+                }
+                return;
+            }
+
             if (mechanismType == StoryMechanismType.HyperbaricChamberValve ||
                 mechanismType == StoryMechanismType.PhotonicUVCapacitor)
             {

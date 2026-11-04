@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 using TMPro;
+using Prototipo3.Narrative;
 
 namespace Prototipo3
 {
@@ -175,7 +176,8 @@ namespace Prototipo3
         {
             if (!isSubscribedToTime && TimeManager.Instance != null)
             {
-                TimeManager.Instance.OnCycleStateChanged += HandleCycleStateChanged;
+                TimeManager.Instance.OnDayStart += OnDayStart;
+                TimeManager.Instance.OnNightStart += OnNightStart;
                 isSubscribedToTime = true;
             }
         }
@@ -184,20 +186,9 @@ namespace Prototipo3
         {
             if (isSubscribedToTime && TimeManager.Instance != null)
             {
-                TimeManager.Instance.OnCycleStateChanged -= HandleCycleStateChanged;
+                TimeManager.Instance.OnDayStart -= OnDayStart;
+                TimeManager.Instance.OnNightStart -= OnNightStart;
                 isSubscribedToTime = false;
-            }
-        }
-
-        private void HandleCycleStateChanged(TimeManager.CycleState state)
-        {
-            if (state == TimeManager.CycleState.Night)
-            {
-                OnNightStart();
-            }
-            else
-            {
-                OnDayStart();
             }
         }
 
@@ -275,9 +266,21 @@ namespace Prototipo3
         /// </summary>
         public void PacifyBoss()
         {
+            var plotGate = GetComponent<PlotGate>();
+            if (plotGate != null && !plotGate.IsGateOpen())
+            {
+                Debug.LogWarning($"[DualRoleCharacter] {displayName} no puede ser pacificado prematuramente (PlotGate cerrado para {plotGate.targetStoryNodeID}).");
+                return;
+            }
+
             isPacified = true;
             forceFeralOverride = false;
             SetFeralMode(false);
+            if (QuestCompiler.Instance != null)
+            {
+                QuestCompiler.Instance.AdvanceActionIfMatches("inyectar_antidoto_vial", characterId, transform);
+                QuestCompiler.Instance.AdvanceActionIfMatches("hablar_npc", "jefe_pacificado", transform);
+            }
             Debug.Log($"[DualRoleCharacter] ¡{displayName} ({speciesTitle}) ha sido pacificado permanentemente!");
         }
 
@@ -598,6 +601,22 @@ namespace Prototipo3
             if (isCurrentlyFeral) return;
             if (Prototipo3.UI.FeralGameUI.BlocksGameplay) return;
 
+            var plotGate = GetComponent<PlotGate>();
+            if (plotGate != null && !plotGate.IsGateOpen())
+            {
+                if (Prototipo3.UI.FeralGameUI.Instance != null)
+                {
+                    Prototipo3.UI.FeralGameUI.Instance.ShowDialogue($"{displayName} ({speciesTitle})", plotGate.mundaneDayDialogue);
+                }
+                return;
+            }
+
+            if (QuestCompiler.Instance != null)
+            {
+                QuestCompiler.Instance.AdvanceActionIfMatches("hablar_npc", characterId, transform);
+                QuestCompiler.Instance.AdvanceActionIfMatches("entregar_recurso", characterId, transform);
+            }
+
             if (StoryManagerPrototipo3.Instance != null)
             {
                 StoryManagerPrototipo3.Instance.HandleCharacterInteraction(this);
@@ -613,6 +632,12 @@ namespace Prototipo3
 
         public string GetContextualDialogue()
         {
+            var plotGate = GetComponent<PlotGate>();
+            if (plotGate != null && !plotGate.IsGateOpen())
+            {
+                return plotGate.mundaneDayDialogue;
+            }
+
             if (isPacified && !string.IsNullOrEmpty(pacifiedDialogue))
             {
                 return pacifiedDialogue;
