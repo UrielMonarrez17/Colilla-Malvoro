@@ -318,6 +318,8 @@ public class HamsterController : MonoBehaviour
     public virtual void ReceiveDamage()
     {
         if (isDead) return;
+        // Inmunidad completa durante cinemáticas para evitar que maten al jugador
+        if (Prototipo3.CutsceneManager.Instance != null && Prototipo3.CutsceneManager.Instance.IsPlayingCutscene) return;
         // The first hit teaches adrenaline; give the player its full escape window.
         if (TutorialPipelineManager.Instance != null && isAdrenalineActive) return;
 

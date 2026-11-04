@@ -47,6 +47,10 @@ namespace Prototipo3
         [Tooltip("Permite forzar estado feral por evento de historia (ej. Apagón del Búho Morales o Sobrecarga de Kross).")]
         public bool forceFeralOverride = false;
 
+        [Header("Restricción Narrativa Feral")]
+        [Tooltip("Nodos de la historia requeridos para que este personaje pueda transformarse en Feral. Si está vacía, no hay restricción.")]
+        public List<string> feralStoryNodeIDs = new List<string>();
+
         [SerializeField] private bool isCurrentlyFeral = false;
         public bool IsCurrentlyFeral => isCurrentlyFeral;
 
@@ -130,8 +134,8 @@ namespace Prototipo3
             ApplyBossProfileConfiguration();
             SubscribeToTimeEvents();
 
-            // Dr. Julián Kross comienza sobrecargado por los 3 condensadores UV
-            if (bossProfile == BossProfileType.Kross_Murcielago && !isPacified)
+            // Dr. Julián Kross solo se sobrecarga cuando su hito narrativo (node_d2_kross) está activo
+            if (bossProfile == BossProfileType.Kross_Murcielago && !isPacified && IsFeralUnlockedByStory())
             {
                 forceFeralOverride = true;
             }
@@ -206,11 +210,56 @@ namespace Prototipo3
         }
 
         /// <summary>
-        /// Evento al Amanecer (OnDayStart): vuelve a su estado pacífico si no tiene override forzado.
+        /// Comprueba si el estado feral de este personaje está habilitado por el grafo narrativo de la historia.
+        /// Si feralStoryNodeIDs está vacío, no hay restricción. Si contiene IDs, al menos uno debe estar Active o Completed.
+        /// <summary>
+        /// Comprueba si el estado feral de este personaje está habilitado por el grafo narrativo de la historia.
+        /// Si es Marco, requiere haber avanzado en la apertura (hablar con Marco de día y preparar herramientas/saquear).
+        /// Si feralStoryNodeIDs contiene IDs, al menos uno debe estar Active o Completed.
+        /// </summary>
+        public bool IsFeralUnlockedByStory()
+        {
+            if (characterId != null && characterId.Equals("Marco", StringComparison.OrdinalIgnoreCase))
+            {
+                if (StoryManagerPrototipo3.Instance != null)
+                {
+                    return StoryManagerPrototipo3.Instance.hasSpokenToMarcoDay &&
+                           (StoryManagerPrototipo3.Instance.hasCraftedInitialTool || StoryManagerPrototipo3.Instance.containersLootedCount >= 1);
+                }
+                return false;
+            }
+
+            if (feralStoryNodeIDs == null || feralStoryNodeIDs.Count == 0)
+            {
+                return true;
+            }
+
+            if (StoryManagerPrototipo3.Instance == null || StoryManagerPrototipo3.Instance.CurrentGraph == null)
+            {
+                return false;
+            }
+
+            StoryGraph graph = StoryManagerPrototipo3.Instance.CurrentGraph;
+            for (int i = 0; i < feralStoryNodeIDs.Count; i++)
+            {
+                string nodeId = feralStoryNodeIDs[i];
+                if (string.IsNullOrEmpty(nodeId)) continue;
+                StoryNode node = graph.GetNode(nodeId);
+                if (node != null && (node.state == StoryNodeState.Active || node.state == StoryNodeState.Completed))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Evento al Amanecer (OnDayStart): vuelve a su estado pacífico si no tiene override forzado y desbloqueado.
         /// </summary>
         public void OnDayStart()
         {
-            if (roleType == CharacterRoleType.PureAlly || isPacified || !forceFeralOverride)
+            if (roleType == CharacterRoleType.PureAlly || isPacified || !forceFeralOverride || !IsFeralUnlockedByStory())
             {
                 SetFeralMode(false);
             }
@@ -221,11 +270,12 @@ namespace Prototipo3
         }
 
         /// <summary>
-        /// Evento al Anochecer (OnNightStart): cierra diálogos, enciende ojos emisivos ámbar/rojos y activa persecución.
+        /// Evento al Anochecer (OnNightStart): si su historia está desbloqueada, enciende ojos emisivos y activa persecución;
+        /// de lo contrario permanece pacífico/dócil.
         /// </summary>
         public void OnNightStart()
         {
-            if (roleType == CharacterRoleType.PureAlly || isPacified)
+            if (roleType == CharacterRoleType.PureAlly || isPacified || !IsFeralUnlockedByStory())
             {
                 SetFeralMode(false);
                 return;
@@ -250,7 +300,7 @@ namespace Prototipo3
 
         public void ForceFeralState(bool feral)
         {
-            if (roleType == CharacterRoleType.PureAlly || isPacified)
+            if (roleType == CharacterRoleType.PureAlly || isPacified || (feral && !IsFeralUnlockedByStory()))
             {
                 forceFeralOverride = false;
                 SetFeralMode(false);
@@ -505,9 +555,97 @@ namespace Prototipo3
             promptLabel.outlineColor = Color.black;
         }
 
+        private float bossWarningCooldownTimer = 0f;
+
+        public bool IsBossCharacter()
+        {
+            return bossProfile != BossProfileType.None || roleType == CharacterRoleType.PacifiableBoss;
+        }
+
+        private void CheckBossTerritoryAndFeedback(float distToPlayer)
+        {
+            if (!IsBossCharacter() || isPacified) return;
+
+            if (bossWarningCooldownTimer > 0f)
+            {
+                bossWarningCooldownTimer -= Time.deltaTime;
+            }
+
+            bool isNight = TimeManager.Instance != null && TimeManager.Instance.CurrentCycleState == TimeManager.CycleState.Night;
+            bool storyUnlocked = IsFeralUnlockedByStory();
+
+            // Si el jugador entra al territorio del jefe (< 16 metros)
+            if (distToPlayer <= 16f)
+            {
+                // Si la historia aún no desbloquea el enfrentamiento a este jefe, alertar al jugador
+                if (!storyUnlocked && bossWarningCooldownTimer <= 0f)
+                {
+                    TriggerBossPreparationWarning();
+                }
+
+                // Si es de noche y el jugador se acerca peligrosamente (< 9 metros),
+                // el jefe se vuelve feral advirtiendo al jugador con feedback inmediato
+                if (isNight && !isCurrentlyFeral && distToPlayer <= 9f)
+                {
+                    TriggerBossPreparationWarning();
+                    SetFeralMode(true);
+                }
+            }
+        }
+
+        public void TriggerBossPreparationWarning()
+        {
+            bossWarningCooldownTimer = 12f;
+            string warning = GetBossWarningFeedback();
+
+            if (Prototipo3.UI.FeralGameUI.Instance != null)
+            {
+                Prototipo3.UI.FeralGameUI.Instance.ShowLootFeedback(warning, 5.5f);
+            }
+
+            if (StoryManagerPrototipo3.Instance != null)
+            {
+                StoryManagerPrototipo3.Instance.EmitRadioTransmission("Alerta Táctica", warning);
+            }
+        }
+
+        public string GetBossWarningFeedback()
+        {
+            switch (bossProfile)
+            {
+                case BossProfileType.Marco_Tejon:
+                    return "¡ADVERTENCIA! Marco muestra síntomas de fiebre por el gas. Habla con él de día [F] y fabrica una herramienta antes de salir de noche.";
+                case BossProfileType.Morales_Buho:
+                    return "¡ADVERTENCIA DE JEFE! El Rector Morales tiene oído ultrasensible y es invencible sin el Señuelo Acústico [Tecla 1]. ¡Habla primero con Toby en la Escuela!";
+                case BossProfileType.Sultan_Lobo:
+                    return "¡ADVERTENCIA DE JEFE! Sultán 'Colmillo de Brasa' es letal en la noche. ¡Necesitas fabricar la Bomba de Polen [Tecla 2] y reparar los 3 postes reflectores!";
+                case BossProfileType.Clara_Cisne:
+                    return "¡ADVERTENCIA DE JEFE! Clara Valdés emana gas anestésico. ¡Necesitas el Descargador Estático [Tecla 3] y activar la cámara hiperbárica!";
+                case BossProfileType.Kross_Murcielago:
+                    return "¡ADVERTENCIA DE JEFE! El Dr. Julián Kross está protegido por 3 condensadores UV. ¡Sobrecárgalos antes de intentar pacificarlo!";
+                default:
+                    return $"¡PELIGRO! {displayName} es invencible sin la preparación adecuada. ¡Retírate y consigue los recursos necesarios!";
+            }
+        }
+
         private void Update()
         {
             SubscribeToTimeEvents();
+
+            // Si es el Dr. Kross y se activa su hito narrativo, activar su sobrecarga feral permanente
+            if (bossProfile == BossProfileType.Kross_Murcielago && !isPacified && !forceFeralOverride && IsFeralUnlockedByStory())
+            {
+                ForceFeralState(true);
+            }
+
+            // Si es de noche pero el personaje permanecía pacífico y acaba de desbloquearse su hito feral
+            if (TimeManager.Instance != null && TimeManager.Instance.CurrentCycleState == TimeManager.CycleState.Night)
+            {
+                if (!isCurrentlyFeral && !isPacified && roleType != CharacterRoleType.PureAlly && IsFeralUnlockedByStory())
+                {
+                    OnNightStart();
+                }
+            }
 
             if (playerTransform == null || !playerTransform.gameObject.activeInHierarchy)
             {
@@ -520,6 +658,7 @@ namespace Prototipo3
                 : float.MaxValue;
 
             UpdateFloatingPrompt(distToPlayer);
+            CheckBossTerritoryAndFeedback(distToPlayer);
 
             if (!isCurrentlyFeral)
             {
@@ -583,13 +722,16 @@ namespace Prototipo3
 
             if (isCurrentlyFeral)
             {
-                promptLabel.text = $"<color=#FF3322><b>{displayName} (FERAL)</b></color>\n<size=70%>{speciesTitle}</size>";
+                string feralTag = IsBossCharacter() ? "<color=#FF2200><b>" + displayName + " (JEFE FERAL)</b></color>" : $"<color=#FF3322><b>{displayName} (FERAL)</b></color>";
+                string extraWarning = IsBossCharacter() ? "\n<size=65%><color=#FFCC00>¡Territorio Hostil!</color></size>" : "";
+                promptLabel.text = $"{feralTag}\n<size=70%>{speciesTitle}</size>{extraWarning}";
             }
             else
             {
-                string tagColor = (roleType == CharacterRoleType.PureAlly || isPacified) ? "#44FF88" : "#00E5FF";
+                string tagColor = (roleType == CharacterRoleType.PureAlly || isPacified) ? "#44FF88" : (IsBossCharacter() ? "#FFAA00" : "#00E5FF");
+                string bossTag = IsBossCharacter() ? " (Jefe Territorial)" : "";
                 string actionHint = distToPlayer <= interactDistance ? "\n<color=#FFD700>[F] Hablar</color>" : "";
-                promptLabel.text = $"<color={tagColor}><b>{displayName}</b></color>\n<size=72%>{speciesTitle}</size>{actionHint}";
+                promptLabel.text = $"<color={tagColor}><b>{displayName}{bossTag}</b></color>\n<size=72%>{speciesTitle}</size>{actionHint}";
             }
         }
 

@@ -9,7 +9,21 @@ namespace Prototipo3.Narrative
     /// </summary>
     public class StoryGrammarEngine
     {
-        public static StoryGraph GenerateStory(int seed = 12345)
+        /// <summary>
+        /// Deriva una secuencia de acciones atómicas directamente desde la gramática formal CFG:
+        /// S -> ARCO_CORTO | ARCO_MEDIO | ARCO_COMPLEJO
+        /// </summary>
+        public static List<TerminalAction> GenerateArcActions(string arcSymbol = "S", int seed = 12345)
+        {
+            return QuestGrammarParser.Derivate(arcSymbol, seed, maxRecursionDepth: 2);
+        }
+
+        public static StoryGraph GenerateStory()
+        {
+            return GenerateStory(0);
+        }
+
+        public static StoryGraph GenerateStory(int seed)
         {
             StoryGraph graph = new StoryGraph();
 

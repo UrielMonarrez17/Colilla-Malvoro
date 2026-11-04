@@ -17,7 +17,6 @@ namespace Prototipo3
         public static StoryManagerPrototipo3 Instance { get; private set; }
 
         [Header("Generación Narrativa")]
-        public int storySeed = 54321;
         public StoryWorldBinder worldBinder;
 
         [Header("Referencias del Jugador y Misión")]
@@ -194,7 +193,7 @@ namespace Prototipo3
 
             if (currentGraph == null || currentGraph.nodes == null || currentGraph.nodes.Count == 0 || currentGraph.GetNode("node_0_apertura") == null)
             {
-                currentGraph = StoryGrammarEngine.GenerateStory(storySeed);
+                currentGraph = StoryGrammarEngine.GenerateStory();
                 SetNodeState("node_0_apertura", StoryNodeState.Active, setFocus: true);
             }
 
@@ -266,14 +265,14 @@ namespace Prototipo3
                 }
             }
 
-            // En Nodo 0: si ya es de noche y el jugador sale de la base tras haber hablado con Marco o fabricado una herramienta
+            // En Nodo 0: Marco solo se vuelve feral de noche si el jugador ya avanzó hablando con él y preparando herramientas
             StoryNode node0 = currentGraph.GetNode("node_0_apertura");
             if (node0 != null && node0.state == StoryNodeState.Active && TimeManager.Instance != null)
             {
                 if (TimeManager.Instance.CurrentCycleState == TimeManager.CycleState.Night && !hasTriggeredMarcoFeralCutscene)
                 {
-                    float distFromBase = Vector3.Distance(player.position, cityGen.GetLandmarkPosition("Base"));
-                    if (distFromBase > 4.0f || hasSpokenToMarcoDay || hasCraftedInitialTool)
+                    bool marcoReadyForNight = hasSpokenToMarcoDay && (hasCraftedInitialTool || containersLootedCount >= 1);
+                    if (marcoReadyForNight)
                     {
                         TriggerMarcoNightfallEvent();
                     }
@@ -288,9 +287,18 @@ namespace Prototipo3
             if (newState == TimeManager.CycleState.Night)
             {
                 StoryNode node0 = currentGraph.GetNode("node_0_apertura");
+                bool marcoReadyForNight = hasSpokenToMarcoDay && (hasCraftedInitialTool || containersLootedCount >= 1);
                 if (node0 != null && node0.state == StoryNodeState.Active && !hasTriggeredMarcoFeralCutscene)
                 {
-                    TriggerMarcoNightfallEvent();
+                    if (marcoReadyForNight)
+                    {
+                        TriggerMarcoNightfallEvent();
+                    }
+                    else
+                    {
+                        EmitRadioTransmission("Dra. Elena Vargas [Radio]",
+                            "Kilo, la noche ha caído pero aún no terminas tu preparación. Habla con Marco de día y fabrica una trampa en tu mesa antes de salir.");
+                    }
                 }
 
                 // Si cae la noche durante la misión de reparar los postes de Sultán sin haberlo pacificado
@@ -318,7 +326,8 @@ namespace Prototipo3
             if (string.Equals(character.characterId, "Marco", StringComparison.OrdinalIgnoreCase))
             {
                 StoryNode node0 = currentGraph.GetNode("node_0_apertura");
-                if (node0 != null && node0.state == StoryNodeState.Active && !hasTriggeredMarcoFeralCutscene)
+                bool marcoReadyForNight = hasSpokenToMarcoDay && (hasCraftedInitialTool || containersLootedCount >= 1);
+                if (node0 != null && node0.state == StoryNodeState.Active && !hasTriggeredMarcoFeralCutscene && marcoReadyForNight)
                 {
                     TriggerMarcoNightfallEvent();
                 }

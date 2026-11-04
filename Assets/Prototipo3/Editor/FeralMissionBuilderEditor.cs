@@ -54,30 +54,30 @@ namespace Prototipo3.Editor
 
             EnsureFoldersExist();
 
-            // 1. Generar los 4 Prefabs de Edificios Importantes (Anclas de Distancia Manhattan)
-            GameObject prefabEscuela = CreateLandmarkBuildingPrefab(
+            // 1. Generar los 4 Prefabs de Edificios Importantes usando los modelos arquitectónicos de SimplePoly City
+            GameObject prefabEscuela = CreateSimplePolyLandmarkPrefab(
                 "Prefab_EscuelaBellavista",
+                "Assets/SimplePoly City - Low Poly Assets/Building_Residential_color01.prefab",
                 "ESCUELA SECUNDARIA BELLAVISTA\n[Rama A · Rector H. Morales & Toby]",
-                new Color(0.55f, 0.25f, 0.20f),
-                new Vector3(9f, 5.5f, 9f));
+                new Color(0.95f, 0.45f, 0.35f));
 
-            GameObject prefabBosque = CreateLandmarkBuildingPrefab(
+            GameObject prefabBosque = CreateSimplePolyLandmarkPrefab(
                 "Prefab_BosqueCeniza",
+                "Assets/SimplePoly City - Low Poly Assets/Building_House_02_color01.prefab",
                 "BOSQUE CENIZA - SUBESTACIÓN DEL ARROYO\n[Rama B · Sultán & Moka]",
-                new Color(0.20f, 0.42f, 0.26f),
-                new Vector3(9.5f, 4.2f, 9.5f));
+                new Color(0.35f, 0.85f, 0.45f));
 
-            GameObject prefabHospital = CreateLandmarkBuildingPrefab(
+            GameObject prefabHospital = CreateSimplePolyLandmarkPrefab(
                 "Prefab_HospitalSanJudas",
+                "Assets/SimplePoly City - Low Poly Assets/Building Sky_small_color01.prefab",
                 "HOSPITAL GENERAL SAN JUDAS\n[Convergencia C · Sofía, Dr. Salgado & Clara Valdés]",
-                new Color(0.78f, 0.84f, 0.88f),
-                new Vector3(9.5f, 6.5f, 9.5f));
+                new Color(0.45f, 0.75f, 0.95f));
 
-            GameObject prefabTorre = CreateLandmarkBuildingPrefab(
+            GameObject prefabTorre = CreateSimplePolyLandmarkPrefab(
                 "Prefab_TorreAethelgard",
+                "Assets/SimplePoly City - Low Poly Assets/Building Sky_big_color01.prefab",
                 "TORRE AETHELGARD - NÚCLEO SOLAR\n[Final D · Dra. Elena, Vane & Dr. Julián Kross]",
-                new Color(0.18f, 0.22f, 0.34f),
-                new Vector3(10f, 12f, 10f));
+                new Color(0.95f, 0.85f, 0.25f));
 
             // 2. Generar los 15 Prefabs de NPCs, Enemigos y Jefes con su contenedor hijo "VisualMesh_ReplaceMe"
             GameObject prefabElena = CreateCharacterPrefab(
@@ -307,56 +307,83 @@ namespace Prototipo3.Editor
             }
         }
 
-        private static GameObject CreateLandmarkBuildingPrefab(string prefabName, string signText, Color mainColor, Vector3 dimensions)
+        private static GameObject CreateSimplePolyLandmarkPrefab(string prefabName, string simplePolyAssetPath, string signText, Color signColor)
         {
             string path = $"{StoryPrefabsFolder}/{prefabName}.prefab";
-            GameObject root = new GameObject(prefabName);
+            GameObject sourcePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(simplePolyAssetPath);
+            GameObject root;
 
-            GameObject visualReplace = new GameObject("VisualMesh_ReplaceMe");
-            visualReplace.transform.SetParent(root.transform, false);
-
-            GameObject mainHall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            mainHall.name = "MainBuildingStructure";
-            mainHall.transform.SetParent(visualReplace.transform, false);
-            mainHall.transform.localPosition = new Vector3(0f, dimensions.y * 0.5f, -1.8f);
-            mainHall.transform.localScale = new Vector3(dimensions.x, dimensions.y, dimensions.z * 0.55f);
-            AssignColoredMaterial(mainHall.GetComponent<Renderer>(), mainColor, false);
-
-            GameObject entrance = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            entrance.name = "EntranceCanopy";
-            entrance.transform.SetParent(visualReplace.transform, false);
-            entrance.transform.localPosition = new Vector3(0f, 2.6f, 1.4f);
-            entrance.transform.localScale = new Vector3(4.2f, 0.35f, 2.4f);
-            AssignColoredMaterial(entrance.GetComponent<Renderer>(), mainColor * 1.25f, true);
-
-            GameObject beaconLightObj = new GameObject("LandmarkBeaconLight");
-            beaconLightObj.transform.SetParent(root.transform, false);
-            beaconLightObj.transform.localPosition = new Vector3(0f, 3.8f, 2.2f);
-            Light beacon = beaconLightObj.AddComponent<Light>();
-            beacon.type = LightType.Point;
-            beacon.range = 16f;
-            beacon.intensity = 2.6f;
-            beacon.color = new Color(1f, 0.92f, 0.72f);
-
-            GameObject signObj = new GameObject("BuildingSign_TMP");
-            signObj.transform.SetParent(root.transform, false);
-            signObj.transform.localPosition = new Vector3(0f, dimensions.y + 1.1f, 0f);
-            TMPro.TextMeshPro tmp = signObj.AddComponent<TMPro.TextMeshPro>();
-            if (TMPro.TMP_Settings.defaultFontAsset != null)
+            if (sourcePrefab != null)
             {
-                tmp.font = TMPro.TMP_Settings.defaultFontAsset;
+                root = (GameObject)PrefabUtility.InstantiatePrefab(sourcePrefab);
+                root.name = prefabName;
             }
-            tmp.text = signText;
-            tmp.fontSize = 3.8f;
-            tmp.alignment = TMPro.TextAlignmentOptions.Center;
-            tmp.color = Color.white;
-            tmp.outlineWidth = 0.22f;
-            tmp.outlineColor = Color.black;
-
-            MeshRenderer mr = signObj.GetComponent<MeshRenderer>();
-            if (mr != null && TMPro.TMP_Settings.defaultFontAsset != null)
+            else
             {
-                mr.sharedMaterial = TMPro.TMP_Settings.defaultFontAsset.material;
+                root = new GameObject(prefabName);
+            }
+
+            // Asegurar BuildingData para la cuadrícula
+            BuildingData bData = root.GetComponent<BuildingData>() ?? root.AddComponent<BuildingData>();
+            bData.gridWidth = 1;
+            bData.gridLength = 1;
+
+            // Asegurar CitySocket para el frente
+            CitySocket socket = root.GetComponent<CitySocket>() ?? root.AddComponent<CitySocket>();
+            if (socket.frontSocket == null)
+            {
+                Transform existingFront = root.transform.Find("FrontSocket");
+                if (existingFront == null)
+                {
+                    GameObject front = new GameObject("FrontSocket");
+                    front.transform.SetParent(root.transform, false);
+                    front.transform.localPosition = new Vector3(0f, 0f, 4.5f);
+                    socket.frontSocket = front.transform;
+                }
+                else
+                {
+                    socket.frontSocket = existingFront;
+                }
+            }
+
+            // Luz de baliza distintiva
+            Transform existingBeacon = root.transform.Find("LandmarkBeaconLight");
+            if (existingBeacon == null)
+            {
+                GameObject beaconLightObj = new GameObject("LandmarkBeaconLight");
+                beaconLightObj.transform.SetParent(root.transform, false);
+                beaconLightObj.transform.localPosition = new Vector3(0f, 6.0f, 2.5f);
+                Light beacon = beaconLightObj.AddComponent<Light>();
+                beacon.type = LightType.Point;
+                beacon.range = 18f;
+                beacon.intensity = 2.8f;
+                beacon.color = signColor;
+            }
+
+            // Rótulo 3D TMP
+            Transform existingSign = root.transform.Find("BuildingSign_TMP");
+            if (existingSign == null)
+            {
+                GameObject signObj = new GameObject("BuildingSign_TMP");
+                signObj.transform.SetParent(root.transform, false);
+                signObj.transform.localPosition = new Vector3(0f, 7.5f, 0f);
+                TMPro.TextMeshPro tmp = signObj.AddComponent<TMPro.TextMeshPro>();
+                if (TMPro.TMP_Settings.defaultFontAsset != null)
+                {
+                    tmp.font = TMPro.TMP_Settings.defaultFontAsset;
+                }
+                tmp.text = signText;
+                tmp.fontSize = 3.6f;
+                tmp.alignment = TMPro.TextAlignmentOptions.Center;
+                tmp.color = signColor;
+                tmp.outlineWidth = 0.22f;
+                tmp.outlineColor = Color.black;
+
+                MeshRenderer mr = signObj.GetComponent<MeshRenderer>();
+                if (mr != null && TMPro.TMP_Settings.defaultFontAsset != null)
+                {
+                    mr.sharedMaterial = TMPro.TMP_Settings.defaultFontAsset.material;
+                }
             }
 
             GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, path);

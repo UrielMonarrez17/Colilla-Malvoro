@@ -43,11 +43,16 @@ namespace Prototipo3
         private RawImage videoRawImage;
         private VideoPlayer videoPlayer;
         private RenderTexture videoRenderTexture;
+        private GameObject topBarObj;
+        private GameObject bottomBarObj;
         private Image fallbackBlackoutBg;
         private Text headerText;
         private Text subtitleText;
         private Text skipHintText;
         private Button skipButton;
+
+        private float previousTimeScale = 1f;
+        private bool ownsTimeScale = false;
 
         // Elementos de la Novela Gráfica / Cómic In-Engine
         private GameObject comicPanelRoot;
@@ -142,6 +147,7 @@ namespace Prototipo3
             rtTop.offsetMin = Vector2.zero;
             rtTop.offsetMax = Vector2.zero;
             topBar.GetComponent<Image>().color = new Color(0.02f, 0.02f, 0.03f, 0.95f);
+            topBarObj = topBar;
 
             GameObject bottomBar = new GameObject("LetterboxBottom", typeof(RectTransform), typeof(Image));
             bottomBar.transform.SetParent(rootPanel.transform, false);
@@ -152,6 +158,7 @@ namespace Prototipo3
             rtBottom.offsetMax = Vector2.zero;
             fallbackBlackoutBg = bottomBar.GetComponent<Image>();
             fallbackBlackoutBg.color = new Color(0.02f, 0.02f, 0.03f, 0.95f);
+            bottomBarObj = bottomBar;
 
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
@@ -185,16 +192,16 @@ namespace Prototipo3
             subtitleText.alignment = TextAnchor.MiddleCenter;
             subtitleText.horizontalOverflow = HorizontalWrapMode.Wrap;
 
-            // Botón de saltar
+            // Botón de saltar (Ubicado en la esquina superior derecha, independiente de las barras para que sea el único elemento visible)
             GameObject skipBtnGo = new GameObject("SkipCutsceneButton", typeof(RectTransform), typeof(Image), typeof(Button));
-            skipBtnGo.transform.SetParent(topBar.transform, false);
+            skipBtnGo.transform.SetParent(rootPanel.transform, false);
             RectTransform rtSkip = skipBtnGo.GetComponent<RectTransform>();
-            rtSkip.anchorMin = new Vector2(1f, 0.5f);
-            rtSkip.anchorMax = new Vector2(1f, 0.5f);
-            rtSkip.pivot = new Vector2(1f, 0.5f);
-            rtSkip.anchoredPosition = new Vector2(-40f, 0f);
-            rtSkip.sizeDelta = new Vector2(310f, 50f);
-            skipBtnGo.GetComponent<Image>().color = new Color(0.55f, 0.16f, 0.12f, 0.95f);
+            rtSkip.anchorMin = new Vector2(1f, 1f);
+            rtSkip.anchorMax = new Vector2(1f, 1f);
+            rtSkip.pivot = new Vector2(1f, 1f);
+            rtSkip.anchoredPosition = new Vector2(-35f, -35f);
+            rtSkip.sizeDelta = new Vector2(230f, 48f);
+            skipBtnGo.GetComponent<Image>().color = new Color(0.45f, 0.14f, 0.10f, 0.92f);
 
             skipButton = skipBtnGo.GetComponent<Button>();
             skipButton.onClick.AddListener(SkipCurrentCutscene);
@@ -212,7 +219,7 @@ namespace Prototipo3
             skipHintText.fontStyle = FontStyle.Bold;
             skipHintText.color = Color.white;
             skipHintText.alignment = TextAnchor.MiddleCenter;
-            skipHintText.text = "Saltar Cinemática [ESC]";
+            skipHintText.text = "Saltar [ESC]";
 
             // =========================================================================
             // PANEL 2D ESTILIZADO DE NOVELA GRÁFICA / CÓMIC IN-ENGINE
@@ -395,12 +402,16 @@ namespace Prototipo3
             PauseGameplayForCutscene();
 
             rootPanel.SetActive(true);
+            if (topBarObj != null) topBarObj.SetActive(false);
+            if (bottomBarObj != null) bottomBarObj.SetActive(false);
+            if (comicPanelRoot != null) comicPanelRoot.SetActive(false);
+            if (skipButton != null) skipButton.gameObject.SetActive(true);
+
             string resolvedPath = ResolveCutscenePath(fileName, out bool mp4Exists);
 
             if (mp4Exists)
             {
-                // MODO 1: Video MP4 a pantalla completa
-                comicPanelRoot.SetActive(false);
+                // MODO 1: Video MP4 a pantalla completa sin UI invasiva descriptiva
                 if (videoRenderTexture == null)
                 {
                     videoRenderTexture = new RenderTexture(1920, 1080, 0);
@@ -410,11 +421,9 @@ namespace Prototipo3
                 videoRawImage.texture = videoRenderTexture;
                 videoRawImage.color = Color.white;
 
-                headerText.text = $"CINEMÁTICA  •  {fileName}";
-                subtitleText.text = subtitleSummary;
-
                 videoPlayer.targetTexture = videoRenderTexture;
                 videoPlayer.url = resolvedPath;
+                videoPlayer.timeUpdateMode = VideoTimeUpdateMode.UnscaledGameTime;
                 videoPlayer.Prepare();
 
                 float prepareTimeout = 3.0f;
@@ -453,7 +462,7 @@ namespace Prototipo3
             }
             else
             {
-                // MODO 2: Respaldo de Novela Gráfica / Viñeta de Cómic In-Engine
+                // MODO 2: Respaldo de foco de cámara In-Engine (sin UI descriptiva, solo botón de saltar)
                 yield return FallbackComicRoutine(fileName, fallbackCameraTarget, subtitleSummary);
                 yield break;
             }
@@ -463,11 +472,13 @@ namespace Prototipo3
 
         private IEnumerator FallbackComicRoutine(string fileName, Transform fallbackCameraTarget, string subtitleSummary)
         {
-            Debug.Log($"[CutsceneManager] Archivo '{fileName}' no presente. Ejecutando Novela Gráfica / Viñeta de Cómic In-Engine.");
+            Debug.Log($"[CutsceneManager] Archivo '{fileName}' no presente. Ejecutando enfoque cinemático in-engine en pausa.");
 
             videoRawImage.gameObject.SetActive(false);
-            headerText.text = $"HISTORIA DE SOLIS  •  {fileName.Replace(".mp4", "")}";
-            subtitleText.text = subtitleSummary;
+            if (topBarObj != null) topBarObj.SetActive(false);
+            if (bottomBarObj != null) bottomBarObj.SetActive(false);
+            if (comicPanelRoot != null) comicPanelRoot.SetActive(false);
+            if (skipButton != null) skipButton.gameObject.SetActive(true);
 
             IsometricCameraFollow isoCam = FindAnyObjectByType<IsometricCameraFollow>();
             if (isoCam != null && fallbackCameraTarget != null)
@@ -475,49 +486,16 @@ namespace Prototipo3
                 isoCam.SetCutsceneOverrideTarget(fallbackCameraTarget, 12.5f);
             }
 
-            ComicSceneData sceneData = GetComicSceneData(fileName, subtitleSummary);
-
-            comicPanelRoot.SetActive(true);
-            comicPortraitBox.color = sceneData.color;
-            comicPortraitInitial.text = sceneData.initial;
-            comicSpeakerName.text = sceneData.speaker;
-            comicSpeakerTitle.text = sceneData.title;
-
-            // Recorrer cada viñeta / línea de diálogo avanzando con Espacio o F
-            for (int i = 0; i < sceneData.lines.Length; i++)
+            float elapsed = 0f;
+            while (elapsed < fallbackDurationSeconds)
             {
-                comicDialogueText.text = sceneData.lines[i];
-                comicAdvanceHint.text = i < sceneData.lines.Length - 1
-                    ? $"[ESPACIO / F] Siguiente viñeta ({i + 1}/{sceneData.lines.Length}) ▶"
-                    : "Continuar juego [ESPACIO / F] ▶";
-
-                yield return new WaitForSecondsRealtime(0.25f);
-
-                float lineElapsed = 0f;
-                float autoAdvanceTimeout = 6.5f;
-
-                while (lineElapsed < autoAdvanceTimeout)
+                elapsed += Time.unscaledDeltaTime;
+                if (CheckSkipInput())
                 {
-                    lineElapsed += Time.unscaledDeltaTime;
-
-                    if (CheckAdvanceInput())
-                    {
-                        break;
-                    }
-
-                    if (CheckSkipInput())
-                    {
-                        if (isoCam != null) isoCam.ClearCutsceneOverrideTarget();
-                        comicPanelRoot.SetActive(false);
-                        FinishCutscene();
-                        yield break;
-                    }
-
-                    yield return null;
+                    break;
                 }
+                yield return null;
             }
-
-            comicPanelRoot.SetActive(false);
 
             if (isoCam != null)
             {
@@ -668,17 +646,35 @@ namespace Prototipo3
 
         private bool CheckSkipInput()
         {
-            return FeralInput.Pressed(KeyCode.Escape) || Input.GetKeyDown(KeyCode.Escape);
+            return FeralInput.Pressed(KeyCode.Escape) || Input.GetKeyDown(KeyCode.Escape) ||
+                   FeralInput.Pressed(KeyCode.Space) || Input.GetKeyDown(KeyCode.Space);
         }
 
         private void PauseGameplayForCutscene()
         {
+            // Pausar el flujo de tiempo del juego para que los enemigos no puedan atacar ni el gas avanzar
+            if (!ownsTimeScale)
+            {
+                previousTimeScale = Time.timeScale;
+                Time.timeScale = 0f;
+                ownsTimeScale = true;
+            }
+
+            if (videoPlayer != null)
+            {
+                videoPlayer.timeUpdateMode = VideoTimeUpdateMode.UnscaledGameTime;
+            }
+
             HamsterController hc = FindAnyObjectByType<HamsterController>();
             if (hc != null)
             {
                 wasPlayerEnabled = hc.enabled;
                 Rigidbody rb = hc.GetComponent<Rigidbody>();
-                if (rb != null) rb.linearVelocity = Vector3.zero;
+                if (rb != null)
+                {
+                    rb.linearVelocity = Vector3.zero;
+                    rb.angularVelocity = Vector3.zero;
+                }
                 hc.enabled = false;
             }
 
@@ -697,6 +693,13 @@ namespace Prototipo3
 
         private void RestoreGameplayFromCutscene()
         {
+            // Restaurar el flujo de tiempo normal del juego
+            if (ownsTimeScale)
+            {
+                Time.timeScale = previousTimeScale > 0f ? previousTimeScale : 1f;
+                ownsTimeScale = false;
+            }
+
             for (int i = 0; i < pausedAgents.Count; i++)
             {
                 NavMeshAgent a = pausedAgents[i];

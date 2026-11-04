@@ -65,9 +65,10 @@ namespace Prototipo3
                 "¡Kilo, perdóname! Anoche el humo me cegó de furia... Escuché que en la Escuela Bellavista y en el Bosque Ceniza buscan una forma de filtrar esta toxina."
             );
 
-            // 2. ANILLO CERCANO (3-5): Escuela Secundaria Bellavista
+            // 2. ANILLO CERCANO: Escuela Secundaria Bellavista
             Transform escuelaRoot = cityGen.SpawnedEscuela != null ? cityGen.SpawnedEscuela.transform : cityGen.transform;
-            Vector3 escPos = cityGen.GetLandmarkPosition("Escuela");
+            Vector3 escEntrance = cityGen.GetLandmarkEntrancePosition("Escuela");
+            Vector3 escBoss = cityGen.GetLandmarkBossPosition("Escuela");
 
             EnsureCharacterExists(
                 "Toby",
@@ -75,7 +76,7 @@ namespace Prototipo3
                 "Mapache • Taller de Robótica",
                 CharacterRoleType.PureAlly,
                 BossProfileType.None,
-                escPos + new Vector3(-2.2f, 0f, 1.5f),
+                escEntrance + new Vector3(-1.8f, 0f, 0.5f),
                 escuelaRoot,
                 new Color(0.45f, 0.48f, 0.52f),
                 "¡Kilo! El Rector H. Morales tiene el oído de un búho real: si corres con [Shift] sin agacharte [C] te detectará de inmediato. Usa el Señuelo Acústico [Tecla 1] para distraerlo y espía su oficina antes de entrar al Laboratorio de Química.",
@@ -88,7 +89,7 @@ namespace Prototipo3
                 "Mastín del Patio Escolar",
                 CharacterRoleType.DualCitizenFeral,
                 BossProfileType.None,
-                escPos + new Vector3(2.6f, 0f, 2.8f),
+                escEntrance + new Vector3(1.8f, 0f, 0.5f),
                 escuelaRoot,
                 new Color(0.55f, 0.38f, 0.22f),
                 "Guau... De día vigilo el patio de la Escuela Bellavista en paz, pero cuando cae el sol siento que algo me quema por dentro.",
@@ -101,19 +102,20 @@ namespace Prototipo3
                 "Búho Real • \"El Silenciador\" (Boss 1)",
                 CharacterRoleType.DualCitizenFeral,
                 BossProfileType.Morales_Buho,
-                escPos + new Vector3(0f, 0f, -1.2f),
+                escBoss,
                 escuelaRoot,
                 new Color(0.42f, 0.30f, 0.18f),
                 "Silencio en los pasillos, joven Kilo. El laboratorio de química permanece bajo llave por orden de la corporación Aethelgard.",
                 "¿Qué ocurrió durante el apagón? Mi cabeza da vueltas... El silencio debe mantenerse."
             );
 
-            EnsureMechanismExists("Oficina_Morales", "Oficina del Rector Morales", StoryMechanismType.MoralesOfficeDesk, 1, escPos + new Vector3(2.1f, 0f, -0.5f), escuelaRoot);
-            EnsureMechanismExists("Laboratorio_Quimica", "Laboratorio de Química (Vial de Enzima Base)", StoryMechanismType.SchoolChemistryLab, 1, escPos + new Vector3(-1.8f, 0f, -2.0f), escuelaRoot);
+            EnsureMechanismExists("Oficina_Morales", "Oficina del Rector Morales", StoryMechanismType.MoralesOfficeDesk, 1, escEntrance + new Vector3(1.5f, 0f, -1.2f), escuelaRoot);
+            EnsureMechanismExists("Laboratorio_Quimica", "Laboratorio de Química (Vial de Enzima Base)", StoryMechanismType.SchoolChemistryLab, 1, escEntrance + new Vector3(-1.5f, 0f, -1.2f), escuelaRoot);
 
-            // 3. ANILLO MEDIO (6-9, Cuadrante 1): Bosque Ceniza
+            // 3. ANILLO MEDIO (Cuadrante 1): Bosque Ceniza
             Transform bosqueRoot = cityGen.SpawnedBosque != null ? cityGen.SpawnedBosque.transform : cityGen.transform;
-            Vector3 bosPos = cityGen.GetLandmarkPosition("Bosque");
+            Vector3 bosEntrance = cityGen.GetLandmarkEntrancePosition("Bosque");
+            Vector3 bosBoss = cityGen.GetLandmarkBossPosition("Bosque");
 
             EnsureCharacterExists(
                 "Moka",
@@ -121,7 +123,7 @@ namespace Prototipo3
                 "Zarigüeya Exploradora",
                 CharacterRoleType.PureAlly,
                 BossProfileType.None,
-                bosPos + new Vector3(-2.4f, 0f, 2.0f),
+                bosEntrance + new Vector3(-1.8f, 0f, 0.5f),
                 bosqueRoot,
                 new Color(0.68f, 0.62f, 0.58f),
                 "¡Psst, Kilo! Toma estas semillas de helecho para fabricar la Bomba de Polen [Trampa 2]. Cuando Sultán se vuelve feral de noche su olfato se multiplica x2.5, pero el polen lo deja sin rastro. Habla con él de día y repara los 3 postes del arroyo.",
@@ -134,7 +136,7 @@ namespace Prototipo3
                 "Vigía del Bosque Ceniza",
                 CharacterRoleType.DualCitizenFeral,
                 BossProfileType.None,
-                bosPos + new Vector3(2.8f, 0f, 2.4f),
+                bosEntrance + new Vector3(1.8f, 0f, 0.5f),
                 bosqueRoot,
                 new Color(0.18f, 0.18f, 0.22f),
                 "¡Craa! Las cenizas del arroyo brillan cuando cae la noche...",
@@ -147,7 +149,7 @@ namespace Prototipo3
                 "Lobo Gris • \"Colmillo de Brasa\" (Boss 2)",
                 CharacterRoleType.PacifiableBoss,
                 BossProfileType.Sultan_Lobo,
-                bosPos + new Vector3(0f, 0f, -1.0f),
+                bosBoss,
                 bosqueRoot,
                 new Color(0.50f, 0.52f, 0.56f),
                 "Kilo... ayúdame antes de que caiga la noche. Repara los 3 postes reflectores del arroyo usando Madera, Goma y Metal. Cuando me vuelva feral en la oscuridad, usa tu Bomba de Polen [2], atráeme a la subestación y enciende la luz fría.",
@@ -156,14 +158,15 @@ namespace Prototipo3
             sultan.pacifiedDialogue = "Gracias por devolverme la cordura con la luz fría, Kilo. Toma el Filtro de Carbón Biológico y la llave del Hospital San Judas. ¡Estaré listo cuando ataques la Torre!";
             SpawnedSultan = sultan;
 
-            EnsureMechanismExists("Poste_Reflector_1", "Poste Reflector del Arroyo #1", StoryMechanismType.ReflectorPole, 1, bosPos + new Vector3(-2.6f, 0f, -0.4f), bosqueRoot);
-            EnsureMechanismExists("Poste_Reflector_2", "Poste Reflector del Arroyo #2", StoryMechanismType.ReflectorPole, 2, bosPos + new Vector3(0f, 0f, 2.4f), bosqueRoot);
-            EnsureMechanismExists("Poste_Reflector_3", "Poste Reflector del Arroyo #3", StoryMechanismType.ReflectorPole, 3, bosPos + new Vector3(2.6f, 0f, -0.4f), bosqueRoot);
-            EnsureMechanismExists("Interruptor_Subestacion", "Interruptor de Reflectores del Arroyo", StoryMechanismType.StreamSubstationSwitch, 1, bosPos + new Vector3(0f, 0f, -2.4f), bosqueRoot);
+            EnsureMechanismExists("Poste_Reflector_1", "Poste Reflector del Arroyo #1", StoryMechanismType.ReflectorPole, 1, bosEntrance + new Vector3(-2.2f, 0f, -1.0f), bosqueRoot);
+            EnsureMechanismExists("Poste_Reflector_2", "Poste Reflector del Arroyo #2", StoryMechanismType.ReflectorPole, 2, bosEntrance + new Vector3(0f, 0f, 1.8f), bosqueRoot);
+            EnsureMechanismExists("Poste_Reflector_3", "Poste Reflector del Arroyo #3", StoryMechanismType.ReflectorPole, 3, bosEntrance + new Vector3(2.2f, 0f, -1.0f), bosqueRoot);
+            EnsureMechanismExists("Interruptor_Subestacion", "Interruptor de Reflectores del Arroyo", StoryMechanismType.StreamSubstationSwitch, 1, bosEntrance + new Vector3(0f, 0f, -2.0f), bosqueRoot);
 
-            // 4. ANILLO MEDIO (6-9, Cuadrante 2): Hospital General San Judas
+            // 4. ANILLO MEDIO (Cuadrante 2): Hospital General San Judas
             Transform hospRoot = cityGen.SpawnedHospital != null ? cityGen.SpawnedHospital.transform : cityGen.transform;
-            Vector3 hospPos = cityGen.GetLandmarkPosition("Hospital");
+            Vector3 hospEntrance = cityGen.GetLandmarkEntrancePosition("Hospital");
+            Vector3 hospBoss = cityGen.GetLandmarkBossPosition("Hospital");
 
             SpawnedSalgado = EnsureCharacterExists(
                 "Salgado",
@@ -171,7 +174,7 @@ namespace Prototipo3
                 "Tortuga Pediatra • Hospital San Judas",
                 CharacterRoleType.PureAlly,
                 BossProfileType.None,
-                hospPos + new Vector3(-2.2f, 0f, 1.8f),
+                hospEntrance + new Vector3(-1.8f, 0f, 0.5f),
                 hospRoot,
                 new Color(0.28f, 0.55f, 0.34f),
                 "¡Kilo! Con el Vial de Enzima Base y el Filtro de Carbón Biológico ya puedo preparar el nebulizador de Sofía en la Habitación 304. Solo falta que visites a Sofía, hables con la enfermera Clara y traigas el Cilindro de Oxígeno Puro del quirófano.",
@@ -184,7 +187,7 @@ namespace Prototipo3
                 "Conejita Albina • Habitación 304",
                 CharacterRoleType.PureAlly,
                 BossProfileType.None,
-                hospPos + new Vector3(-2.2f, 0f, -1.6f),
+                hospEntrance + new Vector3(-0.6f, 0f, 1.6f),
                 hospRoot,
                 new Color(0.95f, 0.92f, 0.94f),
                 "Kilo... sabía que vendrías por mí. No dejes que la enfermera Clara te atrape con su gas anestésico en el quirófano.",
@@ -197,7 +200,7 @@ namespace Prototipo3
                 "Guardia de Urgencias",
                 CharacterRoleType.DualCitizenFeral,
                 BossProfileType.None,
-                hospPos + new Vector3(2.5f, 0f, 2.2f),
+                hospEntrance + new Vector3(1.8f, 0f, 0.5f),
                 hospRoot,
                 new Color(0.45f, 0.32f, 0.26f),
                 "El turno de urgencias es agotador... No te acerques a los pasillos cerrados cuando anochezca.",
@@ -210,7 +213,7 @@ namespace Prototipo3
                 "Cisne Negro • \"La Dama de Gas\" (Boss 3)",
                 CharacterRoleType.PacifiableBoss,
                 BossProfileType.Clara_Cisne,
-                hospPos + new Vector3(1.8f, 0f, -1.0f),
+                hospBoss,
                 hospRoot,
                 new Color(0.15f, 0.15f, 0.20f),
                 "Los cilindros de oxígeno están en el quirófano, pequeño Kilo. Pero mis válvulas de anestesia tienen fugas cuando oscurece... Si pierdo la razón, enciérrame en la Cámara Hiperbárica con una descarga estática sin lastimarme.",
@@ -219,12 +222,13 @@ namespace Prototipo3
             clara.pacifiedDialogue = "La presión hiperbárica despejó la toxina de mis pulmones. Toma el Cilindro de Oxígeno Puro y salva a Sofía, Kilo.";
             SpawnedClara = clara;
 
-            EnsureMechanismExists("Valvula_Hiperbarica", "Válvula de la Cámara Hiperbárica", StoryMechanismType.HyperbaricChamberValve, 1, hospPos + new Vector3(2.0f, 0f, -2.2f), hospRoot);
-            EnsureMechanismExists("Cilindro_Oxigeno", "Cilindro de Oxígeno Puro", StoryMechanismType.PureOxygenCylinder, 1, hospPos + new Vector3(0f, 0f, -2.4f), hospRoot);
+            EnsureMechanismExists("Valvula_Hiperbarica", "Válvula de la Cámara Hiperbárica", StoryMechanismType.HyperbaricChamberValve, 1, hospEntrance + new Vector3(1.8f, 0f, -1.4f), hospRoot);
+            EnsureMechanismExists("Cilindro_Oxigeno", "Cilindro de Oxígeno Puro", StoryMechanismType.PureOxygenCylinder, 1, hospEntrance + new Vector3(0f, 0f, -2.0f), hospRoot);
 
-            // 5. ANILLO LEJANO (10+): Torre Corporativa Aethelgard
+            // 5. ANILLO LEJANO: Torre Corporativa Aethelgard
             Transform torreRoot = cityGen.SpawnedTorre != null ? cityGen.SpawnedTorre.transform : cityGen.transform;
-            Vector3 torrePos = cityGen.GetLandmarkPosition("Torre");
+            Vector3 torreEntrance = cityGen.GetLandmarkEntrancePosition("Torre");
+            Vector3 torreBoss = cityGen.GetLandmarkBossPosition("Torre");
 
             EnsureCharacterExists(
                 "Vane",
@@ -232,7 +236,7 @@ namespace Prototipo3
                 "Zorro Ártico • Desertor de ECLIPSE",
                 CharacterRoleType.PureAlly,
                 BossProfileType.None,
-                torrePos + new Vector3(-2.2f, 0f, 2.4f),
+                torreEntrance + new Vector3(-1.8f, 0f, 0.5f),
                 torreRoot,
                 new Color(0.88f, 0.92f, 0.98f),
                 "Kilo, el Dr. Julián Kross se encerró en el reactor superior. Toby, Moka y Sultán están distrayendo a las patrullas ECLIPSE. Entra, libera a la Dra. Elena Vargas para recibir el Suero Alba-Puro y apaga los 3 Condensadores UV de Kross.",
@@ -245,7 +249,7 @@ namespace Prototipo3
                 "Centinela Corporativo",
                 CharacterRoleType.DualCitizenFeral,
                 BossProfileType.None,
-                torrePos + new Vector3(2.5f, 0f, 2.2f),
+                torreEntrance + new Vector3(1.8f, 0f, 0.5f),
                 torreRoot,
                 new Color(0.30f, 0.34f, 0.40f),
                 "Acceso restringido a personal del Proyecto Helios-Omega.",
@@ -258,7 +262,7 @@ namespace Prototipo3
                 "Nutria Bioquímica • Creadora del Suero Alba-Puro",
                 CharacterRoleType.PureAlly,
                 BossProfileType.None,
-                torrePos + new Vector3(-2.2f, 0f, -1.6f),
+                torreEntrance + new Vector3(-0.6f, 0f, 1.6f),
                 torreRoot,
                 new Color(0.52f, 0.36f, 0.24f),
                 "¡Kilo, lograste llegar! Aquí tienes el Suero Alba-Puro. El exoesqueleto de Kross se alimenta de los 3 Condensadores Fotónicos UV: sobrecárgalos con tu Descargador Estático [3] o con [F] e inserta el suero en el Inyector Central.",
@@ -271,7 +275,7 @@ namespace Prototipo3
                 "Murciélago Albino • \"El Heraldo Solar\" (Boss Final)",
                 CharacterRoleType.PacifiableBoss,
                 BossProfileType.Kross_Murcielago,
-                torrePos + new Vector3(0f, 0f, -0.8f),
+                torreBoss,
                 torreRoot,
                 new Color(0.90f, 0.85f, 0.95f),
                 "¡La evolución feral es inevitable, pequeño roedor! ¡Mis 3 Condensadores Fotónicos UV harán que la noche sea eterna en Solis!",
@@ -280,11 +284,11 @@ namespace Prototipo3
             kross.pacifiedDialogue = "Mi exoesqueleto... apagado... El Suero Alba-Puro está disipando el gas Helios-Omega de toda la ciudad...";
             SpawnedKross = kross;
 
-            EnsureMechanismExists("Celda_Dra_Elena", "Celda de Contención - Dra. Elena Vargas", StoryMechanismType.ElenaReactorCell, 1, torrePos + new Vector3(-2.0f, 0f, -1.2f), torreRoot);
-            EnsureMechanismExists("Condensador_UV_1", "Condensador Fotónico UV #1", StoryMechanismType.PhotonicUVCapacitor, 1, torrePos + new Vector3(-2.6f, 0f, 0.5f), torreRoot);
-            EnsureMechanismExists("Condensador_UV_2", "Condensador Fotónico UV #2", StoryMechanismType.PhotonicUVCapacitor, 2, torrePos + new Vector3(2.6f, 0f, 0.5f), torreRoot);
-            EnsureMechanismExists("Condensador_UV_3", "Condensador Fotónico UV #3", StoryMechanismType.PhotonicUVCapacitor, 3, torrePos + new Vector3(2.2f, 0f, -2.0f), torreRoot);
-            EnsureMechanismExists("Inyector_Central", "Inyector Central de la Chimenea Aethelgard", StoryMechanismType.CentralSerumInjector, 1, torrePos + new Vector3(0f, 0f, -2.5f), torreRoot);
+            EnsureMechanismExists("Celda_Dra_Elena", "Celda de Contención - Dra. Elena Vargas", StoryMechanismType.ElenaReactorCell, 1, torreEntrance + new Vector3(-1.6f, 0f, -1.4f), torreRoot);
+            EnsureMechanismExists("Condensador_UV_1", "Condensador Fotónico UV #1", StoryMechanismType.PhotonicUVCapacitor, 1, torreEntrance + new Vector3(-2.2f, 0f, 1.2f), torreRoot);
+            EnsureMechanismExists("Condensador_UV_2", "Condensador Fotónico UV #2", StoryMechanismType.PhotonicUVCapacitor, 2, torreEntrance + new Vector3(2.2f, 0f, 1.2f), torreRoot);
+            EnsureMechanismExists("Condensador_UV_3", "Condensador Fotónico UV #3", StoryMechanismType.PhotonicUVCapacitor, 3, torreEntrance + new Vector3(1.8f, 0f, -1.4f), torreRoot);
+            EnsureMechanismExists("Inyector_Central", "Inyector Central de la Chimenea Aethelgard", StoryMechanismType.CentralSerumInjector, 1, torreEntrance + new Vector3(0f, 0f, -2.2f), torreRoot);
         }
 
         private DualRoleCharacter EnsureCharacterExists(
@@ -306,6 +310,9 @@ namespace Prototipo3
                 {
                     existing.transform.position = worldPos;
                     existing.SetHomeAnchor(worldPos);
+                    PlotGate gateExisting = existing.GetComponent<PlotGate>() ?? existing.gameObject.AddComponent<PlotGate>();
+                    ConfigureCharacterPlotGate(gateExisting, existing, charId, bossProfile);
+                    existing.EvaluateCycleStateImmediate();
                     return existing;
                 }
             }
@@ -365,10 +372,10 @@ namespace Prototipo3
             drc.postNightApologyDialogue = apologyDialogue;
             drc.SetHomeAnchor(worldPos);
             drc.ApplyBossProfileConfiguration();
-            drc.EvaluateCycleStateImmediate();
 
             PlotGate gate = go.GetComponent<PlotGate>() ?? go.AddComponent<PlotGate>();
-            ConfigureCharacterPlotGate(gate, charId, bossProfile);
+            ConfigureCharacterPlotGate(gate, drc, charId, bossProfile);
+            drc.EvaluateCycleStateImmediate();
             WorldRegistry.Register(charId, go.transform);
 
             spawnedWorldArtifacts.Add(go);
@@ -427,7 +434,7 @@ namespace Prototipo3
             return mech;
         }
 
-        private void ConfigureCharacterPlotGate(PlotGate gate, string charId, BossProfileType profile)
+        private void ConfigureCharacterPlotGate(PlotGate gate, DualRoleCharacter drc, string charId, BossProfileType profile)
         {
             if (gate == null) return;
             string key = charId.ToLowerInvariant();
@@ -436,24 +443,48 @@ namespace Prototipo3
                 gate.targetStoryNodeID = "node_a3_apagon";
                 gate.allowedStoryNodeIDs = new List<string> { "node_a1_escuela", "node_a2_toby", "node_a3_apagon" };
                 gate.mundaneDayDialogue = "Silencio en los pasillos de la escuela, pequeño Kilo. El recinto está cerrado de noche.";
+                if (drc != null)
+                {
+                    drc.feralStoryNodeIDs = new List<string> { "node_a3_apagon" };
+                }
             }
             else if (key.Contains("sultan"))
             {
                 gate.targetStoryNodeID = "node_b3_sultan";
                 gate.allowedStoryNodeIDs = new List<string> { "node_b1_bosque", "node_b2_postes", "node_b3_sultan" };
                 gate.mundaneDayDialogue = "El bosque está tranquilo hoy, pequeño. Pero busca refugio antes del anochecer: se vuelve peligroso.";
+                if (drc != null)
+                {
+                    drc.feralStoryNodeIDs = new List<string> { "node_b2_postes", "node_b3_sultan" };
+                }
             }
             else if (key.Contains("clara"))
             {
                 gate.targetStoryNodeID = "node_c2_clara";
                 gate.allowedStoryNodeIDs = new List<string> { "node_c1_hospital", "node_c2_clara" };
                 gate.mundaneDayDialogue = "El hospital atiende en calma a los pacientes de día. Los pabellones quirúrgicos están sellados al público.";
+                if (drc != null)
+                {
+                    drc.feralStoryNodeIDs = new List<string> { "node_c2_clara" };
+                }
             }
             else if (key.Contains("kross"))
             {
                 gate.targetStoryNodeID = "node_d2_kross";
                 gate.allowedStoryNodeIDs = new List<string> { "node_d1_torre", "node_d2_kross" };
                 gate.mundaneDayDialogue = "La corporación Aethelgard vela por la ciudad... Vuelve a tu madriguera antes de la noche.";
+                if (drc != null)
+                {
+                    drc.feralStoryNodeIDs = new List<string> { "node_d2_kross" };
+                }
+            }
+            else if (key.Contains("marco"))
+            {
+                gate.targetStoryNodeID = "node_0_apertura";
+                if (drc != null)
+                {
+                    drc.feralStoryNodeIDs = new List<string> { "node_0_apertura" };
+                }
             }
             else
             {

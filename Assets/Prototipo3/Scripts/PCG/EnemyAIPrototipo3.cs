@@ -20,6 +20,12 @@ namespace Prototipo3
         [Header("Perfil de Jefe y Mecánicas Tácticas (Prototipo 3)")]
         public BossProfileType bossProfile = BossProfileType.None;
 
+        [Header("Patrulla Territorial de Jefes")]
+        [Tooltip("Radio máximo de patrulla alrededor del spawner/homeAnchor para Jefes.")]
+        public float bossTerritoryRadius = 15f;
+        [Tooltip("Distancia máxima de persecución antes de que el Jefe rompa la persecución y regrese a su territorio.")]
+        public float bossLeashDistance = 26f;
+
         [Tooltip("Rector Morales: Detecta carreras ruidosas (Shift sin agacharse C) a gran distancia.")]
         public bool sensitiveToNoisySprint = false;
         public float noisySprintDetectionRadius = 25f;
@@ -126,7 +132,11 @@ namespace Prototipo3
             if (CityGeneratorPrototipo3.Instance != null)
             {
                 SetPatrolWaypoints(null);
-                if (wanderRadius < 30f)
+                if (IsBossCharacter())
+                {
+                    wanderRadius = bossTerritoryRadius;
+                }
+                else if (wanderRadius < 30f)
                 {
                     wanderRadius = 35f;
                 }
@@ -367,6 +377,54 @@ namespace Prototipo3
             sparksVfxObj.SetActive(true);
         }
 
+        public bool IsBossCharacter()
+        {
+            if (bossProfile != BossProfileType.None) return true;
+            if (dualRole == null) dualRole = GetComponent<DualRoleCharacter>();
+            if (dualRole != null && (dualRole.roleType == CharacterRoleType.PacifiableBoss || dualRole.bossProfile != BossProfileType.None)) return true;
+            return false;
+        }
+
+        private void EnforceBossTerritoryPatrol()
+        {
+            if (!IsBossCharacter()) return;
+            if (dualRole == null) dualRole = GetComponent<DualRoleCharacter>();
+            Vector3 home = dualRole != null ? dualRole.HomeAnchorPosition : transform.position;
+            if (home == Vector3.zero) return;
+
+            float distFromHome = Vector3.Distance(transform.position, home);
+            if (distFromHome > bossTerritoryRadius)
+            {
+                if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh && staticParalysisTimer <= 0f && netImmobilizationTimer <= 0f)
+                {
+                    protoAgent.isStopped = false;
+                    protoAgent.speed = wanderSpeed;
+                    protoAgent.SetDestination(home);
+                }
+            }
+        }
+
+        private void EnforceBossChaseLeash()
+        {
+            if (!IsBossCharacter()) return;
+            if (dualRole == null) dualRole = GetComponent<DualRoleCharacter>();
+            Vector3 home = dualRole != null ? dualRole.HomeAnchorPosition : transform.position;
+            if (home == Vector3.zero) return;
+
+            float distFromHome = Vector3.Distance(transform.position, home);
+            if (distFromHome > bossLeashDistance)
+            {
+                // El jugador abandonó el territorio del jefe: romper persecución y regresar a su ancla
+                ForceBaseState(EnemyState.Wander);
+                if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+                {
+                    protoAgent.ResetPath();
+                    protoAgent.speed = wanderSpeed;
+                    protoAgent.SetDestination(home);
+                }
+            }
+        }
+
         private void Update()
         {
             CacheBaseDetectionValues();
@@ -395,6 +453,7 @@ namespace Prototipo3
             {
                 ForceBaseState(EnemyState.Wander);
                 MiUpdateWander?.Invoke(this, null);
+                EnforceBossTerritoryPatrol();
                 return;
             }
 
@@ -405,6 +464,7 @@ namespace Prototipo3
             {
                 ForceBaseState(EnemyState.Wander);
                 MiUpdateWander?.Invoke(this, null);
+                EnforceBossTerritoryPatrol();
                 return;
             }
 
@@ -412,6 +472,7 @@ namespace Prototipo3
             {
                 case EnemyState.Wander:
                     MiUpdateWander?.Invoke(this, null);
+                    EnforceBossTerritoryPatrol();
                     bool detected = MiCanDetectInitial != null && (bool)MiCanDetectInitial.Invoke(this, null);
                     if (detected)
                     {
@@ -421,10 +482,12 @@ namespace Prototipo3
 
                 case EnemyState.Chase:
                     MiUpdateChase?.Invoke(this, null);
+                    EnforceBossChaseLeash();
                     break;
 
                 case EnemyState.Attack:
                     MiUpdateAttack?.Invoke(this, null);
+                    EnforceBossChaseLeash();
                     break;
             }
         }

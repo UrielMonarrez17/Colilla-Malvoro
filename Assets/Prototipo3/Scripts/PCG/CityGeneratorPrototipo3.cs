@@ -26,6 +26,18 @@ namespace Prototipo3
         public float cellSize = 10f;
 
         [Header("Anclas de Historia (PASO 2 - Distancia Manhattan)")]
+        [Header("Anillos de Distancia Manhattan (Configurables)")]
+        [Tooltip("Distancia Manhattan mínima a la Escuela Bellavista desde la Base")]
+        public int escuelaMinManhattan = 6;
+        [Tooltip("Distancia Manhattan máxima a la Escuela Bellavista desde la Base")]
+        public int escuelaMaxManhattan = 9;
+        [Tooltip("Distancia Manhattan mínima al Bosque y al Hospital desde la Base")]
+        public int medioMinManhattan = 10;
+        [Tooltip("Distancia Manhattan máxima al Bosque y al Hospital desde la Base")]
+        public int medioMaxManhattan = 14;
+        [Tooltip("Distancia Manhattan mínima a la Torre Aethelgard desde la Base")]
+        public int torreMinManhattan = 16;
+
         public GameObject prefabEscuelaBellavista;
         public GameObject prefabBosqueCeniza;
         public GameObject prefabHospitalSanJudas;
@@ -76,6 +88,8 @@ namespace Prototipo3
         public GameObject SpawnedMarco { get; private set; }
 
         private readonly Dictionary<string, Vector3> landmarkPositions = new Dictionary<string, Vector3>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Vector3> landmarkEntrancePositions = new Dictionary<string, Vector3>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Vector3> landmarkBossPositions = new Dictionary<string, Vector3>(StringComparer.OrdinalIgnoreCase);
 
         // Datos generados
         public Vector3 PlayerSpawnPoint { get; private set; }
@@ -182,6 +196,8 @@ namespace Prototipo3
             DeadEndPoints.Clear();
             LoopCenterPoints.Clear();
             landmarkPositions.Clear();
+            landmarkEntrancePositions.Clear();
+            landmarkBossPositions.Clear();
 
             var rng = new CityRandom(new MathPRNG(seed));
             var grid = new CityGrid(mapWidth, mapLength);
@@ -192,7 +208,7 @@ namespace Prototipo3
             new RoadNetworkBuilder(settings, rng, network).Build();
 
             // 2. Seleccionar Celda Base (Punto 0) en una posición que permita los 3 anillos Manhattan en todas direcciones
-            SelectBaseAndMarcoCells(grid, network);
+            SelectBaseAndMarcoCells(grid, network, rng);
 
             // 3. Colocar los 4 Edificios Importantes por Anclas de Distancia Manhattan desde BaseCell
             PlaceStoryLandmarkAnchors(grid, network, spawner, rng);
@@ -259,7 +275,7 @@ namespace Prototipo3
             OnCityGenerated?.Invoke();
         }
 
-        private void SelectBaseAndMarcoCells(CityGrid grid, RoadNetwork network)
+        private void SelectBaseAndMarcoCells(CityGrid grid, RoadNetwork network, CityRandom rng)
         {
             // Buscamos una celda de carretera alrededor de (Width/3, Length/3) para tener espacio amplio en los 4 cuadrantes y para distancia 10+
             Vector2Int idealCenter = new Vector2Int(Mathf.Clamp(grid.Width / 3, 8, grid.Width - 12), Mathf.Clamp(grid.Length / 3, 8, grid.Length - 12));
@@ -308,20 +324,36 @@ namespace Prototipo3
 
             BaseCell = bestCell;
 
-            // Buscar celda de calle adyacente (dM = 1 o 2) para Marco el Tejón Conserje
-            MarcoCell = BaseCell + new Vector2Int(1, 0);
-            for (int d = 0; d < 4; d++)
+            // Marco el vecino debe estar separado de la Base (dM = 3 a 5 celdas) para que Kilo
+            // no inicie la partida cara a cara con un boss ni se sienta acorralado desde el segundo 0.
+            List<Vector2Int> marcoCandidates = new List<Vector2Int>();
+            for (int x = 1; x < grid.Width - 1; x++)
             {
-                Vector2Int adj = BaseCell + CityGrid.Directions[d];
-                if (grid.InBounds(adj) && grid.IsRoad(adj))
+                for (int y = 1; y < grid.Length - 1; y++)
                 {
-                    MarcoCell = adj;
-                    break;
+                    Vector2Int c = new Vector2Int(x, y);
+                    if (!grid.InBounds(c) || !grid.IsRoad(c) || c == BaseCell) continue;
+                    int dM = ManhattanDistance(BaseCell, c);
+                    if (dM >= 3 && dM <= 5)
+                    {
+                        marcoCandidates.Add(c);
+                    }
                 }
             }
-            if (!grid.IsRoad(MarcoCell) && grid.InBounds(MarcoCell))
+
+            if (marcoCandidates.Count > 0)
             {
-                network.PlaceRoad(MarcoCell);
+                int idx = rng != null ? rng.Range(marcoCandidates.Count) : 0;
+                MarcoCell = marcoCandidates[idx];
+            }
+            else
+            {
+                // Respaldo seguro a 3 celdas de distancia
+                MarcoCell = BaseCell + new Vector2Int(3, 0);
+                if (grid.InBounds(MarcoCell) && !grid.IsRoad(MarcoCell))
+                {
+                    network.PlaceRoad(MarcoCell);
+                }
             }
         }
 
@@ -330,53 +362,58 @@ namespace Prototipo3
             // Cargar prefabs desde Assets/Prototipo3/Prefabs/Story/ o Resources si aún no están asignados en el Inspector
             EnsureStoryBuildingPrefabsLoaded();
 
-            // 1. Anillo Cercano (Distancia Manhattan 3 a 5): Escuela Secundaria Bellavista
+            // 1. Anillo Cercano: Escuela Secundaria Bellavista (Cuadrante Noreste: 0)
             SpawnedEscuela = PlaceLandmarkInManhattanRing(
                 "Escuela",
                 prefabEscuelaBellavista,
-                minManhattan: 3,
-                maxManhattan: 5,
-                preferredQuadrant: -1,
+                minManhattan: escuelaMinManhattan,
+                maxManhattan: escuelaMaxManhattan,
+                preferredQuadrant: 0,
                 forbiddenQuadrant: -1,
                 preferFarthest: false,
                 grid, network, rng,
                 out Vector2Int escCell);
             EscuelaCell = escCell;
+            int escuelaQuadrant = GetQuadrantRelativeToBase(EscuelaCell);
 
-            // 2. Anillo Medio (Distancia Manhattan 6 a 9, Cuadrante A): Bosque Ceniza
+            // 2. Anillo Medio: Bosque Ceniza (Cuadrante Distinto, NUNCA el mismo cuadrante de la Escuela)
+            int bosquePrefQuadrant = (escuelaQuadrant + 1) % 4;
             SpawnedBosque = PlaceLandmarkInManhattanRing(
                 "Bosque",
                 prefabBosqueCeniza,
-                minManhattan: 6,
-                maxManhattan: 9,
-                preferredQuadrant: -1,
-                forbiddenQuadrant: -1,
+                minManhattan: medioMinManhattan,
+                maxManhattan: medioMaxManhattan,
+                preferredQuadrant: bosquePrefQuadrant,
+                forbiddenQuadrant: escuelaQuadrant,
                 preferFarthest: false,
                 grid, network, rng,
                 out Vector2Int bosCell);
             BosqueCell = bosCell;
             int bosqueQuadrant = GetQuadrantRelativeToBase(BosqueCell);
 
-            // 3. Anillo Medio (Distancia Manhattan 6 a 9, Cuadrante Distinto al Bosque): Hospital General San Judas
+            // 3. Anillo Medio: Hospital General San Judas (Distinto a Bosque y a Escuela)
+            int hospitalPrefQuadrant = (escuelaQuadrant + 2) % 4;
+            if (hospitalPrefQuadrant == bosqueQuadrant) hospitalPrefQuadrant = (hospitalPrefQuadrant + 1) % 4;
             SpawnedHospital = PlaceLandmarkInManhattanRing(
                 "Hospital",
                 prefabHospitalSanJudas,
-                minManhattan: 6,
-                maxManhattan: 9,
-                preferredQuadrant: (bosqueQuadrant + 2) % 4,
+                minManhattan: medioMinManhattan,
+                maxManhattan: medioMaxManhattan,
+                preferredQuadrant: hospitalPrefQuadrant,
                 forbiddenQuadrant: bosqueQuadrant,
                 preferFarthest: false,
                 grid, network, rng,
                 out Vector2Int hospCell);
             HospitalCell = hospCell;
 
-            // 4. Anillo Lejano (Distancia Manhattan 10+ o esquina más alejada): Torre Corporativa Aethelgard
+            // 4. Anillo Lejano: Torre Corporativa Aethelgard
+            int torrePrefQuadrant = (escuelaQuadrant + 3) % 4;
             SpawnedTorre = PlaceLandmarkInManhattanRing(
                 "Torre",
                 prefabTorreAethelgard,
-                minManhattan: 10,
+                minManhattan: torreMinManhattan,
                 maxManhattan: 999,
-                preferredQuadrant: -1,
+                preferredQuadrant: torrePrefQuadrant,
                 forbiddenQuadrant: -1,
                 preferFarthest: true,
                 grid, network, rng,
@@ -488,15 +525,17 @@ namespace Prototipo3
             }
             else
             {
-                instance = CreateProceduralLandmarkBuilding(landmarkKey, worldPos);
+                instance = CreateFallbackSimplePolyBuilding(landmarkKey, worldPos);
             }
 
-            // Orientar hacia la calle adyacente
+            // Orientar hacia la calle adyacente y determinar celda de entrada
+            Vector2Int entranceCell = chosenCell;
             for (int d = 0; d < 4; d++)
             {
                 Vector2Int n = chosenCell + CityGrid.Directions[d];
                 if (grid.IsRoad(n))
                 {
+                    entranceCell = n;
                     Vector3 roadPos = CellToWorldCenter(n);
                     Vector3 look = roadPos - worldPos;
                     look.y = 0f;
@@ -508,7 +547,37 @@ namespace Prototipo3
                 }
             }
 
+            // Determinar ancla dedicada de calle para el Jefe (a 2-4 celdas de distancia, ~20-40 metros)
+            Vector2Int bossRoadCell = entranceCell;
+            int bestBossDist = -1;
+            for (int rx = -4; rx <= 4; rx++)
+            {
+                for (int ry = -4; ry <= 4; ry++)
+                {
+                    Vector2Int candidate = new Vector2Int(chosenCell.x + rx, chosenCell.y + ry);
+                    if (!grid.InBounds(candidate) || !grid.IsRoad(candidate) || candidate == entranceCell || candidate == BaseCell || candidate == MarcoCell) continue;
+
+                    int dFromChosen = ManhattanDistance(chosenCell, candidate);
+                    if (dFromChosen >= 2 && dFromChosen <= 4)
+                    {
+                        int dFromBase = ManhattanDistance(BaseCell, candidate);
+                        if (dFromBase > bestBossDist)
+                        {
+                            bestBossDist = dFromBase;
+                            bossRoadCell = candidate;
+                        }
+                    }
+                }
+            }
+
+            Vector3 entranceWorldPos = CellToWorldCenter(entranceCell);
+            Vector3 bossPos = bossRoadCell != entranceCell
+                ? CellToWorldCenter(bossRoadCell)
+                : (entranceWorldPos + instance.transform.forward * 16f);
+
             landmarkPositions[landmarkKey] = worldPos;
+            landmarkEntrancePositions[landmarkKey] = entranceWorldPos;
+            landmarkBossPositions[landmarkKey] = bossPos;
             return instance;
         }
 
@@ -556,78 +625,71 @@ namespace Prototipo3
             }
         }
 
-        private GameObject CreateProceduralLandmarkBuilding(string landmarkKey, Vector3 worldPos)
+        private GameObject CreateFallbackSimplePolyBuilding(string landmarkKey, Vector3 worldPos)
         {
-            GameObject root = new GameObject($"Prefab_{landmarkKey}_Landmark");
-            root.transform.SetParent(transform, false);
-            root.transform.position = worldPos;
+            string path = "Assets/SimplePoly City - Low Poly Assets/Building_Residential_color01.prefab";
+            if (landmarkKey.IndexOf("Bosque", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                path = "Assets/SimplePoly City - Low Poly Assets/Building_House_02_color01.prefab";
+            }
+            else if (landmarkKey.IndexOf("Hospital", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                path = "Assets/SimplePoly City - Low Poly Assets/Building Sky_small_color01.prefab";
+            }
+            else if (landmarkKey.IndexOf("Torre", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                path = "Assets/SimplePoly City - Low Poly Assets/Building Sky_big_color01.prefab";
+            }
 
-            BuildingData bData = root.AddComponent<BuildingData>();
-            bData.gridWidth = 1;
-            bData.gridLength = 1;
+            GameObject spPrefab = null;
+#if UNITY_EDITOR
+            spPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
+#endif
+            if (spPrefab != null)
+            {
+                GameObject inst = Instantiate(spPrefab, worldPos, Quaternion.identity, transform);
+                inst.name = $"Landmark_{landmarkKey}_{spPrefab.name}";
+                return inst;
+            }
 
-            CitySocket socket = root.AddComponent<CitySocket>();
-            GameObject front = new GameObject("FrontSocket");
-            front.transform.SetParent(root.transform, false);
-            front.transform.localPosition = new Vector3(0f, 0f, 4.2f);
-            socket.frontSocket = front.transform;
+            if (normalBuildings != null && normalBuildings.Count > 0 && normalBuildings[0] != null)
+            {
+                GameObject fallbackInst = Instantiate(normalBuildings[0], worldPos, Quaternion.identity, transform);
+                fallbackInst.name = $"Landmark_{landmarkKey}_Fallback";
+                return fallbackInst;
+            }
 
-            // Estructura arquitectónica abierta (3 muros y patio frontal accesible para que Kilo entre caminando)
-            Color wallColor = landmarkKey == "Escuela" ? new Color(0.75f, 0.52f, 0.28f)
-                            : landmarkKey == "Bosque" ? new Color(0.22f, 0.45f, 0.26f)
-                            : landmarkKey == "Hospital" ? new Color(0.82f, 0.88f, 0.92f)
-                            : new Color(0.22f, 0.25f, 0.35f);
-
-            Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard") ?? Shader.Find("Sprites/Default");
-            Material mat = new Material(sh) { color = wallColor };
-
-            // Pared Trasera
-            GameObject backWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            backWall.name = "BackStructure";
-            backWall.transform.SetParent(root.transform, false);
-            backWall.transform.localPosition = new Vector3(0f, 2.2f, -3.5f);
-            backWall.transform.localScale = new Vector3(7.6f, 4.4f, 1.2f);
-            backWall.GetComponent<Renderer>().material = mat;
-
-            // Pared Izquierda
-            GameObject leftWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            leftWall.name = "LeftWing";
-            leftWall.transform.SetParent(root.transform, false);
-            leftWall.transform.localPosition = new Vector3(-3.5f, 1.8f, 0f);
-            leftWall.transform.localScale = new Vector3(1.0f, 3.6f, 7.0f);
-            leftWall.GetComponent<Renderer>().material = mat;
-
-            // Pared Derecha
-            GameObject rightWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            rightWall.name = "RightWing";
-            rightWall.transform.SetParent(root.transform, false);
-            rightWall.transform.localPosition = new Vector3(3.5f, 1.8f, 0f);
-            rightWall.transform.localScale = new Vector3(1.0f, 3.6f, 7.0f);
-            rightWall.GetComponent<Renderer>().material = mat;
-
-            // Piso/Patio Caminable ("Pavement" en el nombre para que el NavMesh lo considere suelo transitable)
-            GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            floor.name = "Pavement_Courtyard";
-            floor.transform.SetParent(root.transform, false);
-            floor.transform.localPosition = new Vector3(0f, -0.04f, 0f);
-            floor.transform.localScale = new Vector3(8.8f, 0.1f, 8.8f);
-            Material floorMat = new Material(sh) { color = wallColor * 0.65f };
-            floor.GetComponent<Renderer>().material = floorMat;
-
-            return root;
+            GameObject dummy = new GameObject($"Landmark_{landmarkKey}_Empty");
+            dummy.transform.SetParent(transform, false);
+            dummy.transform.position = worldPos;
+            dummy.AddComponent<BuildingData>();
+            dummy.AddComponent<CitySocket>();
+            return dummy;
         }
 
         private void EnsureStoryBuildingPrefabsLoaded()
         {
 #if UNITY_EDITOR
             if (prefabEscuelaBellavista == null)
-                prefabEscuelaBellavista = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/Prefab_EscuelaBellavista.prefab");
+            {
+                prefabEscuelaBellavista = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/Prefab_EscuelaBellavista.prefab")
+                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/Building_Residential_color01.prefab");
+            }
             if (prefabBosqueCeniza == null)
-                prefabBosqueCeniza = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/Prefab_BosqueCeniza.prefab");
+            {
+                prefabBosqueCeniza = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/Prefab_BosqueCeniza.prefab")
+                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/Building_House_02_color01.prefab");
+            }
             if (prefabHospitalSanJudas == null)
-                prefabHospitalSanJudas = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/Prefab_HospitalSanJudas.prefab");
+            {
+                prefabHospitalSanJudas = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/Prefab_HospitalSanJudas.prefab")
+                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/Building Sky_small_color01.prefab");
+            }
             if (prefabTorreAethelgard == null)
-                prefabTorreAethelgard = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/Prefab_TorreAethelgard.prefab");
+            {
+                prefabTorreAethelgard = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/Prefab_TorreAethelgard.prefab")
+                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/Building Sky_big_color01.prefab");
+            }
             if (prefabMarcoTejon == null)
             {
                 prefabMarcoTejon = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/Boss_Marco_Tejon.prefab")
@@ -652,6 +714,40 @@ namespace Prototipo3
             if (locationId.IndexOf("Torre", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Torre", out pos)) return pos;
             if (locationId.IndexOf("Marco", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Marco", out pos)) return pos;
             return PlayerSpawnPoint;
+        }
+
+        /// <summary>
+        /// Devuelve la posición de la celda de entrada transitable en la calle frente al edificio de historia.
+        /// </summary>
+        public Vector3 GetLandmarkEntrancePosition(string locationId)
+        {
+            if (string.IsNullOrEmpty(locationId)) return PlayerSpawnPoint;
+            if (landmarkEntrancePositions.TryGetValue(locationId, out Vector3 pos)) return pos;
+
+            if (locationId.IndexOf("Escuela", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Escuela", out pos)) return pos;
+            if (locationId.IndexOf("Bosque", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Bosque", out pos)) return pos;
+            if (locationId.IndexOf("Hospital", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Hospital", out pos)) return pos;
+            if (locationId.IndexOf("Torre", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Torre", out pos)) return pos;
+            if (locationId.IndexOf("Marco", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Marco", out pos)) return pos;
+
+            return GetLandmarkPosition(locationId);
+        }
+
+        /// <summary>
+        /// Devuelve la posición del ancla de calle dedicada para el Jefe (alejada del edificio y de los aliados).
+        /// </summary>
+        public Vector3 GetLandmarkBossPosition(string locationId)
+        {
+            if (string.IsNullOrEmpty(locationId)) return PlayerSpawnPoint;
+            if (landmarkBossPositions.TryGetValue(locationId, out Vector3 pos)) return pos;
+
+            if (locationId.IndexOf("Escuela", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("Escuela", out pos)) return pos;
+            if (locationId.IndexOf("Bosque", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("Bosque", out pos)) return pos;
+            if (locationId.IndexOf("Hospital", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("Hospital", out pos)) return pos;
+            if (locationId.IndexOf("Torre", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("Torre", out pos)) return pos;
+            if (locationId.IndexOf("Marco", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("Marco", out pos)) return pos;
+
+            return GetLandmarkPosition(locationId) + new Vector3(16f, 0f, 16f);
         }
 
         /// <summary>
@@ -1058,6 +1154,7 @@ namespace Prototipo3
                 marcoWorldPos = marcoNavHit.position;
             }
             landmarkPositions["Marco"] = marcoWorldPos;
+            landmarkBossPositions["Marco"] = marcoWorldPos;
 
             GameObject marcoMarker = new GameObject("MARKER_MARCO_ZONE");
             marcoMarker.transform.SetParent(transform, false);
@@ -1109,6 +1206,8 @@ namespace Prototipo3
             DeadEndPoints.Clear();
             LoopCenterPoints.Clear();
             landmarkPositions.Clear();
+            landmarkEntrancePositions.Clear();
+            landmarkBossPositions.Clear();
             WorldRegistry.Clear();
 
             for (int i = transform.childCount - 1; i >= 0; i--)
