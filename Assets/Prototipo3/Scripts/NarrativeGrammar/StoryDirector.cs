@@ -254,13 +254,25 @@ namespace Prototipo3.Narrative
 
         private void UnlockBranchAAndB()
         {
-            // El grafo DAG bifurca en paralelo hacia Rama A y Rama B
-            activeMacroNode = RAMA_A_ESCUELA;
-            if (!activeNodeIDs.Contains(RAMA_A_ESCUELA)) activeNodeIDs.Add(RAMA_A_ESCUELA);
-            if (!activeNodeIDs.Contains(RAMA_B_BOSQUE)) activeNodeIDs.Add(RAMA_B_BOSQUE);
+            // El grafo DAG bifurca en paralelo hacia Rama A y Rama B según los checkboxes activos
+            bool canEscuela = StoryManagerPrototipo3.Instance == null || StoryManagerPrototipo3.Instance.enableArcEscuelaMorales;
+            bool canBosque = StoryManagerPrototipo3.Instance == null || StoryManagerPrototipo3.Instance.enableArcBosqueSultan;
 
-            CompileMacroNodeQuest(RAMA_A_ESCUELA, "ARCO_COMPLEJO");
-            OnMacroNodeActivated?.Invoke(RAMA_A_ESCUELA);
+            if (canEscuela)
+            {
+                activeMacroNode = RAMA_A_ESCUELA;
+                if (!activeNodeIDs.Contains(RAMA_A_ESCUELA)) activeNodeIDs.Add(RAMA_A_ESCUELA);
+                CompileMacroNodeQuest(RAMA_A_ESCUELA, "ARCO_COMPLEJO");
+                OnMacroNodeActivated?.Invoke(RAMA_A_ESCUELA);
+            }
+
+            if (canBosque)
+            {
+                if (!canEscuela) activeMacroNode = RAMA_B_BOSQUE;
+                if (!activeNodeIDs.Contains(RAMA_B_BOSQUE)) activeNodeIDs.Add(RAMA_B_BOSQUE);
+                CompileMacroNodeQuest(RAMA_B_BOSQUE, "ARCO_COMPLEJO");
+                OnMacroNodeActivated?.Invoke(RAMA_B_BOSQUE);
+            }
         }
 
         public void CompleteRamaAEscuela()
@@ -318,12 +330,23 @@ namespace Prototipo3.Narrative
             // Precondición de Convergencia: Requiere Vial de Enzima y Filtro de Carbón
             if (hasVialEnzimaBase && hasFiltroCarbonBiologico)
             {
+                if (StoryManagerPrototipo3.Instance != null && !StoryManagerPrototipo3.Instance.enableArcHospitalClara)
+                {
+                    StoryManagerPrototipo3.Instance.CheckCampaignCompletion();
+                    return;
+                }
                 ActivateHospitalConvergence();
             }
         }
 
         private void ActivateHospitalConvergence()
         {
+            if (StoryManagerPrototipo3.Instance != null && !StoryManagerPrototipo3.Instance.enableArcHospitalClara)
+            {
+                StoryManagerPrototipo3.Instance.CheckCampaignCompletion();
+                return;
+            }
+
             activeMacroNode = CONVERGENCIA_HOSPITAL;
             if (!activeNodeIDs.Contains(CONVERGENCIA_HOSPITAL)) activeNodeIDs.Add(CONVERGENCIA_HOSPITAL);
 
@@ -380,6 +403,12 @@ namespace Prototipo3.Narrative
 
         private void ActivateFinalTorre()
         {
+            if (StoryManagerPrototipo3.Instance != null && !StoryManagerPrototipo3.Instance.enableArcTorreKross)
+            {
+                StoryManagerPrototipo3.Instance.CheckCampaignCompletion();
+                return;
+            }
+
             activeMacroNode = FINAL_TORRE;
             if (!activeNodeIDs.Contains(FINAL_TORRE)) activeNodeIDs.Add(FINAL_TORRE);
 

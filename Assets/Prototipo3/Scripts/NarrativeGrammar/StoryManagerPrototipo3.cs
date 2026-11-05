@@ -16,6 +16,22 @@ namespace Prototipo3
     {
         public static StoryManagerPrototipo3 Instance { get; private set; }
 
+        [Header("Configuración Dinámica de Arcos Argumentales")]
+        [Tooltip("Arco 1: Apertura (Marco - Mini-Boss 1)")]
+        public bool enableArcAperturaMarco = true;
+
+        [Tooltip("Arco 2: Escuela Bellavista (Toby/Tony y Boss Rector Morales)")]
+        public bool enableArcEscuelaMorales = true;
+
+        [Tooltip("Arco 3: Bosque Ceniza (Moka y Boss Sultán con Postes)")]
+        public bool enableArcBosqueSultan = true;
+
+        [Tooltip("Arco 4: Hospital San Judas (Sofía, Salgado y Boss Clara Valdés)")]
+        public bool enableArcHospitalClara = false;
+
+        [Tooltip("Arco 5: Torre Aethelgard (Agente Vane, Dra. Elena y Boss Kross)")]
+        public bool enableArcTorreKross = false;
+
         [Header("Generación Narrativa")]
         public StoryWorldBinder worldBinder;
 
@@ -191,10 +207,32 @@ namespace Prototipo3
         {
             CityGeneratorPrototipo3 cityGen = FindAnyObjectByType<CityGeneratorPrototipo3>();
 
-            if (currentGraph == null || currentGraph.nodes == null || currentGraph.nodes.Count == 0 || currentGraph.GetNode("node_0_apertura") == null)
+            if (currentGraph == null || currentGraph.nodes == null || currentGraph.nodes.Count == 0 || (enableArcAperturaMarco && currentGraph.GetNode("node_0_apertura") == null))
             {
-                currentGraph = StoryGrammarEngine.GenerateStory();
-                SetNodeState("node_0_apertura", StoryNodeState.Active, setFocus: true);
+                currentGraph = StoryGrammarEngine.GenerateStory(
+                    seed: 0,
+                    includeApertura: enableArcAperturaMarco,
+                    includeEscuela: enableArcEscuelaMorales,
+                    includeBosque: enableArcBosqueSultan,
+                    includeHospital: enableArcHospitalClara,
+                    includeTorre: enableArcTorreKross
+                );
+
+                if (enableArcAperturaMarco && currentGraph.GetNode("node_0_apertura") != null)
+                {
+                    SetNodeState("node_0_apertura", StoryNodeState.Active, setFocus: true);
+                }
+                else
+                {
+                    if (enableArcEscuelaMorales && currentGraph.GetNode("node_a1_escuela") != null)
+                    {
+                        SetNodeState("node_a1_escuela", StoryNodeState.Active, setFocus: true);
+                    }
+                    if (enableArcBosqueSultan && currentGraph.GetNode("node_b1_bosque") != null)
+                    {
+                        SetNodeState("node_b1_bosque", StoryNodeState.Active, setFocus: !enableArcEscuelaMorales);
+                    }
+                }
             }
 
             if (cityGen != null && worldBinder != null)
@@ -204,7 +242,7 @@ namespace Prototipo3
 
             RefreshPointerAndUI();
 
-            if (!introCutscenePlayed)
+            if (!introCutscenePlayed && enableArcAperturaMarco)
             {
                 introCutscenePlayed = true;
                 StartCoroutine(PlayOpeningSequenceRoutine());
@@ -373,8 +411,14 @@ namespace Prototipo3
                 node0.state = StoryNodeState.Completed;
             }
 
-            SetNodeState("node_a1_escuela", StoryNodeState.Active, setFocus: true);
-            SetNodeState("node_b1_bosque", StoryNodeState.Active, setFocus: false);
+            if (enableArcEscuelaMorales)
+            {
+                SetNodeState("node_a1_escuela", StoryNodeState.Active, setFocus: true);
+            }
+            if (enableArcBosqueSultan)
+            {
+                SetNodeState("node_b1_bosque", StoryNodeState.Active, setFocus: !enableArcEscuelaMorales);
+            }
 
             CityGeneratorPrototipo3 cityGen = CityGeneratorPrototipo3.Instance;
             string dirEscuela = cityGen != null ? cityGen.GetCardinalDirectionFromPlayer("Escuela") : "Norte";
@@ -389,6 +433,7 @@ namespace Prototipo3
             }
 
             RefreshPointerAndUI();
+            CheckCampaignCompletion();
         }
 
         // =========================================================================================
@@ -952,14 +997,21 @@ namespace Prototipo3
         {
             if (HasKeyItem("Vial de Enzima Base") && HasKeyItem("Filtro de Carbón Biológico"))
             {
-                StoryNode nodeC1 = currentGraph.GetNode("node_c1_hospital");
-                if (nodeC1 != null && nodeC1.state != StoryNodeState.Completed && nodeC1.state != StoryNodeState.Active)
+                if (enableArcHospitalClara)
                 {
-                    SetNodeState("node_c1_hospital", StoryNodeState.Active, setFocus: true);
-                    CityGeneratorPrototipo3 cityGen = CityGeneratorPrototipo3.Instance;
-                    string dirHosp = cityGen != null ? cityGen.GetCardinalDirectionFromPlayer("Hospital") : "Sur";
-                    EmitRadioTransmission("Dra. Elena Vargas [Radio 94.7 MHz]",
-                        $"¡Excelente trabajo, Kilo! Ya tienes el Vial de Enzima Base y el Filtro de Carbón Biológico. Dirígete al Hospital General San Judas hacia el {dirHosp} para ver a Sofía y conseguir el Cilindro de Oxígeno Puro.");
+                    StoryNode nodeC1 = currentGraph.GetNode("node_c1_hospital");
+                    if (nodeC1 != null && nodeC1.state != StoryNodeState.Completed && nodeC1.state != StoryNodeState.Active)
+                    {
+                        SetNodeState("node_c1_hospital", StoryNodeState.Active, setFocus: true);
+                        CityGeneratorPrototipo3 cityGen = CityGeneratorPrototipo3.Instance;
+                        string dirHosp = cityGen != null ? cityGen.GetCardinalDirectionFromPlayer("Hospital") : "Sur";
+                        EmitRadioTransmission("Dra. Elena Vargas [Radio 94.7 MHz]",
+                            $"¡Excelente trabajo, Kilo! Ya tienes el Vial de Enzima Base y el Filtro de Carbón Biológico. Dirígete al Hospital General San Judas hacia el {dirHosp} para ver a Sofía y conseguir el Cilindro de Oxígeno Puro.");
+                    }
+                }
+                else
+                {
+                    CheckCampaignCompletion();
                 }
             }
         }
@@ -1278,6 +1330,7 @@ namespace Prototipo3
             if (node != null && node.state != StoryNodeState.Completed)
             {
                 node.state = StoryNodeState.Completed;
+                CheckCampaignCompletion();
             }
         }
 
@@ -1305,6 +1358,44 @@ namespace Prototipo3
 
             UpdatePrimaryActiveNodeFocus();
             RefreshPointerAndUI();
+            CheckCampaignCompletion();
+        }
+
+        public void CheckCampaignCompletion()
+        {
+            if (hasCompletedGame || currentGraph == null) return;
+
+            if (currentGraph.AreAllActiveArcsCompleted())
+            {
+                TriggerVictoryCampaign();
+            }
+        }
+
+        public void TriggerVictoryCampaign()
+        {
+            if (hasCompletedGame) return;
+            hasCompletedGame = true;
+
+            if (TimeManager.Instance != null)
+            {
+                TimeManager.Instance.SetExactHour(6.0f);
+            }
+
+            Transform targetT = player;
+            if (worldBinder != null && worldBinder.SpawnedSultan != null) targetT = worldBinder.SpawnedSultan.transform;
+            else if (worldBinder != null && worldBinder.SpawnedMorales != null) targetT = worldBinder.SpawnedMorales.transform;
+
+            PlayCutsceneSafe(
+                "07_Final_Amanecer.mp4",
+                "EL AMANECER DE SOLIS: VICTORIA",
+                "¡Los 3 jefes principales han sido pacificados y Toby ha asegurado los distritos! La niebla ámbar se disipa sobre Solis y amanece un nuevo día.",
+                targetT,
+                () =>
+                {
+                    OnDemoCompleted?.Invoke();
+                    RefreshPointerAndUI();
+                    Debug.Log("[StoryManagerPrototipo3] ¡Campaña completada con éxito!");
+                });
         }
 
         public void SetNodeState(string nodeId, StoryNodeState state, bool setFocus)

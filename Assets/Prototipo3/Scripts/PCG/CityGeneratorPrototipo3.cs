@@ -960,6 +960,7 @@ namespace Prototipo3
             if (landmarkPositions.TryGetValue(locationId, out Vector3 pos)) return pos;
 
             if (locationId.IndexOf("Toby", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Toby", out pos)) return pos;
+            if (locationId.IndexOf("Tony", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Toby", out pos)) return pos;
             if (locationId.IndexOf("Taller", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("TallerToby", out pos)) return pos;
             if (locationId.IndexOf("Escuela", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Escuela", out pos)) return pos;
             if (locationId.IndexOf("Bosque", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Bosque", out pos)) return pos;
@@ -978,6 +979,7 @@ namespace Prototipo3
             if (landmarkEntrancePositions.TryGetValue(locationId, out Vector3 pos)) return pos;
 
             if (locationId.IndexOf("Toby", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Toby", out pos)) return pos;
+            if (locationId.IndexOf("Tony", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Toby", out pos)) return pos;
             if (locationId.IndexOf("Taller", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("TallerToby", out pos)) return pos;
             if (locationId.IndexOf("Escuela", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Escuela", out pos)) return pos;
             if (locationId.IndexOf("Bosque", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Bosque", out pos)) return pos;

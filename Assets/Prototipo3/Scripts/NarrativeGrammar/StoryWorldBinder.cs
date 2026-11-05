@@ -39,7 +39,18 @@ namespace Prototipo3
             foreach (StoryNode node in graph.nodes)
             {
                 if (node == null) continue;
-                node.worldPosition = cityGen.GetLandmarkPosition(node.landmarkId);
+                if (node.id == "node_0_apertura")
+                {
+                    node.worldPosition = cityGen.GetLandmarkPosition("Marco");
+                    if (node.worldPosition == Vector3.zero || node.worldPosition == cityGen.PlayerSpawnPoint)
+                    {
+                        if (SpawnedMarco != null) node.worldPosition = SpawnedMarco.transform.position;
+                    }
+                }
+                else
+                {
+                    node.worldPosition = cityGen.GetLandmarkPosition(node.landmarkId);
+                }
             }
         }
 
@@ -89,6 +100,7 @@ namespace Prototipo3
                 "¡Kilo! Bienvenido a mi taller de robótica. El Rector H. Morales tiene el oído de un búho real: si corres con [Shift] sin agacharte [C] te detectará de inmediato. Usa el Señuelo Acústico [Tecla 1] para distraerlo y espía su oficina antes de entrar al Laboratorio de Química de la Escuela Bellavista.",
                 ""
             );
+            WorldRegistry.Register("Tony", tobyChar.transform);
 
             if (cityGen.SpawnedTobyBuilding != null)
             {
@@ -186,131 +198,139 @@ namespace Prototipo3
             EnsureMechanismExists("Interruptor_Subestacion", "Interruptor de Reflectores del Arroyo", StoryMechanismType.StreamSubstationSwitch, 1, bosEntrance + new Vector3(0f, 0f, -2.0f), bosqueRoot);
 
             // 4. ANILLO MEDIO (Cuadrante 2): Hospital General San Judas
-            Transform hospRoot = cityGen.SpawnedHospital != null ? cityGen.SpawnedHospital.transform : cityGen.transform;
-            Vector3 hospEntrance = cityGen.GetLandmarkEntrancePosition("Hospital");
-            Vector3 hospBoss = cityGen.GetLandmarkBossPosition("Hospital");
+            bool enableHospital = StoryManagerPrototipo3.Instance == null || StoryManagerPrototipo3.Instance.enableArcHospitalClara;
+            if (enableHospital)
+            {
+                Transform hospRoot = cityGen.SpawnedHospital != null ? cityGen.SpawnedHospital.transform : cityGen.transform;
+                Vector3 hospEntrance = cityGen.GetLandmarkEntrancePosition("Hospital");
+                Vector3 hospBoss = cityGen.GetLandmarkBossPosition("Hospital");
 
-            SpawnedSalgado = EnsureCharacterExists(
-                "Salgado",
-                "Dr. Arturo Salgado",
-                "Tortuga Pediatra • Hospital San Judas",
-                CharacterRoleType.PureAlly,
-                BossProfileType.None,
-                hospEntrance + new Vector3(-1.8f, 0f, 0.5f),
-                hospRoot,
-                new Color(0.28f, 0.55f, 0.34f),
-                "¡Kilo! Con el Vial de Enzima Base y el Filtro de Carbón Biológico ya puedo preparar el nebulizador de Sofía en la Habitación 304. Solo falta que visites a Sofía, hables con la enfermera Clara y traigas el Cilindro de Oxígeno Puro del quirófano.",
-                ""
-            );
+                SpawnedSalgado = EnsureCharacterExists(
+                    "Salgado",
+                    "Dr. Arturo Salgado",
+                    "Tortuga Pediatra • Hospital San Judas",
+                    CharacterRoleType.PureAlly,
+                    BossProfileType.None,
+                    hospEntrance + new Vector3(-1.8f, 0f, 0.5f),
+                    hospRoot,
+                    new Color(0.28f, 0.55f, 0.34f),
+                    "¡Kilo! Con el Vial de Enzima Base y el Filtro de Carbón Biológico ya puedo preparar el nebulizador de Sofía en la Habitación 304. Solo falta que visites a Sofía, hables con la enfermera Clara y traigas el Cilindro de Oxígeno Puro del quirófano.",
+                    ""
+                );
 
-            SpawnedSofia = EnsureCharacterExists(
-                "Sofia",
-                "Sofía",
-                "Conejita Albina • Habitación 304",
-                CharacterRoleType.PureAlly,
-                BossProfileType.None,
-                hospEntrance + new Vector3(-0.6f, 0f, 1.6f),
-                hospRoot,
-                new Color(0.95f, 0.92f, 0.94f),
-                "Kilo... sabía que vendrías por mí. No dejes que la enfermera Clara te atrape con su gas anestésico en el quirófano.",
-                ""
-            );
+                SpawnedSofia = EnsureCharacterExists(
+                    "Sofia",
+                    "Sofía",
+                    "Conejita Albina • Habitación 304",
+                    CharacterRoleType.PureAlly,
+                    BossProfileType.None,
+                    hospEntrance + new Vector3(-0.6f, 0f, 1.6f),
+                    hospRoot,
+                    new Color(0.95f, 0.92f, 0.94f),
+                    "Kilo... sabía que vendrías por mí. No dejes que la enfermera Clara te atrape con su gas anestésico en el quirófano.",
+                    ""
+                );
 
-            EnsureCharacterExists(
-                "CamilleroJabali",
-                "Camillero Jabalí",
-                "Guardia de Urgencias",
-                CharacterRoleType.DualCitizenFeral,
-                BossProfileType.None,
-                hospEntrance + new Vector3(1.8f, 0f, 0.5f),
-                hospRoot,
-                new Color(0.45f, 0.32f, 0.26f),
-                "El turno de urgencias es agotador... No te acerques a los pasillos cerrados cuando anochezca.",
-                "Uf... otra noche de pesadillas en el pabellón quirúrgico."
-            );
+                EnsureCharacterExists(
+                    "CamilleroJabali",
+                    "Camillero Jabalí",
+                    "Guardia de Urgencias",
+                    CharacterRoleType.DualCitizenFeral,
+                    BossProfileType.None,
+                    hospEntrance + new Vector3(1.8f, 0f, 0.5f),
+                    hospRoot,
+                    new Color(0.45f, 0.32f, 0.26f),
+                    "El turno de urgencias es agotador... No te acerques a los pasillos cerrados cuando anochezca.",
+                    "Uf... otra noche de pesadillas en el pabellón quirúrgico."
+                );
 
-            DualRoleCharacter clara = EnsureCharacterExists(
-                "Clara",
-                "Clara Valdés",
-                "Cisne Negro • \"La Dama de Gas\" (Boss 3)",
-                CharacterRoleType.PacifiableBoss,
-                BossProfileType.Clara_Cisne,
-                hospBoss,
-                hospRoot,
-                new Color(0.15f, 0.15f, 0.20f),
-                "Los cilindros de oxígeno están en el quirófano, pequeño Kilo. Pero mis válvulas de anestesia tienen fugas cuando oscurece... Si pierdo la razón, enciérrame en la Cámara Hiperbárica con una descarga estática sin lastimarme.",
-                "Perdona el gas anestésico en los pasillos... La cámara hiperbárica es lo único que puede contenerme."
-            );
-            clara.pacifiedDialogue = "La presión hiperbárica despejó la toxina de mis pulmones. Toma el Cilindro de Oxígeno Puro y salva a Sofía, Kilo.";
-            SpawnedClara = clara;
+                DualRoleCharacter clara = EnsureCharacterExists(
+                    "Clara",
+                    "Clara Valdés",
+                    "Cisne Negro • \"La Dama de Gas\" (Boss 3)",
+                    CharacterRoleType.PacifiableBoss,
+                    BossProfileType.Clara_Cisne,
+                    hospBoss,
+                    hospRoot,
+                    new Color(0.15f, 0.15f, 0.20f),
+                    "Los cilindros de oxígeno están en el quirófano, pequeño Kilo. Pero mis válvulas de anestesia tienen fugas cuando oscurece... Si pierdo la razón, enciérrame en la Cámara Hiperbárica con una descarga estática sin lastimarme.",
+                    "Perdona el gas anestésico en los pasillos... La cámara hiperbárica es lo único que puede contenerme."
+                );
+                clara.pacifiedDialogue = "La presión hiperbárica despejó la toxina de mis pulmones. Toma el Cilindro de Oxígeno Puro y salva a Sofía, Kilo.";
+                SpawnedClara = clara;
 
-            EnsureMechanismExists("Valvula_Hiperbarica", "Válvula de la Cámara Hiperbárica", StoryMechanismType.HyperbaricChamberValve, 1, hospEntrance + new Vector3(1.8f, 0f, -1.4f), hospRoot);
-            EnsureMechanismExists("Cilindro_Oxigeno", "Cilindro de Oxígeno Puro", StoryMechanismType.PureOxygenCylinder, 1, hospEntrance + new Vector3(0f, 0f, -2.0f), hospRoot);
+                EnsureMechanismExists("Valvula_Hiperbarica", "Válvula de la Cámara Hiperbárica", StoryMechanismType.HyperbaricChamberValve, 1, hospEntrance + new Vector3(1.8f, 0f, -1.4f), hospRoot);
+                EnsureMechanismExists("Cilindro_Oxigeno", "Cilindro de Oxígeno Puro", StoryMechanismType.PureOxygenCylinder, 1, hospEntrance + new Vector3(0f, 0f, -2.0f), hospRoot);
+            }
 
             // 5. ANILLO LEJANO: Torre Corporativa Aethelgard
-            Transform torreRoot = cityGen.SpawnedTorre != null ? cityGen.SpawnedTorre.transform : cityGen.transform;
-            Vector3 torreEntrance = cityGen.GetLandmarkEntrancePosition("Torre");
-            Vector3 torreBoss = cityGen.GetLandmarkBossPosition("Torre");
+            bool enableTorre = StoryManagerPrototipo3.Instance == null || StoryManagerPrototipo3.Instance.enableArcTorreKross;
+            if (enableTorre)
+            {
+                Transform torreRoot = cityGen.SpawnedTorre != null ? cityGen.SpawnedTorre.transform : cityGen.transform;
+                Vector3 torreEntrance = cityGen.GetLandmarkEntrancePosition("Torre");
+                Vector3 torreBoss = cityGen.GetLandmarkBossPosition("Torre");
 
-            EnsureCharacterExists(
-                "Vane",
-                "Agente Vane",
-                "Zorro Ártico • Desertor de ECLIPSE",
-                CharacterRoleType.PureAlly,
-                BossProfileType.None,
-                torreEntrance + new Vector3(-1.8f, 0f, 0.5f),
-                torreRoot,
-                new Color(0.88f, 0.92f, 0.98f),
-                "Kilo, el Dr. Julián Kross se encerró en el reactor superior. Toby, Moka y Sultán están distrayendo a las patrullas ECLIPSE. Entra, libera a la Dra. Elena Vargas para recibir el Suero Alba-Puro y apaga los 3 Condensadores UV de Kross.",
-                ""
-            );
+                EnsureCharacterExists(
+                    "Vane",
+                    "Agente Vane",
+                    "Zorro Ártico • Desertor de ECLIPSE",
+                    CharacterRoleType.PureAlly,
+                    BossProfileType.None,
+                    torreEntrance + new Vector3(-1.8f, 0f, 0.5f),
+                    torreRoot,
+                    new Color(0.88f, 0.92f, 0.98f),
+                    "Kilo, el Dr. Julián Kross se encerró en el reactor superior. Toby, Moka y Sultán están distrayendo a las patrullas ECLIPSE. Entra, libera a la Dra. Elena Vargas para recibir el Suero Alba-Puro y apaga los 3 Condensadores UV de Kross.",
+                    ""
+                );
 
-            EnsureCharacterExists(
-                "HuronEclipse",
-                "Hurón ECLIPSE",
-                "Centinela Corporativo",
-                CharacterRoleType.DualCitizenFeral,
-                BossProfileType.None,
-                torreEntrance + new Vector3(1.8f, 0f, 0.5f),
-                torreRoot,
-                new Color(0.30f, 0.34f, 0.40f),
-                "Acceso restringido a personal del Proyecto Helios-Omega.",
-                "Sistemas ópticos reiniciándose tras el ciclo nocturno..."
-            );
+                EnsureCharacterExists(
+                    "HuronEclipse",
+                    "Hurón ECLIPSE",
+                    "Centinela Corporativo",
+                    CharacterRoleType.DualCitizenFeral,
+                    BossProfileType.None,
+                    torreEntrance + new Vector3(1.8f, 0f, 0.5f),
+                    torreRoot,
+                    new Color(0.30f, 0.34f, 0.40f),
+                    "Acceso restringido a personal del Proyecto Helios-Omega.",
+                    "Sistemas ópticos reiniciándose tras el ciclo nocturno..."
+                );
 
-            EnsureCharacterExists(
-                "Elena",
-                "Dra. Elena Vargas",
-                "Nutria Bioquímica • Creadora del Suero Alba-Puro",
-                CharacterRoleType.PureAlly,
-                BossProfileType.None,
-                torreEntrance + new Vector3(-0.6f, 0f, 1.6f),
-                torreRoot,
-                new Color(0.52f, 0.36f, 0.24f),
-                "¡Kilo, lograste llegar! Aquí tienes el Suero Alba-Puro. El exoesqueleto de Kross se alimenta de los 3 Condensadores Fotónicos UV: sobrecárgalos con tu Descargador Estático [3] o con [F] e inserta el suero en el Inyector Central.",
-                ""
-            );
+                EnsureCharacterExists(
+                    "Elena",
+                    "Dra. Elena Vargas",
+                    "Nutria Bioquímica • Creadora del Suero Alba-Puro",
+                    CharacterRoleType.PureAlly,
+                    BossProfileType.None,
+                    torreEntrance + new Vector3(-0.6f, 0f, 1.6f),
+                    torreRoot,
+                    new Color(0.52f, 0.36f, 0.24f),
+                    "¡Kilo, lograste llegar! Aquí tienes el Suero Alba-Puro. El exoesqueleto de Kross se alimenta de los 3 Condensadores Fotónicos UV: sobrecárgalos con tu Descargador Estático [3] o con [F] e inserta el suero en el Inyector Central.",
+                    ""
+                );
 
-            DualRoleCharacter kross = EnsureCharacterExists(
-                "Kross",
-                "Dr. Julián Kross",
-                "Murciélago Albino • \"El Heraldo Solar\" (Boss Final)",
-                CharacterRoleType.PacifiableBoss,
-                BossProfileType.Kross_Murcielago,
-                torreBoss,
-                torreRoot,
-                new Color(0.90f, 0.85f, 0.95f),
-                "¡La evolución feral es inevitable, pequeño roedor! ¡Mis 3 Condensadores Fotónicos UV harán que la noche sea eterna en Solis!",
-                "¡Mis condensadores fotónicos mantienen mi sobrecarga día y noche!"
-            );
-            kross.pacifiedDialogue = "Mi exoesqueleto... apagado... El Suero Alba-Puro está disipando el gas Helios-Omega de toda la ciudad...";
-            SpawnedKross = kross;
+                DualRoleCharacter kross = EnsureCharacterExists(
+                    "Kross",
+                    "Dr. Julián Kross",
+                    "Murciélago Albino • \"El Heraldo Solar\" (Boss Final)",
+                    CharacterRoleType.PacifiableBoss,
+                    BossProfileType.Kross_Murcielago,
+                    torreBoss,
+                    torreRoot,
+                    new Color(0.90f, 0.85f, 0.95f),
+                    "¡La evolución feral es inevitable, pequeño roedor! ¡Mis 3 Condensadores Fotónicos UV harán que la noche sea eterna en Solis!",
+                    "¡Mis condensadores fotónicos mantienen mi sobrecarga día y noche!"
+                );
+                kross.pacifiedDialogue = "Mi exoesqueleto... apagado... El Suero Alba-Puro está disipando el gas Helios-Omega de toda la ciudad...";
+                SpawnedKross = kross;
 
-            EnsureMechanismExists("Celda_Dra_Elena", "Celda de Contención - Dra. Elena Vargas", StoryMechanismType.ElenaReactorCell, 1, torreEntrance + new Vector3(-1.6f, 0f, -1.4f), torreRoot);
-            EnsureMechanismExists("Condensador_UV_1", "Condensador Fotónico UV #1", StoryMechanismType.PhotonicUVCapacitor, 1, torreEntrance + new Vector3(-2.2f, 0f, 1.2f), torreRoot);
-            EnsureMechanismExists("Condensador_UV_2", "Condensador Fotónico UV #2", StoryMechanismType.PhotonicUVCapacitor, 2, torreEntrance + new Vector3(2.2f, 0f, 1.2f), torreRoot);
-            EnsureMechanismExists("Condensador_UV_3", "Condensador Fotónico UV #3", StoryMechanismType.PhotonicUVCapacitor, 3, torreEntrance + new Vector3(1.8f, 0f, -1.4f), torreRoot);
-            EnsureMechanismExists("Inyector_Central", "Inyector Central de la Chimenea Aethelgard", StoryMechanismType.CentralSerumInjector, 1, torreEntrance + new Vector3(0f, 0f, -2.2f), torreRoot);
+                EnsureMechanismExists("Celda_Dra_Elena", "Celda de Contención - Dra. Elena Vargas", StoryMechanismType.ElenaReactorCell, 1, torreEntrance + new Vector3(-1.6f, 0f, -1.4f), torreRoot);
+                EnsureMechanismExists("Condensador_UV_1", "Condensador Fotónico UV #1", StoryMechanismType.PhotonicUVCapacitor, 1, torreEntrance + new Vector3(-2.2f, 0f, 1.2f), torreRoot);
+                EnsureMechanismExists("Condensador_UV_2", "Condensador Fotónico UV #2", StoryMechanismType.PhotonicUVCapacitor, 2, torreEntrance + new Vector3(2.2f, 0f, 1.2f), torreRoot);
+                EnsureMechanismExists("Condensador_UV_3", "Condensador Fotónico UV #3", StoryMechanismType.PhotonicUVCapacitor, 3, torreEntrance + new Vector3(1.8f, 0f, -1.4f), torreRoot);
+                EnsureMechanismExists("Inyector_Central", "Inyector Central de la Chimenea Aethelgard", StoryMechanismType.CentralSerumInjector, 1, torreEntrance + new Vector3(0f, 0f, -2.2f), torreRoot);
+            }
         }
 
         private DualRoleCharacter EnsureCharacterExists(

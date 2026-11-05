@@ -68,10 +68,10 @@ namespace Prototipo3.Narrative
 
                     default:
                         act.boundPosition = previousStepPos;
-                        act.readableDescription = $"{act.actionType} ({act.argument})";
                         break;
                 }
 
+                // Generar pista cardinal descriptiva contextual desde la Base
                 if (cityGen != null && act.boundPosition != Vector3.zero)
                 {
                     act.cardinalHint = cityGen.GetCardinalDirectionHint(cityGen.PlayerSpawnPoint, act.boundPosition);
@@ -89,9 +89,9 @@ namespace Prototipo3.Narrative
                 targetNpc = WorldRegistry.Get("Marco");
                 act.readableDescription = "Habla con el tejón Marco [F] cerca de tu Base";
             }
-            else if (storyNodeId.Contains("escuela") || act.argument.Contains("Toby"))
+            else if (storyNodeId.Contains("escuela") || act.argument.Contains("Toby") || act.argument.Contains("Tony"))
             {
-                targetNpc = WorldRegistry.Get("Toby") ?? WorldRegistry.Get("Escuela");
+                targetNpc = WorldRegistry.Get("Toby") ?? WorldRegistry.Get("Tony") ?? WorldRegistry.Get("Escuela");
                 act.readableDescription = "Habla con Toby en su taller de robótica (Edificio Especial) [F]";
             }
             else if (storyNodeId.Contains("bosque") || act.argument.Contains("Moka") || act.argument.Contains("Sultan"))
@@ -138,14 +138,16 @@ namespace Prototipo3.Narrative
 
         private static void BindContenedorONota(TerminalAction act, string storyNodeId, ref Vector3 previousPos, ref int lastQuadrant, CityGeneratorPrototipo3 cityGen, HashSet<LootContainer> usedContainers)
         {
-            // Dispersión obligatoria: buscar contenedor a dM >= 4 celdas en cuadrante opuesto
+            bool isPrologue = storyNodeId.Contains("apertura") || storyNodeId.Contains("prologo") || storyNodeId.Contains("node_0");
+            int minCellDist = isPrologue ? 1 : 4;
             int nextQuadrant = (lastQuadrant + 2) % 4;
-            lastQuadrant = nextQuadrant;
+            if (!isPrologue) lastQuadrant = nextQuadrant;
+            int targetQuadrant = isPrologue ? -1 : nextQuadrant;
 
             LootContainer chosenContainer = null;
             if (cityGen != null)
             {
-                List<LootContainer> candidates = cityGen.GetUnlootedContainersFarFrom(previousPos, minCellDistance: 4, preferredQuadrant: nextQuadrant);
+                List<LootContainer> candidates = cityGen.GetUnlootedContainersFarFrom(previousPos, minCellDistance: minCellDist, preferredQuadrant: targetQuadrant);
                 if (candidates != null && candidates.Count > 0)
                 {
                     for (int c = 0; c < candidates.Count; c++)
@@ -230,12 +232,20 @@ namespace Prototipo3.Narrative
             StoryMechanismPrototipo3[] mechanisms = GameObject.FindObjectsByType<StoryMechanismPrototipo3>(FindObjectsSortMode.None);
             StoryMechanismPrototipo3 targetMech = null;
 
+            // Filtrar estrictamente por mecanismos que correspondan al nodo actual
             for (int i = 0; i < mechanisms.Length; i++)
             {
-                if (mechanisms[i] != null && !mechanisms[i].isCompleted)
+                if (mechanisms[i] == null || mechanisms[i].isCompleted) continue;
+
+                PlotGate gate = mechanisms[i].GetComponent<PlotGate>();
+                if (gate != null)
                 {
-                    targetMech = mechanisms[i];
-                    break;
+                    if (string.Equals(gate.targetStoryNodeID, storyNodeId, StringComparison.OrdinalIgnoreCase) ||
+                        (gate.allowedStoryNodeIDs != null && gate.allowedStoryNodeIDs.Contains(storyNodeId)))
+                    {
+                        targetMech = mechanisms[i];
+                        break;
+                    }
                 }
             }
 
@@ -248,6 +258,7 @@ namespace Prototipo3.Narrative
             }
             else
             {
+                act.boundTarget = null;
                 act.boundPosition = previousPos;
                 act.readableDescription = $"Activa el mecanismo de paso [F] ({act.argument})";
             }
@@ -259,7 +270,7 @@ namespace Prototipo3.Narrative
             string tName = act.actionType.Contains("madera") ? "Trampa de Madera [Tecla 3]"
                          : act.actionType.Contains("red") ? "Trampa de Red [Tecla 2]"
                          : "Trampa de Púas [Tecla 1]";
-            act.readableDescription = $"Despliega {tName} en la ruta de persecución";
+            act.readableDescription = $"Coloca 1 {tName} en el suelo para proteger tu posición";
         }
 
         private static void BindAccionTactica(TerminalAction act, Vector3 previousPos)
@@ -268,16 +279,16 @@ namespace Prototipo3.Narrative
             switch (act.actionType)
             {
                 case "agacharse_sigilo":
-                    act.readableDescription = "Avanza agachado en sigilo con [C] para reducir la visibilidad";
+                    act.readableDescription = "Agáchate en sigilo con [C] para moverte sin alertar a los ferales";
                     break;
                 case "correr_estamina":
-                    act.readableDescription = "Esprinta con [Shift] administrando tu estamina";
+                    act.readableDescription = "Corre con [Shift] administrando tu barra de estamina";
                     break;
                 case "dash_escape":
-                    act.readableDescription = "Usa el Dash evasivo [Espacio / Q] para romper la persecución";
+                    act.readableDescription = "Ejecuta una voltereta rápida con [Espacio] para esquivar un ataque";
                     break;
                 case "romper_linea_vision":
-                    act.readableDescription = "Rompe la línea de visión ocultándote tras un muro o cobertura";
+                    act.readableDescription = "Rompe la línea de visión del enemigo ocultándote tras un muro";
                     break;
             }
         }
@@ -285,46 +296,49 @@ namespace Prototipo3.Narrative
         private static void BindInyectarAntidoto(TerminalAction act, string storyNodeId, Vector3 previousPos)
         {
             act.boundPosition = previousPos;
-            act.readableDescription = "Aplica el catalizador / suero para pacificar permanentemente al adversario";
+            act.readableDescription = "Acércate e interactúa con [F] para inyectar el suero restaurador al jefe";
         }
 
         private static void BindEspiarRutina(TerminalAction act, string storyNodeId, Vector3 previousPos)
         {
             act.boundPosition = previousPos;
-            act.readableDescription = "Observa en sigilo sin ser detectado la rutina del vigilante";
+            act.readableDescription = "Observa desde una distancia segura la patrulla del enemigo para aprender su ruta";
         }
     }
 
     /// <summary>
-    /// Compilador y Gestor en tiempo de ejecución de las misiones derivadas por la CFG.
+    /// Componente de escena que compila la CFG formal de misiones de Feral,
+    /// vincula las acciones con el mundo real y rastrea su progreso paso a paso.
     /// </summary>
     public class QuestCompiler : MonoBehaviour
     {
         public static QuestCompiler Instance { get; private set; }
 
-        [Header("Misión Compilada Activa")]
+        [Header("Misión Compilada Actual")]
         [SerializeField] private string activeStoryNodeID = "";
         [SerializeField] private List<TerminalAction> compiledActions = new List<TerminalAction>();
         [SerializeField] private int currentActionIndex = 0;
 
+        public string ActiveStoryNodeID => activeStoryNodeID;
         public IReadOnlyList<TerminalAction> CompiledActions => compiledActions;
         public TerminalAction CurrentAction => (compiledActions != null && currentActionIndex < compiledActions.Count) ? compiledActions[currentActionIndex] : null;
         public int CurrentActionIndex => currentActionIndex;
         public bool IsCurrentQuestComplete => compiledActions == null || compiledActions.Count == 0 || currentActionIndex >= compiledActions.Count;
 
-        public event Action<TerminalAction> OnTerminalActionCompleted;
         public event Action<string> OnQuestCompiled;
+        public event Action<TerminalAction> OnTerminalActionCompleted;
         public event Action<string> OnQuestCompleted;
 
         private void Awake()
         {
-            if (Instance == null) Instance = this;
-            else if (Instance != this && Application.isPlaying) Destroy(gameObject);
-        }
-
-        private void OnEnable()
-        {
-            if (Instance == null) Instance = this;
+            if (Instance == null)
+            {
+                Instance = this;
+            }
+            else if (Instance != this)
+            {
+                Destroy(gameObject);
+            }
         }
 
         public static QuestCompiler EnsureInstance()
@@ -344,7 +358,22 @@ namespace Prototipo3.Narrative
             currentActionIndex = 0;
 
             CityGeneratorPrototipo3 cityGen = FindAnyObjectByType<CityGeneratorPrototipo3>();
-            compiledActions = QuestGrammarParser.Derivate(startSymbol, seed, maxRecursionDepth: 2);
+
+            if (storyNodeId == "node_0_apertura" || storyNodeId.Contains("prologo") || storyNodeId.Contains("apertura"))
+            {
+                // Secuencia contextual precisa para el Prólogo
+                compiledActions = new List<TerminalAction>
+                {
+                    new TerminalAction("hablar_npc", "Marco", 1, false),
+                    new TerminalAction("saquear_contenedor", "chatarra", 1, false),
+                    new TerminalAction("fabricar_trampa_madera", "", 1, false)
+                };
+            }
+            else
+            {
+                compiledActions = QuestGrammarParser.Derivate(startSymbol, seed, maxRecursionDepth: 2);
+            }
+
             BindingManager.BindActionsToWorld(compiledActions, storyNodeId, cityGen);
 
             Debug.Log($"[QuestCompiler] Misión compilada para '{storyNodeId}' con símbolo '{startSymbol}'. Acciones generadas: {compiledActions.Count}");

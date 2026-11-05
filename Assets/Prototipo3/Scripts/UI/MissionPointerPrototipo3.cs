@@ -104,7 +104,7 @@ namespace Prototipo3
                 Vector3 direccion = currentTargetWorldPos - transform.position;
                 direccion.y = 0;
 
-                if (direccion.sqrMagnitude > 0.05f)
+                if (direccion.sqrMagnitude > 0.08f)
                 {
                     Quaternion rotacionDeseada = Quaternion.LookRotation(direccion.normalized, Vector3.up);
                     transform.rotation = Quaternion.Slerp(transform.rotation, rotacionDeseada, Time.deltaTime * velocidadRotacion);
@@ -126,6 +126,53 @@ namespace Prototipo3
                 return;
             }
 
+            StoryManagerPrototipo3 sm = StoryManagerPrototipo3.Instance ?? FindAnyObjectByType<StoryManagerPrototipo3>();
+
+            // 1. Resolución contextual prioritaria para el Prólogo (Nodo 0)
+            if (sm != null && sm.CurrentActiveNode != null && sm.CurrentActiveNode.id == "node_0_apertura")
+            {
+                // Paso 1: Hablar con Marco en su posición diurna
+                if (!sm.hasSpokenToMarcoDay)
+                {
+                    if (sm.worldBinder != null && sm.worldBinder.SpawnedMarco != null)
+                    {
+                        currentTargetWorldPos = sm.worldBinder.SpawnedMarco.transform.position;
+                        hasValidTarget = true;
+                        return;
+                    }
+
+                    Transform marcoT = WorldRegistry.Get("Marco");
+                    if (marcoT != null)
+                    {
+                        currentTargetWorldPos = marcoT.position;
+                        hasValidTarget = true;
+                        return;
+                    }
+                }
+                // Paso 2: Ya habló con Marco pero falta fabricar en mesa o saquear
+                else if (!sm.hasCraftedInitialTool)
+                {
+                    Transform craftTable = WorldRegistry.Get("CraftTable") ?? WorldRegistry.Get("MesaFabricacion");
+                    if (craftTable != null)
+                    {
+                        currentTargetWorldPos = craftTable.position;
+                        hasValidTarget = true;
+                        return;
+                    }
+                }
+                // Paso 3: Marco Feral de noche
+                else if (sm.hasTriggeredMarcoFeralCutscene || (TimeManager.Instance != null && TimeManager.Instance.CurrentCycleState == TimeManager.CycleState.Night))
+                {
+                    if (sm.worldBinder != null && sm.worldBinder.SpawnedMarco != null)
+                    {
+                        currentTargetWorldPos = sm.worldBinder.SpawnedMarco.transform.position;
+                        hasValidTarget = true;
+                        return;
+                    }
+                }
+            }
+
+            // 2. Acciones compiladas por QuestCompiler
             if (QuestCompiler.Instance != null && QuestCompiler.Instance.CurrentAction != null)
             {
                 var act = QuestCompiler.Instance.CurrentAction;
@@ -143,25 +190,29 @@ namespace Prototipo3
                 }
             }
 
-            StoryManagerPrototipo3 sm = StoryManagerPrototipo3.Instance ?? FindAnyObjectByType<StoryManagerPrototipo3>();
+            // 3. Nodos activos del grafo narrativo (StoryGraph)
             if (sm != null && sm.CurrentGraph != null)
             {
                 List<StoryNode> activeNodes = sm.CurrentGraph.GetActiveNodes();
                 if (activeNodes.Count > 0 && playerTransform != null)
                 {
-                    StoryNode closestNode = activeNodes[0];
-                    float bestDist = Vector3.Distance(playerTransform.position, closestNode.worldPosition);
-                    for (int i = 1; i < activeNodes.Count; i++)
+                    StoryNode closestNode = null;
+                    float bestDist = float.MaxValue;
+                    for (int i = 0; i < activeNodes.Count; i++)
                     {
-                        float d = Vector3.Distance(playerTransform.position, activeNodes[i].worldPosition);
-                        if (d < bestDist && activeNodes[i].worldPosition != Vector3.zero)
+                        StoryNode cand = activeNodes[i];
+                        if (cand == null || cand.worldPosition == Vector3.zero) continue;
+
+                        float d = Vector3.Distance(playerTransform.position, cand.worldPosition);
+                        // Evitar apuntar a la propia posición del jugador si distancia < 1m
+                        if (d > 0.5f && d < bestDist)
                         {
                             bestDist = d;
-                            closestNode = activeNodes[i];
+                            closestNode = cand;
                         }
                     }
 
-                    if (closestNode.worldPosition != Vector3.zero)
+                    if (closestNode != null)
                     {
                         currentTargetWorldPos = closestNode.worldPosition;
                         hasValidTarget = true;

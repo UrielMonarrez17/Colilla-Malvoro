@@ -33,8 +33,9 @@ namespace Prototipo3.Narrative
         public string description;
         public string hint;
         public StoryNodeState state = StoryNodeState.Locked;
+        public bool isArcEnabled = true;
         public Vector3 worldPosition;
-        public string landmarkId = ""; // "Base", "Escuela", "Bosque", "Hospital", "Torre"
+        public string landmarkId = ""; // "Base", "Marco", "Escuela", "Bosque", "Hospital", "Torre"
 
         public List<string> prerequisiteNodeIds = new List<string>();
         public List<string> nextNodeIds = new List<string>();
@@ -77,6 +78,19 @@ namespace Prototipo3.Narrative
             {
                 StoryNode prereq = GetNode(node.prerequisiteNodeIds[i]);
                 if (prereq == null || prereq.state != StoryNodeState.Completed)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public bool AreAllActiveArcsCompleted()
+        {
+            if (nodes == null || nodes.Count == 0) return false;
+            for (int i = 0; i < nodes.Count; i++)
+            {
+                if (nodes[i] != null && nodes[i].isArcEnabled && nodes[i].state != StoryNodeState.Completed)
                 {
                     return false;
                 }
