@@ -46,22 +46,26 @@ public class CraftingTable : MonoBehaviour
     {
         if (InventoryManager.Instance == null) return;
 
-        // Trampa de Púas: 1 Madera, 1 Metal
-        if (InventoryManager.Instance.HasEnoughItem(ItemType.Madera, 1) && 
-            InventoryManager.Instance.HasEnoughItem(ItemType.Metal, 1))
+        // Trampa de Púas: 2 Metal, 1 Madera
+        if (InventoryManager.Instance.HasEnoughItem(ItemType.Metal, 2) && 
+            InventoryManager.Instance.HasEnoughItem(ItemType.Madera, 1))
         {
             // Descontamos los materiales
+            InventoryManager.Instance.RemoveItem(ItemType.Metal, 2);
             InventoryManager.Instance.RemoveItem(ItemType.Madera, 1);
-            InventoryManager.Instance.RemoveItem(ItemType.Metal, 1);
             
             // Añadimos la trampa al inventario
             InventoryManager.Instance.AddTrampa(TipoTrampa.Puas);
             Debug.Log("✅ ¡Trampa de Púas crafteada con éxito!");
             OnTrapCrafted?.Invoke(TipoTrampa.Puas);
+            if (Prototipo3.Narrative.QuestCompiler.Instance != null)
+            {
+                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("fabricar_trampa_puas");
+            }
         }
         else
         {
-            Debug.Log("❌ Faltan materiales. Necesitas: 1 Madera, 1 Metal.");
+            Debug.Log("❌ Faltan materiales. Necesitas: 2 Metal, 1 Madera.");
         }
     }
 
@@ -79,6 +83,10 @@ public class CraftingTable : MonoBehaviour
             InventoryManager.Instance.AddTrampa(TipoTrampa.Red);
             Debug.Log("✅ ¡Trampa de Red crafteada con éxito!");
             OnTrapCrafted?.Invoke(TipoTrampa.Red);
+            if (Prototipo3.Narrative.QuestCompiler.Instance != null)
+            {
+                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("fabricar_trampa_red");
+            }
         }
         else
         {
@@ -98,6 +106,10 @@ public class CraftingTable : MonoBehaviour
             InventoryManager.Instance.AddTrampa(TipoTrampa.Madera);
             Debug.Log("✅ ¡Trampa de Madera crafteada con éxito!");
             OnTrapCrafted?.Invoke(TipoTrampa.Madera);
+            if (Prototipo3.Narrative.QuestCompiler.Instance != null)
+            {
+                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("fabricar_trampa_madera");
+            }
         }
         else
         {
