@@ -461,6 +461,8 @@ public class EnemyAI : MonoBehaviour
         else
         {
             ChangeState(EnemyState.Wander);
+            OnPlayerLostFromChase?.Invoke();
+            Prototipo3.Narrative.QuestCompiler.Instance?.AdvanceActionIfMatches("romper_linea_vision");
         }
     }
 
