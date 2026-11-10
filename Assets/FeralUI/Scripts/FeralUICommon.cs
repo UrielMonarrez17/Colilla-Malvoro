@@ -14,7 +14,7 @@ namespace Feral.UI
     public static class FeralUICommon
     {
         public const string MenuScene = "Assets/Scenes/UIReview/Feral_MainMenu.unity";
-        public const string GameScene = "Assets/Scenes/UIReview/Game.unity";
+        public const string GameScene = "Assets/Scenes/Tutorial.unity";
         public static bool EnteringFromMenu;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

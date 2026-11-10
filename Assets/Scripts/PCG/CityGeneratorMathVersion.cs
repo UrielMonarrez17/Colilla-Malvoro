@@ -44,7 +44,11 @@ public class CityGeneratorMathVersion : MonoBehaviour
 
     private RoadNetwork lastNetwork;
 
-    void Start() => GenerateCity();
+    void Start()
+    {
+        if (transform.childCount == 0)
+            GenerateCity();
+    }
 
     public void GenerateCity()
     {

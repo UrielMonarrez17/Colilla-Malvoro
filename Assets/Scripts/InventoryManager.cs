@@ -3,9 +3,10 @@ using UnityEngine;
 
 public class InventoryManager : MonoBehaviour
 {
-    // Singleton: Creamos una instancia estática para acceder fácilmente desde cualquier script
+    // Singleton: Instancia estática para acceder fácilmente desde cualquier script
     public static InventoryManager Instance { get; private set; }
-
+    
+    //Cambios para quitar
     public event System.Action Changed;
 
     public int GetCount(ItemType item) => inventory.TryGetValue(item, out int count) ? count : 0;
@@ -13,11 +14,22 @@ public class InventoryManager : MonoBehaviour
     public void Clear()
     {
         foreach (ItemType item in System.Enum.GetValues(typeof(ItemType))) inventory[item] = 0;
+        foreach (TipoTrampa type in System.Enum.GetValues(typeof(TipoTrampa)))
+            if (type != TipoTrampa.Ninguna) trampasInventory[type] = 0;
         Changed?.Invoke();
     }
-
+    //Cambios para quitar
+    
     // Nuestro inventario: asocia cada material con su cantidad
     private Dictionary<ItemType, int> inventory = new Dictionary<ItemType, int>();
+    
+    // Diccionario para las trampas construidas
+    public Dictionary<TipoTrampa, int> trampasInventory = new Dictionary<TipoTrampa, int>()
+    {
+        { TipoTrampa.Puas, 0 },
+        { TipoTrampa.Red, 0 },
+        { TipoTrampa.Madera, 0 }
+    };
 
     void Awake()
     {
@@ -34,14 +46,15 @@ public class InventoryManager : MonoBehaviour
             DontDestroyOnLoad(gameObject); 
         }
 
-        // Inicializamos el inventario. Le ponemos 0 a todos los materiales al empezar.
+        // Inicializamos el inventario de materiales en 0 al empezar.
         foreach (ItemType item in System.Enum.GetValues(typeof(ItemType)))
         {
             inventory.Add(item, 0);
         }
     }
 
-    // Método para añadir ítems (se llamará desde el LootContainer)
+    // --- MÉTODOS DE MATERIALES BÁSICOS ---
+
     public void AddItem(ItemType item, int amount = 1)
     {
         if (amount <= 0 || !inventory.ContainsKey(item)) return;
@@ -51,13 +64,11 @@ public class InventoryManager : MonoBehaviour
         Changed?.Invoke();
     }
 
-    // Método para comprobar si tenemos suficientes materiales (se llamará desde la Mesa de Crafteo)
     public bool HasEnoughItem(ItemType item, int amount)
     {
         return amount >= 0 && GetCount(item) >= amount;
     }
 
-    // Método para gastar materiales al construir algo
     public void RemoveItem(ItemType item, int amount)
     {
         if (amount <= 0 || !inventory.ContainsKey(item)) return;
@@ -73,16 +84,35 @@ public class InventoryManager : MonoBehaviour
         }
     }
 
-    // Método de prueba para imprimir todo el inventario en la consola
-    public void DebugPrintInventory()
+    // --- MÉTODOS DE TRAMPAS ---
+
+    public void AddTrampa(TipoTrampa tipo)
     {
-        string output = "--- MOCHILA DEL HÁMSTER ---\n";
-        foreach (var kvp in inventory)
-        {
-            output += $"{kvp.Key}: {kvp.Value}\n";
-        }
-        Debug.Log(output);
+        if (tipo == TipoTrampa.Ninguna) return;
+        if (!trampasInventory.ContainsKey(tipo)) trampasInventory[tipo] = 0;
+        trampasInventory[tipo]++;
+        Changed?.Invoke();
+        Debug.Log($"[Inventario] Trampa añadida: {tipo}. Total: {trampasInventory[tipo]}");
     }
+
+    public bool HasTrampa(TipoTrampa tipo)
+    {
+        return GetTrapCount(tipo) > 0;
+    }
+
+    public int GetTrapCount(TipoTrampa tipo) => trampasInventory.TryGetValue(tipo, out int count) ? count : 0;
+
+    public void RemoveTrampa(TipoTrampa tipo)
+    {
+        if (HasTrampa(tipo))
+        {
+            trampasInventory[tipo]--;
+            Changed?.Invoke();
+            Debug.Log($"[Inventario] Trampa usada: {tipo}. Restantes: {trampasInventory[tipo]}");
+        }
+    }
+
+    // --- HERRAMIENTAS DE PRUEBA ---
 
     void Update()
     {
@@ -93,8 +123,28 @@ public class InventoryManager : MonoBehaviour
         }
     }
 
-    void OnDestroy()
+    public void DebugPrintInventory()
     {
-        if (Instance == this) Instance = null;
+        string output = "--- MOCHILA DEL HÁMSTER ---\n";
+        
+        output += "MATERIALES:\n";
+        foreach (var kvp in inventory)
+        {
+            output += $"- {kvp.Key}: {kvp.Value}\n";
+        }
+
+        output += "TRAMPAS:\n";
+        foreach (var kvp in trampasInventory)
+        {
+            output += $"- {kvp.Key}: {kvp.Value}\n";
+        }
+        
+        Debug.Log(output);
+    }
+
+    // Método para saber la cantidad exacta de un ítem en la mochila
+    public int GetItemCount(ItemType item)
+    {
+        return inventory.ContainsKey(item) ? inventory[item] : 0;
     }
 }
