@@ -6811,6 +6811,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Building_House_03_color02
       objectReference: {fileID: 0}
+    - target: {fileID: 4677227723666090939, guid: b115703a6bd4b6e47b74df1384ee8426, type: 3}
+      propertyPath: frontSocket
+      value: 
+      objectReference: {fileID: 1920528441621591182}
     - target: {fileID: 5198444355903885253, guid: b115703a6bd4b6e47b74df1384ee8426, type: 3}
       propertyPath: m_LocalPosition.x
       value: 11.03732
@@ -6861,6 +6865,11 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 5198444355903885253, guid: b115703a6bd4b6e47b74df1384ee8426, type: 3}
   m_PrefabInstance: {fileID: 1920528441621591180}
   m_PrefabAsset: {fileID: 0}
+--- !u!4 &1920528441621591182 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 37526408501527448, guid: b115703a6bd4b6e47b74df1384ee8426, type: 3}
+  m_PrefabInstance: {fileID: 1920528441621591180}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &5272423248064574003
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6873,6 +6882,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Building_House_01_color01
       objectReference: {fileID: 0}
+    - target: {fileID: 3847553976131066975, guid: 83532e369db659c499e2222ecb258582, type: 3}
+      propertyPath: frontSocket
+      value: 
+      objectReference: {fileID: 5272423248064574005}
     - target: {fileID: 9025354935007609359, guid: 83532e369db659c499e2222ecb258582, type: 3}
       propertyPath: m_LocalPosition.x
       value: -10.79268
@@ -6921,6 +6934,11 @@ PrefabInstance:
 --- !u!4 &5272423248064574004 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 9025354935007609359, guid: 83532e369db659c499e2222ecb258582, type: 3}
+  m_PrefabInstance: {fileID: 5272423248064574003}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &5272423248064574005 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1249494795584122595, guid: 83532e369db659c499e2222ecb258582, type: 3}
   m_PrefabInstance: {fileID: 5272423248064574003}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &5456823100381258962
@@ -7095,6 +7113,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 6398460449748794249, guid: 7ba70a2f6be8cb4498e82fa674c11817, type: 3}
+      propertyPath: frontSocket
+      value: 
+      objectReference: {fileID: 6835410767734766030}
     - target: {fileID: 8192723047899517669, guid: 7ba70a2f6be8cb4498e82fa674c11817, type: 3}
       propertyPath: m_Name
       value: Building_House_02_color01
@@ -7107,6 +7129,11 @@ PrefabInstance:
 --- !u!4 &6835410767734766029 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4132986015277102492, guid: 7ba70a2f6be8cb4498e82fa674c11817, type: 3}
+  m_PrefabInstance: {fileID: 6835410767734766028}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &6835410767734766030 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 9037001078341975161, guid: 7ba70a2f6be8cb4498e82fa674c11817, type: 3}
   m_PrefabInstance: {fileID: 6835410767734766028}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &7999816775552204092
