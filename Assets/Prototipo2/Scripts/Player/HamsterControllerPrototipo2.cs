@@ -77,6 +77,7 @@ namespace Prototipo2
 
         private void Update()
         {
+            if (Prototipo2.UI.FeralGameUI.BlocksGameplay) return;
             if (isDead) return;
 
             // 1. Capturar Input de movimiento (WASD/Joystick)

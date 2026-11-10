@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
@@ -54,6 +55,7 @@ namespace Prototipo2.UI
 
         private void Start()
         {
+            FeralTheme.ApplyMenu(transform);
             ApplySavedAudio();
             InitializePages();
             InitializeButtons();
@@ -192,6 +194,12 @@ namespace Prototipo2.UI
                     pages[i].SetActive(i == currentPage);
                 }
             }
+            if (pages[currentPage] != null)
+            {
+                var first = pages[currentPage].GetComponentsInChildren<Button>().FirstOrDefault(b => b.interactable);
+                if (first != null && UnityEngine.EventSystems.EventSystem.current != null)
+                    UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(first.gameObject);
+            }
         }
 
         public void StartTutorial()
@@ -222,16 +230,10 @@ namespace Prototipo2.UI
             }
             else
             {
-                // Cargar por índice 1 (definido en EditorBuildSettings)
-                if (SceneManager.sceneCountInBuildSettings > 1)
-                {
-                    SceneManager.LoadScene(1);
-                }
-                else
-                {
-                    Debug.LogError("[MainMenuControllerPrototipo2] No se encontró la escena Tutorial en Build Settings.");
-                    isLoading = false;
-                }
+                isLoading = false;
+                ShowPage(1);
+                if (status != null) status.text = "No se encontró el tutorial. Agrégalo a las escenas del build.";
+                Debug.LogError("[MainMenuControllerPrototipo2] No se encontró la escena Tutorial en Build Settings.");
             }
         }
 

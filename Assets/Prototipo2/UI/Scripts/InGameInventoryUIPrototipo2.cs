@@ -50,6 +50,8 @@ namespace Prototipo2.UI
         private static void AutoEnsureInGameUI()
         {
             var scene = SceneManager.GetActiveScene();
+            if (FeralGameUI.Supports(scene.name)) return;
+            if (Prototipo3.UI.FeralGameUI.Supports(scene.name)) return;
             if (scene.name.IndexOf("MainMenu", StringComparison.OrdinalIgnoreCase) >= 0) return;
 
             if (FindFirstObjectByType<InGameInventoryUIPrototipo2>() == null)
@@ -76,6 +78,13 @@ namespace Prototipo2.UI
 
         private void Start()
         {
+            if (Prototipo3.UI.FeralGameUI.Supports(gameObject.scene.name) || Prototipo3.UI.FeralGameUI.Instance != null)
+            {
+                gameObject.SetActive(false);
+                Destroy(gameObject);
+                return;
+            }
+            if (FeralGameUI.Instance != null) { enabled = false; return; }
             MainMenuControllerPrototipo2.ApplySavedAudio();
             if (FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
             {

@@ -95,6 +95,28 @@ public class TutorialPipelineManager : MonoBehaviour
     private bool trampaInstaladaEnRefugio = false;
     public bool enCinematica = false;
 
+    public string ObjectiveText => textoMisionBanner != null ? textoMisionBanner.text : "Aprende a sobrevivir en la ciudad";
+    public string GuidanceText => textoSubtituloGuia != null ? textoSubtituloGuia.text : "Sigue las indicaciones de Lulú.";
+    public string ContextPrompt => textoPromptContextual != null && textoPromptContextual.transform.parent.gameObject.activeSelf ? textoPromptContextual.text : "";
+
+    // Keep the tutorial state machine and original text bindings; presentation has one owner.
+    public void UseUnifiedPresentation()
+    {
+        HideLegacyPresentation(panelControlesWASD);
+        if (textoMisionUI != null) HideLegacyPresentation(textoMisionUI.gameObject);
+        if (textoFaseBanner != null) HideLegacyPresentation(textoFaseBanner.transform.parent.gameObject);
+        if (textoPromptContextual != null) HideLegacyPresentation(textoPromptContextual.transform.parent.gameObject);
+        if (textoRelojCiclo != null) HideLegacyPresentation(textoRelojCiclo.transform.parent.gameObject);
+    }
+    static void HideLegacyPresentation(GameObject target)
+    {
+        if (target == null) return;
+        var group = target.GetComponent<CanvasGroup>();
+        if (!group) group = target.AddComponent<CanvasGroup>();
+        group.alpha = 0; group.blocksRaycasts = false; group.interactable = false;
+    }
+    
+
     // --- Barreras y Candados de Secuencia Obligatoria ---
     private GameObject barreraSalidaMadriguera;
     private GameObject barreraSprintCallejon;
@@ -518,6 +540,19 @@ public class TutorialPipelineManager : MonoBehaviour
             }
         }
 
+        // Asegurar que la puerta de control no rompa el NavMesh al hornear, usando obstáculo dinámico tallado
+        var mod = puertaControlCallejon.GetComponent<Unity.AI.Navigation.NavMeshModifier>();
+        if (mod == null) mod = puertaControlCallejon.AddComponent<Unity.AI.Navigation.NavMeshModifier>();
+        mod.overrideArea = false;
+        mod.ignoreFromBuild = true;
+
+        var obs = puertaControlCallejon.GetComponent<UnityEngine.AI.NavMeshObstacle>();
+        if (obs == null) obs = puertaControlCallejon.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+        obs.shape = UnityEngine.AI.NavMeshObstacleShape.Box;
+        obs.center = new Vector3(0f, 1.2f, 0f);
+        obs.size = new Vector3(0.8f, 2.5f, 9.5f);
+        obs.carving = true;
+
         // 2. Contenedor Resplandeciente al lado de la puerta de control (reutiliza "GarbageCollector" de la escena si existe)
         GameObject existingCont = GameObject.Find("GarbageCollector");
         if (existingCont != null && existingCont.GetComponent<LootContainer>() != null)
@@ -829,6 +864,7 @@ public class TutorialPipelineManager : MonoBehaviour
 
     void Update()
     {
+        if (Prototipo2.UI.FeralGameUI.BlocksGameplay) return;
         // Rescate físico de emergencia ante caídas accidentales fuera del escenario
         if (hamster != null && hamster.transform.position.y < -0.6f)
         {
@@ -1770,6 +1806,7 @@ public class TutorialPipelineManager : MonoBehaviour
         float timer = 4.0f;
         while (timer > 0f)
         {
+            if (Prototipo2.UI.FeralGameUI.BlocksGameplay) { yield return null; continue; }
             if (FeralInput.Pressed(KeyCode.Space) || FeralInput.Pressed(KeyCode.Return) ||
                 Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
