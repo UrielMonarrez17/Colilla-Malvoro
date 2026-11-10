@@ -1,7 +1,9 @@
 using UnityEngine;
 using UnityEngine.AI;
+using System.Collections;
 
 [RequireComponent(typeof(NavMeshAgent))]
+[RequireComponent(typeof(Rigidbody))] 
 public class EnemyAI : MonoBehaviour
 {
     public enum EnemyState
@@ -19,11 +21,12 @@ public class EnemyAI : MonoBehaviour
     public Transform player;
     private HamsterController playerController;
     private NavMeshAgent agent;
+    private Rigidbody rbEnemigo; 
 
     [Header("Visión y Sigilo")]
     public float visionRadiusNormal = 15f;
     public float visionRadiusCrouched = 5f;
-    public float backDetectionRadius = 2f;
+    public float backDetectionRadius = 2f; 
     [Range(0, 360)] 
     public float visionAngle = 90f;
     
@@ -37,6 +40,8 @@ public class EnemyAI : MonoBehaviour
 
     [Header("Configuración de Persecución (Chase)")]
     public float chaseSpeed = 8f;
+    private float velocidadOriginalAgent; 
+    private bool isImmobilized = false;
 
     [Header("Configuración de Ataque")]
     public float attackRange = 2f;
@@ -52,6 +57,9 @@ public class EnemyAI : MonoBehaviour
     private void Start()
     {
         agent = GetComponent<NavMeshAgent>();
+        rbEnemigo = GetComponent<Rigidbody>(); 
+        velocidadOriginalAgent = agent.speed;
+        
         if (agent != null)
         {
             agent.speed = wanderSpeed;
@@ -75,6 +83,10 @@ public class EnemyAI : MonoBehaviour
 
     private void Update()
     {
+        // ¡NUEVO CANDADO MAESTRO!
+        // Si la IA está apagada (trampa de madera) o inmovilizada (trampa de red), pausamos la máquina de estados.
+        if (agent == null || !agent.enabled || isImmobilized) return;
+
         FindPlayerIfNeeded();
         SubscribeToTimeManager();
 
@@ -93,7 +105,7 @@ public class EnemyAI : MonoBehaviour
         }
 
         // 2. Si el jugador está muerto, volver a deambular pacíficamente
-        if (playerController != null && playerController.IsDead)
+        if (playerController != null && playerController.IsDead) // Asegúrate de que IsDead exista y sea public en HamsterController
         {
             if (currentState != EnemyState.Wander)
             {
@@ -104,12 +116,11 @@ public class EnemyAI : MonoBehaviour
             return;
         }
 
-        // 3. REGLA DE NOCHE: Máquina de estados completa (Wander, Chase, Attack)
+        // 3. REGLA DE NOCHE: Máquina de estados completa
         switch (currentState)
         {
             case EnemyState.Wander:
                 UpdateWander();
-                // Durante la noche, busca activamente al jugador mientras deambula
                 if (CanDetectPlayerInitial())
                 {
                     ChangeState(EnemyState.Chase);
@@ -172,7 +183,7 @@ public class EnemyAI : MonoBehaviour
                 {
                     agent.isStopped = true;
                 }
-                attackTimer = attackCooldown; // Listo para atacar pronto al entrar en rango
+                attackTimer = attackCooldown; 
                 break;
         }
     }
@@ -181,7 +192,7 @@ public class EnemyAI : MonoBehaviour
 
     private void UpdateWander()
     {
-        if (agent == null || !agent.isOnNavMesh) return;
+        if (!agent.isOnNavMesh) return;
 
         agent.speed = wanderSpeed;
 
@@ -198,7 +209,6 @@ public class EnemyAI : MonoBehaviour
         }
         else
         {
-            // Verificamos si llegó a su destino
             if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.5f)
             {
                 agent.isStopped = true;
@@ -213,11 +223,9 @@ public class EnemyAI : MonoBehaviour
             }
             else
             {
-                // Se está desplazando hacia el punto
                 agent.isStopped = false;
                 wanderTimeoutTimer += Time.deltaTime;
 
-                // Si tarda demasiado en llegar o la ruta es inválida, elige otro punto
                 if (wanderTimeoutTimer >= 12f || agent.pathStatus == NavMeshPathStatus.PathInvalid)
                 {
                     hasWanderDestination = false;
@@ -230,7 +238,7 @@ public class EnemyAI : MonoBehaviour
 
     private void UpdateChase()
     {
-        if (player == null || agent == null || !agent.isOnNavMesh)
+        if (player == null || !agent.isOnNavMesh)
         {
             ChangeState(EnemyState.Wander);
             return;
@@ -238,14 +246,12 @@ public class EnemyAI : MonoBehaviour
 
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
 
-        // Si está a rango de ataque y con línea de visión, pasa a atacar
         if (distanceToPlayer <= attackRange && HasLineOfSight())
         {
             ChangeState(EnemyState.Attack);
             return;
         }
 
-        // Si mantiene visión y distancia aceptable, sigue persiguiendo
         if (HasLineOfSight() && distanceToPlayer <= visionRadiusNormal)
         {
             agent.isStopped = false;
@@ -254,14 +260,13 @@ public class EnemyAI : MonoBehaviour
         }
         else
         {
-            // Perdió al jugador
             ChangeState(EnemyState.Wander);
         }
     }
 
     private void UpdateAttack()
     {
-        if (player == null || agent == null || !agent.isOnNavMesh)
+        if (player == null || !agent.isOnNavMesh)
         {
             ChangeState(EnemyState.Wander);
             return;
@@ -269,17 +274,14 @@ public class EnemyAI : MonoBehaviour
 
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
 
-        // Si el jugador se alejó o se rompió la visión, volver a perseguir
         if (distanceToPlayer > attackRange * 1.3f || !HasLineOfSight())
         {
             ChangeState(EnemyState.Chase);
             return;
         }
 
-        // Detenerse durante el ataque
         agent.isStopped = true;
 
-        // Mirar hacia el jugador suavemente en el plano horizontal
         Vector3 direction = (player.position - transform.position);
         direction.y = 0;
         if (direction != Vector3.zero)
@@ -288,7 +290,6 @@ public class EnemyAI : MonoBehaviour
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 8f);
         }
 
-        // Ciclo de ataque
         attackTimer += Time.deltaTime;
         if (attackTimer >= attackCooldown)
         {
@@ -318,13 +319,8 @@ public class EnemyAI : MonoBehaviour
 
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
 
-        // 1. Detección Trasera (radio de proximidad inmediata)
-        if (distanceToPlayer <= backDetectionRadius)
-        {
-            return true;
-        }
+        if (distanceToPlayer <= backDetectionRadius) return true;
 
-        // 2. Detección Frontal (Cono de visión)
         if (distanceToPlayer <= currentVisionRadius)
         {
             Vector3 directionToPlayer = (player.position - transform.position).normalized;
@@ -377,12 +373,7 @@ public class EnemyAI : MonoBehaviour
 
     public bool IsNight()
     {
-        if (TimeManager.Instance == null)
-        {
-            // Fallback por defecto si no existe TimeManager en la escena (permite pruebas)
-            return true;
-        }
-
+        if (TimeManager.Instance == null) return true;
         return TimeManager.Instance.CurrentCycleState == TimeManager.CycleState.Night;
     }
 
@@ -408,7 +399,6 @@ public class EnemyAI : MonoBehaviour
     {
         if (newState == TimeManager.CycleState.Day)
         {
-            // Al amanecer se cancela persecución o ataque inmediatamente
             ChangeState(EnemyState.Wander);
         }
     }
@@ -430,35 +420,65 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
-    // --- GIZMOS DE DEPURACIÓN EN ESCENA ---
+    // ===================================================================================
+    //  SISTEMA DE TRAMPAS 
+    // ===================================================================================
 
-    private void OnDrawGizmosSelected()
+    public void RecibirTrampa(TipoTrampa tipo, Vector3 posicionPuerta)
     {
-        // Radio de deambular
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, wanderRadius);
+        switch (tipo)
+        {
+            case TipoTrampa.Puas:
+                StartCoroutine(EfectoPuas());
+                break;
+            case TipoTrampa.Red:
+                StartCoroutine(EfectoRed());
+                break;
+            case TipoTrampa.Madera:
+                StartCoroutine(EfectoMadera(posicionPuerta));
+                break;
+        }
+    }
 
-        // Radio de visión normal
-        Gizmos.color = Color.blue;
-        Gizmos.DrawWireSphere(transform.position, visionRadiusNormal);
+    private IEnumerator EfectoPuas()
+    {
+        Debug.Log("Enemigo pisó Púas. Velocidad reducida.");
+        agent.speed = velocidadOriginalAgent * 0.55f; 
+        yield return new WaitForSeconds(4f); 
+        agent.speed = velocidadOriginalAgent;
+    }
 
-        // Radio de detección trasera
-        Gizmos.color = Color.magenta;
-        Gizmos.DrawWireSphere(transform.position, backDetectionRadius);
+   private IEnumerator EfectoRed()
+    {
+        Debug.Log("Enemigo atrapado en Red.");
+        
+        isImmobilized = true; 
+        if(agent != null && agent.isOnNavMesh) agent.isStopped = true; 
+        
+        yield return new WaitForSeconds(5f); 
+        
+        isImmobilized = false; 
+        // No necesitamos reactivarlo manualmente aquí. 
+        // Al volver isImmobilized a false, el Update volverá a correr y la máquina de estados
+        // decidirá si debe perseguir o deambular en el siguiente frame.
+    }
 
-        // Rango de ataque
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, attackRange);
+    private IEnumerator EfectoMadera(Vector3 posicionPuerta)
+    {
+        Debug.Log("Enemigo empujado por trampa de Madera.");
+        
+        agent.enabled = false;
+        rbEnemigo.isKinematic = false;
 
-        // Cono de visión
-        Vector3 forward = transform.forward;
-        Quaternion leftRayRotation = Quaternion.Euler(0, -visionAngle / 2f, 0);
-        Quaternion rightRayRotation = Quaternion.Euler(0, visionAngle / 2f, 0);
-        Vector3 leftRayDirection = leftRayRotation * forward;
-        Vector3 rightRayDirection = rightRayRotation * forward;
+        Vector3 direccionEmpuje = (transform.position - posicionPuerta).normalized;
+        direccionEmpuje.y = 0.5f; 
+        
+        rbEnemigo.AddForce(direccionEmpuje * 15f, ForceMode.Impulse);
 
-        Gizmos.color = Color.green;
-        Gizmos.DrawRay(transform.position, leftRayDirection * visionRadiusNormal);
-        Gizmos.DrawRay(transform.position, rightRayDirection * visionRadiusNormal);
+        yield return new WaitForSeconds(1.5f);
+        
+        rbEnemigo.linearVelocity = Vector3.zero; 
+        rbEnemigo.isKinematic = true; 
+        agent.enabled = true; 
     }
 }
