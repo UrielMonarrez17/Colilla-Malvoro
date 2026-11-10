@@ -1,8 +1,9 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 // Regla para colocar un objeto cualquiera junto a los edificios (usando sus sockets)
-[System.Serializable]
+[Serializable]
 public class SocketSpawnRule
 {
     public string name = "Objeto";
