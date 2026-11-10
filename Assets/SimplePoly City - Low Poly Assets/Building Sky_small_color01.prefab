@@ -44,6 +44,7 @@ GameObject:
   - component: {fileID: 8933974364590392690}
   - component: {fileID: -6480705786502210180}
   - component: {fileID: 7245958880692379415}
+  - component: {fileID: -850025693363720982}
   m_Layer: 0
   m_Name: Building Sky_small_color01
   m_TagString: Untagged
@@ -153,6 +154,27 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CitySocket
   frontSocket: {fileID: 7312056305271219944}
+--- !u!65 &-850025693363720982
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8933974364592397234}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 13, y: 16.928883, z: 13.065447}
+  m_Center: {x: 0.000009059905, y: 8.464441, z: 0.47563598}
 --- !u!1 &9152428845322298229
 GameObject:
   m_ObjectHideFlags: 0

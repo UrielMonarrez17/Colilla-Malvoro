@@ -1,32 +1,169 @@
+using System.Collections;
 using UnityEngine;
-using UnityEngine.Video; // Necesario para los videos
+using UnityEngine.Video;
 
+[DefaultExecutionOrder(-200)]
 public class CinematicaManager : MonoBehaviour
 {
-    [Header("Referencias")]
     public VideoPlayer reproductorVideo;
-    public GameObject objetoTutorialManager; // Arrastra tu TutorialManager aquí
-    public HamsterController hamster; // Arrastra a tu jugador aquí
+    public GameObject objetoTutorialManager;
+    public HamsterController hamster;
+    public GameObject canvasUIRoot;
 
-    void Start()
+    private bool cinematicaFinalizada = false;
+    public bool CinematicaTerminada => cinematicaFinalizada;
+    private Canvas[] canvases;
+    private bool[] canvasStates;
+    private bool videoIniciado = false;
+    private float tiempoEnCinematica = 0f;
+    private bool canvasUIRootWasActive;
+    private bool canvasUIRootStateCaptured;
+
+    void Awake()
     {
-        // 1. Congelamos al hámster y ocultamos el tutorial
-        if (hamster != null) hamster.enabled = false;
-        if (objetoTutorialManager != null) objetoTutorialManager.SetActive(false);
+        if (reproductorVideo == null) reproductorVideo = GetComponent<VideoPlayer>();
+        if (reproductorVideo != null)
+        {
+            reproductorVideo.playOnAwake = false;
 
-        // 2. Le decimos al reproductor qué hacer cuando llegue al final del video
-        reproductorVideo.loopPointReached += IniciarGameplay;
+            // Priorizar videos MP4 de Assets/Prototipo3/Scripts/Cinematics
+            string clipName = reproductorVideo.clip != null ? reproductorVideo.clip.name : "01_Intro_Sofia";
+            string preferredFile = clipName.EndsWith(".mp4", System.StringComparison.OrdinalIgnoreCase) ? clipName : (clipName + ".mp4");
+            string folder = System.IO.Path.Combine(Application.dataPath, "Prototipo3", "Scripts", "Cinematics");
+            string fullPath = System.IO.Path.Combine(folder, preferredFile);
+            if (!System.IO.File.Exists(fullPath))
+            {
+                fullPath = System.IO.Path.Combine(folder, "01_Intro_Sofia.mp4");
+            }
+
+            if (System.IO.File.Exists(fullPath))
+            {
+                reproductorVideo.source = VideoSource.Url;
+                reproductorVideo.url = fullPath;
+                Debug.Log($"[CinematicaManager] Priorizando video MP4 de Prototipo3/Scripts/Cinematics: {fullPath}");
+            }
+        }
     }
 
-    private void IniciarGameplay(VideoPlayer vp)
+    IEnumerator Start()
     {
-        // 3. El video terminó: Apagamos el reproductor de video
-        reproductorVideo.gameObject.SetActive(false);
+        if (hamster == null) hamster = FindAnyObjectByType<HamsterController>();
+        bool hasSource = reproductorVideo != null && (
+            (reproductorVideo.source == VideoSource.Url && !string.IsNullOrEmpty(reproductorVideo.url)) ||
+            (reproductorVideo.source == VideoSource.VideoClip && reproductorVideo.clip != null)
+        );
 
-        // 4. Encendemos el tutorial y los controles del hámster
+        if (!hasSource)
+        {
+            IniciarGameplay(null);
+            yield break;
+        }
+        if (hamster != null) hamster.enabled = false;
+        if (canvasUIRoot == null)
+        {
+            Canvas mainCanvas = FindAnyObjectByType<Canvas>();
+            if (mainCanvas != null) canvasUIRoot = mainCanvas.gameObject;
+        }
+        canvases = Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include);
+        canvasStates = new bool[canvases.Length];
+        for (int i = 0; i < canvases.Length; i++)
+        {
+            canvasStates[i] = canvases[i].enabled;
+            canvases[i].enabled = false;
+        }
+        if (objetoTutorialManager != null) objetoTutorialManager.SetActive(false);
+        if (canvasUIRoot != null)
+        {
+            canvasUIRootWasActive = canvasUIRoot.activeSelf;
+            canvasUIRootStateCaptured = true;
+            canvasUIRoot.SetActive(false);
+        }
+        reproductorVideo.isLooping = false;
+        reproductorVideo.audioOutputMode = VideoAudioOutputMode.Direct;
+        reproductorVideo.loopPointReached += IniciarGameplay;
+        reproductorVideo.errorReceived += OnVideoError;
+        reproductorVideo.Prepare();
+        // Use a realtime deadline: the first editor frame can have a very large delta.
+        float deadline = Time.realtimeSinceStartup + 15f;
+        while (!reproductorVideo.isPrepared && !cinematicaFinalizada && Time.realtimeSinceStartup < deadline)
+            yield return null;
+        if (cinematicaFinalizada) yield break;
+        if (!reproductorVideo.isPrepared)
+        {
+            Debug.LogWarning("No se pudo preparar la cinematica inicial en 15 segundos.");
+            IniciarGameplay(reproductorVideo);
+            yield break;
+        }
+        reproductorVideo.Play();
+        float videoDuration = reproductorVideo.length > 0 ? (float)reproductorVideo.length : 30f;
+        deadline = Time.realtimeSinceStartup + videoDuration + 15f;
+        while (!cinematicaFinalizada && Time.realtimeSinceStartup < deadline)
+            yield return null;
+        if (!cinematicaFinalizada) IniciarGameplay(reproductorVideo);
+    }
+
+    void Update()
+    {
+        if (!cinematicaFinalizada && (FeralInput.Pressed(KeyCode.Space) ||
+            FeralInput.Pressed(KeyCode.Escape) || FeralInput.Pressed(KeyCode.Return)))
+        {
+            IniciarGameplay(reproductorVideo);
+            return;
+        }
+
+        if (cinematicaFinalizada || reproductorVideo == null) return;
+
+        tiempoEnCinematica += Time.unscaledDeltaTime;
+        if (reproductorVideo.isPlaying || reproductorVideo.frame > 0)
+        {
+            videoIniciado = true;
+        }
+
+        if (videoIniciado &&
+            ((reproductorVideo.frameCount > 10 &&
+              reproductorVideo.frame >= (long)reproductorVideo.frameCount - 1) ||
+             (!reproductorVideo.isPlaying && tiempoEnCinematica > 2f &&
+              reproductorVideo.time > 1.0)))
+        {
+            IniciarGameplay(reproductorVideo);
+        }
+    }
+
+    void OnVideoError(VideoPlayer player, string message)
+    {
+        Debug.LogWarning("Cinematica inicial: " + message);
+        IniciarGameplay(player);
+    }
+
+    void OnDisable()
+    {
+        if (reproductorVideo == null) return;
+        reproductorVideo.loopPointReached -= IniciarGameplay;
+        reproductorVideo.errorReceived -= OnVideoError;
+    }
+
+    public void IniciarGameplay(VideoPlayer player)
+    {
+        if (cinematicaFinalizada) return;
+        cinematicaFinalizada = true;
+        if (reproductorVideo != null)
+        {
+            reproductorVideo.Stop();
+            reproductorVideo.targetCameraAlpha = 0f;
+            reproductorVideo.enabled = false;
+        }
+        if (canvases != null)
+            for (int i = 0; i < canvases.Length; i++)
+                if (canvases[i] != null) canvases[i].enabled = true;
+        if (canvasUIRoot != null)
+            canvasUIRoot.SetActive(true);
         if (objetoTutorialManager != null) objetoTutorialManager.SetActive(true);
+        if (TutorialPipelineManager.Instance != null)
+        {
+            TutorialPipelineManager.Instance.NotificarFinCinematicaInicial();
+        }
+        if (hamster == null) hamster = FindAnyObjectByType<HamsterController>();
         if (hamster != null) hamster.enabled = true;
-
-        Debug.Log("🎬 Cinemática terminada. ¡A jugar!");
+        gameObject.SetActive(false);
     }
 }
