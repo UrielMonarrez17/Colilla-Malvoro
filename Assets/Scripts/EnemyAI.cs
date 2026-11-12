@@ -461,6 +461,8 @@ public class EnemyAI : MonoBehaviour
         else
         {
             ChangeState(EnemyState.Wander);
+            OnPlayerLostFromChase?.Invoke();
+            Prototipo3.Narrative.QuestCompiler.Instance?.AdvanceActionIfMatches("romper_linea_vision");
         }
     }
 
@@ -844,7 +846,12 @@ public class EnemyAI : MonoBehaviour
     public void RecibirTrampa(TipoTrampa tipo, Vector3 posicionPuerta)
     {
         OnTrapEffectApplied?.Invoke(tipo);
+        ApplyTrapEffect(tipo, posicionPuerta);
+    }
 
+    // Permite especializar los efectos sin cambiar las puertas ni los otros prototipos.
+    protected virtual void ApplyTrapEffect(TipoTrampa tipo, Vector3 posicionPuerta)
+    {
         switch (tipo)
         {
             case TipoTrampa.Puas:
