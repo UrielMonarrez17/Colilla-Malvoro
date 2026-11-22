@@ -164,11 +164,6 @@ public class HamsterController : MonoBehaviour
     {
         // --- Mecánica de Sigilo (Crouch) ---
         bool crouching = FeralInput.Held(KeyCode.C);
-        if (FeralInput.Pressed(KeyCode.C))
-        {
-            Prototipo3.Narrative.QuestCompiler.Instance?.AdvanceActionIfMatches("agacharse_sigilo");
-            Prototipo3.Narrative.QuestCompiler.Instance?.AdvanceActionIfMatches("espiar_rutina");
-        }
         isCrouching = crouching;
         
         if (isCrouching) 
@@ -190,7 +185,6 @@ public class HamsterController : MonoBehaviour
 
         if (isTryingToSprint)
         {
-            Prototipo3.Narrative.QuestCompiler.Instance?.AdvanceActionIfMatches("correr_estamina");
             currentBaseSpeed = sprintSpeed;
             currentStamina -= staminaDrainRate * Time.deltaTime;
         }
@@ -222,11 +216,6 @@ public class HamsterController : MonoBehaviour
         isDashing = true;
         nextDashTime = Time.time + dashCooldown;
         OnDashUsed?.Invoke();
-        if (Prototipo3.Narrative.QuestCompiler.Instance != null)
-        {
-            Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("dash_escape");
-            Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("romper_linea_vision");
-        }
 
         rb.linearVelocity = Vector3.zero; 
         rb.AddForce(moveInput * dashForce, ForceMode.Impulse);
@@ -318,8 +307,7 @@ public class HamsterController : MonoBehaviour
     public virtual void ReceiveDamage()
     {
         if (isDead) return;
-        // Inmunidad completa durante cinemáticas para evitar que maten al jugador
-        if (Prototipo3.CutsceneManager.Instance != null && Prototipo3.CutsceneManager.Instance.IsPlayingCutscene) return;
+        // Inmunidad durante cinemáticas de tutorial para evitar daño indebido
         // The first hit teaches adrenaline; give the player its full escape window.
         if (TutorialPipelineManager.Instance != null && isAdrenalineActive) return;
 

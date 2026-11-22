@@ -2,42 +2,46 @@ using System;
 using System.Collections;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-using UnityEngine.EventSystems;
-using Prototipo3.Narrative;
 
 namespace Prototipo3.UI
 {
-    /// <summary>One Canvas and one modal owner for Prototipo 3 (non-linear DAG, 3 functional traps, radio & rumors).</summary>
+    /// <summary>One Canvas and one modal owner for Prototipo 3 survival sandbox.</summary>
     [DefaultExecutionOrder(-100)]
     public sealed class FeralGameUI : MonoBehaviour
     {
-        public enum Page { None, Inventory, Pause, Missions, Crafting, Dialogue, Return, Defeat, Victory }
+        public enum Page { None, Inventory, Pause, CitySetup, Crafting, Dialogue, Return, Defeat }
+
         public static FeralGameUI Instance { get; private set; }
         public static bool BlocksGameplay => Instance != null && (Instance.CurrentPage != Page.None || Time.frameCount <= Instance.suppressInputUntilFrame);
         public static bool Supports(string scene) => !string.IsNullOrEmpty(scene) && (scene == "Prototipo3" || scene.IndexOf("Prototipo3", StringComparison.OrdinalIgnoreCase) >= 0);
+
         public Page CurrentPage { get; private set; }
         public Canvas Canvas { get; private set; }
         public bool DialogueOpen => CurrentPage == Page.Dialogue;
 
         RectTransform hud, modal, content;
-        Text health, staminaText, clock, objective, guide, phase, interaction, radioBanner, status, lootFeedback;
+        Text health, staminaText, clock, objective, guide, phase, interaction, status, lootFeedback;
+        GameObject lootFeedbackBox;
         float lootFeedbackExpiryTime;
         MenuBrushGraphic staminaFill, healthFill;
         Text[] trapAmounts = new Text[3];
         MenuBrushGraphic[] trapFrames = new MenuBrushGraphic[3];
         HamsterController player;
         InventoryManager inventory;
-        StoryManagerPrototipo3 story;
         CraftingTable table;
         bool ownsPause, previousPlayerEnabled, previousCursorVisible, dirty, lastCinematic;
         CursorLockMode previousCursor;
         float previousScale, nextRefresh;
         int inventoryTab, selectedItem;
         int suppressInputUntilFrame = -1;
-        string selectedMission, speaker, dialogue;
+        string speaker, dialogue;
         float dialogueReady;
+
+        InputField citySeedInput, cityWidthInput, cityLengthInput;
+        Text citySetupStatus;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() { Instance = null; SceneManager.sceneLoaded -= SceneLoaded; }
@@ -55,14 +59,13 @@ namespace Prototipo3.UI
         {
             if (Instance != null && Instance != this) { Destroy(gameObject); return; }
             Instance = this;
-            // The HUD is built at runtime. Discard a previously saved generated
-            // canvas before rebuilding so scene copies cannot overlap it.
             foreach (Transform child in transform)
             {
                 if (child.name != "Feral Canvas" || !child.GetComponent<Canvas>()) continue;
                 child.gameObject.SetActive(false);
                 Destroy(child.gameObject);
             }
+
             var root = new GameObject("Feral Canvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             root.transform.SetParent(transform, false);
             Canvas = root.GetComponent<Canvas>();
@@ -112,24 +115,12 @@ namespace Prototipo3.UI
                 if (inventory == null) inventory = new GameObject("InventoryManager").AddComponent<InventoryManager>();
                 inventory.Changed += OnInventoryChanged;
             }
-            if (story == null && StoryManagerPrototipo3.Instance != null)
-            {
-                story = StoryManagerPrototipo3.Instance;
-                story.OnDialogueTriggered += ShowDialogue;
-                story.OnDemoCompleted += Won;
-                story.OnActiveNodeChanged += MissionChanged;
-                story.OnKeyItemObtained += KeyItemObtained;
-            }
         }
 
         void OnInventoryChanged() { dirty = true; }
-        void MissionChanged(StoryNode node) { dirty = true; }
-        void KeyItemObtained(string item) { dirty = true; }
         void Crafted(TipoTrampa type) { dirty = true; }
-        void Won() { Open(Page.Victory); }
 
         bool Cinematic =>
-            (CutsceneManager.Instance != null && CutsceneManager.Instance.IsPlayingCutscene) ||
             (RespawnManagerPrototipo3.Instance != null && RespawnManagerPrototipo3.Instance.IsRespawning) ||
             (TutorialPipelineManager.Instance != null && TutorialPipelineManager.Instance.enCinematica) ||
             FindObjectsByType<CinematicaManager>(FindObjectsSortMode.None).Any(c => c.isActiveAndEnabled && !c.CinematicaTerminada);
@@ -147,22 +138,21 @@ namespace Prototipo3.UI
             }
             else if (FeralInput.Pressed(KeyCode.Escape))
             {
-                if (CurrentPage == Page.Return) Open(Page.Pause);
-                else if (CurrentPage != Page.Defeat && CurrentPage != Page.Victory)
+                if (CurrentPage == Page.Return || CurrentPage == Page.CitySetup) Open(Page.Pause);
+                else if (CurrentPage != Page.Defeat)
                 {
                     if (CurrentPage == Page.None) Open(Page.Pause); else Close();
                 }
             }
-            else if (CurrentPage != Page.Return && CurrentPage != Page.Defeat && CurrentPage != Page.Victory)
+            else if (CurrentPage == Page.None || CurrentPage == Page.Inventory)
             {
                 if (FeralInput.Pressed(KeyCode.Tab)) { if (CurrentPage == Page.Inventory) Close(); else Open(Page.Inventory); }
-                else if (FeralInput.Pressed(KeyCode.M)) { if (CurrentPage == Page.Missions) Close(); else Open(Page.Missions); }
             }
 
             if (dirty)
             {
                 dirty = false;
-                if (CurrentPage == Page.Inventory || CurrentPage == Page.Crafting || CurrentPage == Page.Missions) RenderPage();
+                if (CurrentPage == Page.Inventory || CurrentPage == Page.Crafting) RenderPage();
             }
 
             if (Time.unscaledTime >= nextRefresh)
@@ -172,17 +162,16 @@ namespace Prototipo3.UI
                 SuppressLegacy();
                 RefreshHud();
 
-                // Si existe RespawnManagerPrototipo3, él gestiona el reinicio al tercer golpe sin abrir pantalla destructiva
                 if (player && player.IsDead && RespawnManagerPrototipo3.Instance == null && TutorialPipelineManager.Instance == null && CurrentPage == Page.None)
                 {
                     Open(Page.Defeat);
                 }
             }
 
-            if (lootFeedback != null && lootFeedback.gameObject.activeSelf && Time.unscaledTime >= lootFeedbackExpiryTime)
+            if (lootFeedbackBox != null && lootFeedbackBox.activeSelf && Time.unscaledTime >= lootFeedbackExpiryTime)
             {
-                lootFeedback.gameObject.SetActive(false);
-                lootFeedback.text = "";
+                lootFeedbackBox.SetActive(false);
+                if (lootFeedback != null) lootFeedback.text = "";
             }
         }
 
@@ -237,13 +226,6 @@ namespace Prototipo3.UI
         void OnDestroy()
         {
             if (inventory != null) inventory.Changed -= OnInventoryChanged;
-            if (story != null)
-            {
-                story.OnDialogueTriggered -= ShowDialogue;
-                story.OnDemoCompleted -= Won;
-                story.OnActiveNodeChanged -= MissionChanged;
-                story.OnKeyItemObtained -= KeyItemObtained;
-            }
             CraftingTable.OnMenuToggled -= CraftingToggled;
             CraftingTable.OnTrapCrafted -= Crafted;
             TrapSystemPrototipo3.OnProto3TrapCrafted -= Crafted;
@@ -257,20 +239,20 @@ namespace Prototipo3.UI
         void HandleContainerLooted(LootContainer container, System.Collections.Generic.List<ItemType> items)
         {
             string summary = LootContainer.FormatLootSummary(items);
-            ShowLootFeedback($"Saqueado:  {summary}", 4f);
+            ShowLootFeedback($"Recogido:  {summary}", 3.8f);
         }
 
         void HandleContainerAlreadyLooted(LootContainer container)
         {
-            ShowLootFeedback("Este contenedor ya fue saqueado (Vacío)", 3f);
+            ShowLootFeedback("Contenedor vacío (ya saqueado)", 2.5f);
         }
 
         public void ShowLootFeedback(string msg, float duration)
         {
-            if (lootFeedback != null)
+            if (lootFeedback != null && lootFeedbackBox != null)
             {
                 lootFeedback.text = msg;
-                lootFeedback.gameObject.SetActive(true);
+                lootFeedbackBox.SetActive(true);
                 lootFeedbackExpiryTime = Time.unscaledTime + duration;
             }
         }
@@ -314,19 +296,16 @@ namespace Prototipo3.UI
             FeralTheme.Brush("Track", vitals, 132, 98, 290, 20, FeralTheme.Card);
             staminaFill = FeralTheme.Brush("StaminaFill", vitals, 132, 98, 290, 20, FeralTheme.Gold);
 
-            var mission = FeralTheme.Brush("Objetivo", hud, 26, 174, 480, 270, FeralTheme.Ink).rectTransform;
-            FeralTheme.Brush("Paper", mission, 16, 14, 448, 38, FeralTheme.Cream);
-            phase = FeralTheme.Label("Fase", mission, "MISIÓN ACTIVA   /   [ M ] DIARIO", 28, 22, 420, 24, 15, FeralTheme.Ink);
-            objective = FeralTheme.Label("ObjetivoActual", mission, "Explora la ciudad de Solis", 24, 62, 432, 118, 17);
-            guide = FeralTheme.Label("Guia", mission, "", 24, 184, 432, 76, 15, FeralTheme.Gold);
-
-            var radioPanel = FeralTheme.Brush("RadioRumorPanel", hud, 26, 456, 480, 84, FeralTheme.Ink).rectTransform;
-            radioBanner = FeralTheme.Label("RadioBanner", radioPanel, "Radio 94.7 MHz · Sintonizando a la Dra. Elena Vargas...", 18, 10, 444, 64, 14, FeralTheme.Muted);
+            var survivalPanel = FeralTheme.Brush("Supervivencia", hud, 26, 174, 460, 215, FeralTheme.Ink).rectTransform;
+            FeralTheme.Brush("Paper", survivalPanel, 16, 14, 428, 38, FeralTheme.Cream);
+            phase = FeralTheme.Label("Fase", survivalPanel, "CIUDAD PROCEDURAL", 28, 22, 404, 24, 15, FeralTheme.Ink);
+            objective = FeralTheme.Label("ObjetivoActual", survivalPanel, "Reúne materiales con [F] y prepara tus trampas.", 24, 64, 412, 82, 17);
+            guide = FeralTheme.Label("Guia", survivalPanel, "[G] Nueva semilla  ·  [ESC] Opciones", 24, 154, 412, 46, 14, FeralTheme.Gold);
 
             var bottom = FeralTheme.Brush("Atajos", hud, 32, 0, 320, 104, FeralTheme.Ink).rectTransform;
             bottom.anchorMin = bottom.anchorMax = bottom.pivot = Vector2.zero;
             bottom.anchoredPosition = new Vector2(32, 28);
-            FeralTheme.Label("Teclas", bottom, "TAB  Inventario     M  Misiones\n1/2/3  Usar Trampa   F  Interactuar", 20, 25, 285, 70, 16, FeralTheme.Cream);
+            FeralTheme.Label("Teclas", bottom, "TAB  Inventario     ESC  Pausa\n1/2/3  Trampas      F  Interactuar", 20, 25, 285, 70, 16, FeralTheme.Cream);
 
             var hotbar = FeralTheme.Rect("TrampasRapidas", hud, 0, 0, 330, 108);
             hotbar.anchorMin = hotbar.anchorMax = hotbar.pivot = new Vector2(.5f, 0);
@@ -352,16 +331,14 @@ namespace Prototipo3.UI
             interaction.alignment = TextAnchor.MiddleCenter;
             interaction.gameObject.AddComponent<Shadow>().effectDistance = new Vector2(2, -2);
 
-            lootFeedback = FeralTheme.Label("LootFeedback", hud, "", 0, 0, 800, 50, 20);
-            lootFeedback.rectTransform.anchorMin = lootFeedback.rectTransform.anchorMax = lootFeedback.rectTransform.pivot = new Vector2(.5f, 0);
-            lootFeedback.rectTransform.anchoredPosition = new Vector2(0, 210);
+            var lootPanel = FeralTheme.Brush("LootFeedbackBox", hud, 0, 0, 560, 54, FeralTheme.Ink).rectTransform;
+            lootPanel.anchorMin = lootPanel.anchorMax = lootPanel.pivot = new Vector2(.5f, 0);
+            lootPanel.anchoredPosition = new Vector2(0, 212);
+            lootFeedbackBox = lootPanel.gameObject;
+            lootFeedback = FeralTheme.Label("LootFeedback", lootPanel, "", 16, 8, 528, 38, 20, FeralTheme.Gold);
             lootFeedback.alignment = TextAnchor.MiddleCenter;
-            lootFeedback.color = FeralTheme.Gold;
-            lootFeedback.gameObject.AddComponent<Shadow>().effectDistance = new Vector2(2, -2);
-            lootFeedback.gameObject.SetActive(false);
+            lootFeedbackBox.SetActive(false);
         }
-
-        static string Clean(string text) => System.Text.RegularExpressions.Regex.Replace(text ?? "", "<.*?>", "");
 
         void RefreshHud()
         {
@@ -379,40 +356,21 @@ namespace Prototipo3.UI
                 {
                     interaction.text = "";
                 }
-                else if (target.GetComponentInParent<SpecialBuildingEntrance>() is SpecialBuildingEntrance entrance)
-                {
-                    if (entrance.residentNPC != null && player != null && Vector3.Distance(player.transform.position, entrance.residentNPC.transform.position) <= entrance.residentNPC.interactDistance)
-                    {
-                        interaction.text = !entrance.residentNPC.IsCurrentlyFeral ? $"[ F ]  Hablar con {entrance.residentNPC.displayName}" : $"¡{entrance.residentNPC.displayName} está en modo FERAL!";
-                    }
-                    else
-                    {
-                        interaction.text = $"[ F ]  Puerta: {entrance.buildingDisplayName}";
-                    }
-                }
                 else if (target.GetComponentInParent<CraftingTable>() != null)
                 {
                     interaction.text = "[ F ]  Usar mesa de fabricación";
                 }
-                else if (target.GetComponentInParent<StoryMechanismPrototipo3>() is StoryMechanismPrototipo3 mech)
-                {
-                    interaction.text = $"{mech.GetActionPromptText()} ({mech.displayName})";
-                }
-                else if (target.GetComponentInParent<DualRoleCharacter>() is DualRoleCharacter dualChar)
-                {
-                    interaction.text = !dualChar.IsCurrentlyFeral ? $"[ F ]  Hablar con {dualChar.displayName}" : $"¡{dualChar.displayName} está en modo FERAL!";
-                }
-                else if (target.GetComponentInParent<LuluNPCPrototipo3>() != null || target.GetComponentInParent<LuluNPC>() != null)
-                {
-                    interaction.text = "[ F ]  Hablar con Lulú";
-                }
                 else if (target.GetComponentInParent<LootContainer>() is LootContainer lc)
                 {
-                    interaction.text = lc.YaFueSaqueado ? "Contenedor ya saqueado (Vacío)" : "[ F ]  Buscar materiales y pistas";
+                    interaction.text = lc.YaFueSaqueado ? "Contenedor ya saqueado (Vacío)" : "[ F ]  Saquear materiales";
                 }
                 else if (target.GetComponentInParent<PuertaTrampa>() != null)
                 {
                     interaction.text = "[ F ]  Colocar trampa";
+                }
+                else if (target.GetComponentInParent<LuluNPC>() != null)
+                {
+                    interaction.text = "[ F ]  Hablar con Lulú";
                 }
                 else
                 {
@@ -427,125 +385,16 @@ namespace Prototipo3.UI
             }
 
             var tm = TimeManager.Instance;
-            clock.text = tm == null ? "" : $"{(tm.CurrentCycleState == TimeManager.CycleState.Day ? "DÍA" : "NOCHE")}   {tm.CurrentHour:00}:{tm.CurrentMinute:00}";
+            bool isNight = tm != null && tm.CurrentCycleState == TimeManager.CycleState.Night;
+            clock.text = tm == null ? "" : $"{(isNight ? "NOCHE" : "DÍA")}   {tm.CurrentHour:00}:{tm.CurrentMinute:00}";
 
-            if (story != null && story.CurrentActiveNode != null)
-            {
-                var n = story.CurrentActiveNode;
-                int activeCount = story.CurrentGraph != null ? story.CurrentGraph.GetActiveNodes().Count : 1;
-                phase.text = activeCount > 1 ? $"RUTAS ACTIVAS ({activeCount})   /   [ M ] DIARIO" : $"MISIÓN [{n.branchTag}]   /   [ M ] DIARIO";
-                string baseSummary = story.GetActiveBranchesSummaryText();
-                string stepHint = GetActiveNodeStepHint(n, story);
-
-                // Solo adjuntar acción de QuestCompiler si coincide estrictamente con el nodo activo actual
-                bool hasMatchingQuestAction = QuestCompiler.Instance != null &&
-                                              QuestCompiler.Instance.CurrentAction != null &&
-                                              string.Equals(QuestCompiler.Instance.ActiveStoryNodeID, n.id, StringComparison.OrdinalIgnoreCase);
-
-                if (hasMatchingQuestAction)
-                {
-                    var act = QuestCompiler.Instance.CurrentAction;
-                    string opt = act.isOptional ? "[OPCIONAL] " : "";
-                    objective.text = $"{baseSummary}\n\n<color=#FFEE55>▶ {opt}{act.readableDescription}</color>";
-                    guide.text = !string.IsNullOrEmpty(act.cardinalHint)
-                        ? $"Rumbo: {act.cardinalHint}"
-                        : (!string.IsNullOrEmpty(stepHint) ? ("Paso: " + stepHint) : ("Pista: " + n.hint));
-                }
-                else
-                {
-                    if (!string.IsNullOrEmpty(stepHint))
-                    {
-                        objective.text = $"{baseSummary}\n\n<color=#FFEE55>▶ {stepHint}</color>";
-                        guide.text = "Objetivo: " + stepHint;
-                    }
-                    else
-                    {
-                        objective.text = baseSummary;
-                        guide.text = "Pista: " + n.hint;
-                    }
-                }
-
-                if (radioBanner != null)
-                {
-                    string rumorOrRadio = !string.IsNullOrEmpty(story.LastCardinalRumor)
-                        ? "Brújula: " + story.LastCardinalRumor
-                        : !string.IsNullOrEmpty(story.LastRadioMessage)
-                            ? story.LastRadioMessage
-                            : "Saquea contenedores con [F] para descubrir hacia qué punto cardinal están los edificios clave.";
-                    radioBanner.text = rumorOrRadio;
-                }
-            }
-        }
-
-        private string GetActiveNodeStepHint(StoryNode n, StoryManagerPrototipo3 sm)
-        {
-            if (n == null || sm == null) return "";
-
-            switch (n.id)
-            {
-                case "node_0_apertura":
-                    if (!sm.hasSpokenToMarcoDay)
-                        return "Habla con Marco cerca de tu refugio [F].";
-                    if (!sm.hasCraftedInitialTool)
-                    {
-                        bool canCraft = TrapSystemPrototipo3.CanCraftTrap(TipoTrampa.Madera) ||
-                                        TrapSystemPrototipo3.CanCraftTrap(TipoTrampa.Puas) ||
-                                        TrapSystemPrototipo3.CanCraftTrap(TipoTrampa.Red);
-                        return canCraft
-                            ? "Ve a la mesa de fabricación [F] para armar tu primera trampa."
-                            : "Busca materiales en contenedores urbanos con [F] (necesitas madera o chatarra).";
-                    }
-                    return "Regresa al refugio o prepárate para la noche.";
-
-                case "node_a1_escuela":
-                    return "Dirígete al Taller de Robótica de Toby y habla con él [F].";
-
-                case "node_a2_toby":
-                    return "Investiga la Oficina del Rector Morales en la Escuela [F].";
-
-                case "node_a3_apagon":
-                    return "Inspecciona el Laboratorio de Química para conseguir el Vial de Enzima Base [F].";
-
-                case "node_b1_bosque":
-                    if (!sm.hasSpokenToMoka)
-                        return "Habla con la ardilla Moka en el Bosque Ceniza [F].";
-                    return "Habla con el perro Sultán en el claro del Bosque Ceniza [F].";
-
-                case "node_b2_postes":
-                    return "Reactiva los tres postes reflectores del arroyo [F].";
-
-                case "node_b3_sultan":
-                    return "Acciona el interruptor de la subestación de reflectores [F].";
-
-                case "node_c1_hospital":
-                    if (!sm.hasSpokenToSalgado)
-                        return "Habla con el Dr. Salgado en el Hospital San Jude [F].";
-                    if (!sm.hasVisitedSofiaRoom304)
-                        return "Visita a Sofía en la habitación 304 del hospital [F].";
-                    return "Habla con la enfermera Clara en la sala médica [F].";
-
-                case "node_c2_clara":
-                    return "Repara la válvula de la cámara hiperbárica [F].";
-
-                case "node_c3_oxigeno":
-                    if (!sm.HasKeyItem("Cilindro de Oxígeno Puro"))
-                        return "Consigue el Cilindro de Oxígeno Puro en los almacenes [F].";
-                    return "Entrega el cilindro de oxígeno puro al Dr. Salgado [F].";
-
-                case "node_d1_torre":
-                    if (!sm.hasSpokenToVane)
-                        return "Habla con la gata Vane en el vestíbulo de la Torre Aethelgard [F].";
-                    return "Localiza y libera a la Dra. Elena Vargas en su celda de contención [F].";
-
-                case "node_d2_kross":
-                    return "Sobrecarga los tres condensadores fotónicos UV del reactor [F].";
-
-                case "node_d3_final":
-                    return "Acciona el Inyector Central de la chimenea para dispersar la cura [F].";
-
-                default:
-                    return !string.IsNullOrEmpty(n.hint) ? n.hint : "";
-            }
+            var city = CityGeneratorPrototipo3.Instance;
+            string seedInfo = city != null ? $"#{city.seed} ({city.mapWidth}x{city.mapLength})" : "ACTIVA";
+            phase.text = $"CIUDAD PROCEDURAL · SEMILLA {seedInfo}";
+            objective.text = isNight
+                ? "¡Cae la noche feral! Evade a los depredadores con sigilo [C], dash o trampas [1][2][3]."
+                : "Explora la ciudad: recoge recursos con [F] y fabrica trampas en tu mesa central.";
+            guide.text = "[G] Ciudad aleatoria  ·  [ESC] Configurar semilla y tamaño";
         }
 
         void SuppressLegacy()
@@ -555,9 +404,6 @@ namespace Prototipo3.UI
                 old.gameObject.SetActive(false);
                 Destroy(old.gameObject);
             }
-
-            foreach (var old in FindObjectsByType<NarrativeHUDPrototipo3>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-                old.UseUnifiedPresentation();
 
             foreach (var old in FindObjectsByType<Feral.UI.FeralInventoryUI>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
@@ -571,26 +417,30 @@ namespace Prototipo3.UI
         void RenderPage()
         {
             if (content != null) { content.gameObject.SetActive(false); Destroy(content.gameObject); }
-            bool small = CurrentPage == Page.Pause || CurrentPage == Page.Return || CurrentPage == Page.Defeat || CurrentPage == Page.Victory;
-            float width = small ? 620 : 1320, height = CurrentPage == Page.Dialogue ? 330 : 740;
+            bool small = CurrentPage == Page.Pause || CurrentPage == Page.Return || CurrentPage == Page.Defeat || CurrentPage == Page.CitySetup;
+            float width = small ? 640 : 1320, height = CurrentPage == Page.Dialogue ? 330 : 740;
             if (CurrentPage == Page.Dialogue) width = 1100;
             content = FeralTheme.Brush("Contenido " + CurrentPage, modal, 0, 0, width, height, FeralTheme.Ink).rectTransform;
             content.anchorMin = content.anchorMax = content.pivot = new Vector2(.5f, .5f);
             content.anchoredPosition = Vector2.zero;
             FeralTheme.Panel("Accent", content, 0, 0, width, 5, FeralTheme.Red);
-            FeralTheme.Label("Kicker", content, "FERAL  /  EL HUMO DE SOLIS", 36, 28, width - 72, 28, 16, FeralTheme.Gold);
-            if (CurrentPage != Page.Dialogue && CurrentPage != Page.Defeat && CurrentPage != Page.Victory)
-                FeralTheme.Button("Close", content, "Volver  [ESC]", width - 236, 68, 200, 48, Close);
+            FeralTheme.Label("Kicker", content, "FERAL  /  SUPERVIVENCIA EN LA CIUDAD", 36, 28, width - 72, 28, 16, FeralTheme.Gold);
+            if (CurrentPage != Page.Dialogue && CurrentPage != Page.Defeat)
+                FeralTheme.Button("Close", content, "Volver  [ESC]", width - 236, 68, 200, 48, () =>
+                {
+                    if (CurrentPage == Page.CitySetup || CurrentPage == Page.Return) Open(Page.Pause);
+                    else Close();
+                });
+
             switch (CurrentPage)
             {
                 case Page.Inventory: InventoryPage(); break;
                 case Page.Pause: PausePage(); break;
-                case Page.Missions: MissionsPage(); break;
+                case Page.CitySetup: CitySetupPage(); break;
                 case Page.Crafting: CraftingPage(); break;
                 case Page.Dialogue: DialoguePage(); break;
                 case Page.Return: ReturnPage(); break;
-                case Page.Defeat: EndPage(false); break;
-                case Page.Victory: EndPage(true); break;
+                case Page.Defeat: EndPage(); break;
             }
             var first = content.GetComponentsInChildren<Button>().FirstOrDefault(b => b.interactable && b.name != "Close");
             if (first != null && EventSystem.current != null) EventSystem.current.SetSelectedGameObject(first.gameObject);
@@ -609,7 +459,6 @@ namespace Prototipo3.UI
         static string Recipe(TipoTrampa t) => TrapSystemPrototipo3.GetTrapRecipeText(t);
         static string TrapDescription(TipoTrampa t) => TrapSystemPrototipo3.GetTrapDescription(t);
         bool CanCraft(TipoTrampa t) => TrapSystemPrototipo3.CanCraftTrap(t);
-        bool RecipeUnlocked(TipoTrampa t) => true;
 
         void Icon(Transform parent, ItemType item, float x, float y, float size)
         {
@@ -622,19 +471,14 @@ namespace Prototipo3.UI
 
         void InventoryPage()
         {
-            Heading("INVENTARIO", "Materiales, herramientas tácticas [1/2/3] y objetos clave para el Suero Alba-Puro.");
+            Heading("INVENTARIO", "Materiales recolectados y trampas tácticas [1/2/3] para defenderte en la noche.");
             FeralTheme.Button("Materials", content, "Materiales", 302, 190, 250, 52, () => { inventoryTab = 0; selectedItem = 0; RenderPage(); }, inventoryTab == 0);
             FeralTheme.Button("Traps", content, "Trampas [1/2/3]", 566, 190, 250, 52, () => { inventoryTab = 1; selectedItem = 0; RenderPage(); }, inventoryTab == 1);
             FeralTheme.Button("InventoryNav", content, "Inventario", 30, 270, 240, 64, () => { }, true);
             var craftNav = FeralTheme.Button("CraftNav", content, "Fabricación", 30, 348, 240, 64, () => Open(Page.Crafting));
             craftNav.interactable = table && table.IsMenuOpen;
-            FeralTheme.Button("JournalNav", content, "Objetivos   [M]", 30, 426, 240, 64, () => Open(Page.Missions));
+            FeralTheme.Button("CityNav", content, "Nueva Ciudad", 30, 426, 240, 64, () => Open(Page.CitySetup));
             FeralTheme.Illustration("HamsterInventory", content, 0, 48, 490, 190);
-
-            string keyItemsSummary = story != null && story.KeyItems.Count > 0
-                ? "OBJETOS CLAVE: " + string.Join(" · ", story.KeyItems)
-                : "OBJETOS CLAVE: Aún no has obtenido ingredientes del Suero Alba-Puro.";
-            FeralTheme.Label("CraftHint", content, keyItemsSummary, 36, 700, 800, 28, 15, FeralTheme.Gold);
 
             FeralTheme.Brush("MaterialHeading", content, 302, 268, 250, 36, FeralTheme.Cream);
             FeralTheme.Label("MaterialHeadingText", content, "MATERIALES", 316, 276, 230, 24, 16, FeralTheme.Ink);
@@ -697,23 +541,23 @@ namespace Prototipo3.UI
         {
             switch (item)
             {
-                case ItemType.Madera: return "Tablas recuperadas de la ciudad.\n\nRequerida para la Bomba de Polen (Trampa 2), el Descargador Estático (Trampa 3) y los Postes Reflectores.";
-                case ItemType.Metal: return "Piezas metálicas conductoras.\n\nRequerido para el Señuelo Acústico (Trampa 1), el Descargador Estático (Trampa 3) y los Postes Reflectores.";
-                case ItemType.Desperdicios: return "Latas y restos resonantes.\n\nCombínalos con 2 de Metal para fabricar el Señuelo Acústico (Trampa 1).";
-                case ItemType.Goma: return "Fragmentos de goma aislante.\n\nRequerida para el Descargador Estático (Trampa 3) y los Postes Reflectores del Bosque Ceniza.";
-                default: return "Semillas silvestres cargadas de polen.\n\nCombínalas con Madera para fabricar la Bomba de Polen (Trampa 2) contra el olfato de Sultán.";
+                case ItemType.Madera: return "Tablas recuperadas de la ciudad.\n\nSirven para fabricar trampas de púas, barricadas de madera y bombas de polen.";
+                case ItemType.Metal: return "Piezas metálicas conductoras.\n\nRequeridas para fabricar el señuelo acústico (Trampa 1) y el descargador estático.";
+                case ItemType.Desperdicios: return "Latas y restos resonantes.\n\nCombínalos con Metal para armar trampas de distracción o redes.";
+                case ItemType.Goma: return "Fragmentos de goma aislante.\n\nÚtiles para fabricar trampas eléctricas y de contención.";
+                default: return "Semillas silvestres cargadas de polen.\n\nCombínalas con Madera para fabricar la Bomba de Polen (Trampa 2).";
             }
         }
 
         void PausePage()
         {
-            FeralTheme.Label("Title", content, "En pausa", 36, 80, 320, 60, 42);
-            FeralTheme.Label("Subtitle", content, "Respira. La ciudad puede esperar.", 36, 148, 550, 36, 21, FeralTheme.Muted);
-            FeralTheme.Button("Resume", content, "Continuar", 36, 215, 548, 60, Close, true);
-            FeralTheme.Button("Inventory", content, "Mochila   [TAB]", 36, 292, 548, 60, () => Open(Page.Inventory));
-            FeralTheme.Button("Missions", content, "Misiones   [M]", 36, 369, 548, 60, () => Open(Page.Missions));
-            var volumeText = FeralTheme.Label("VolumeLabel", content, "Volumen", 36, 474, 548, 30, 22);
-            var volume = FeralTheme.Slider("Volume", content, 36, 519, 548, PlayerPrefs.GetFloat("Feral.UI.MasterVolume", .8f), v =>
+            FeralTheme.Label("Title", content, "En pausa", 36, 80, 340, 60, 42);
+            FeralTheme.Label("Subtitle", content, "Respira. La ciudad puede esperar.", 36, 146, 560, 36, 21, FeralTheme.Muted);
+            FeralTheme.Button("Resume", content, "Continuar", 36, 210, 568, 58, Close, true);
+            FeralTheme.Button("Inventory", content, "Mochila   [TAB]", 36, 282, 568, 58, () => Open(Page.Inventory));
+            FeralTheme.Button("NewCity", content, "Nueva Ciudad (Semilla)", 36, 354, 568, 58, () => Open(Page.CitySetup));
+            var volumeText = FeralTheme.Label("VolumeLabel", content, "Volumen", 36, 444, 568, 30, 21);
+            var volume = FeralTheme.Slider("Volume", content, 36, 486, 380, PlayerPrefs.GetFloat("Feral.UI.MasterVolume", .8f), v =>
             {
                 PlayerPrefs.SetFloat("Feral.UI.MasterVolume", v);
                 PlayerPrefs.SetInt("Feral.UI.Muted", 0);
@@ -721,16 +565,90 @@ namespace Prototipo3.UI
                 volumeText.text = "Volumen   " + Mathf.RoundToInt(v * 100) + "%";
             });
             volumeText.text = "Volumen   " + Mathf.RoundToInt(volume.value * 100) + "%";
-            FeralTheme.Button("ReturnMenu", content, "Volver al menú principal", 36, 620, 548, 60, () => Open(Page.Return));
+            FeralTheme.Button("ReturnMenu", content, "Volver al menú principal", 36, 568, 568, 58, () => Open(Page.Return));
+        }
+
+        void CitySetupPage()
+        {
+            var city = CityGeneratorPrototipo3.Instance;
+            string currentSeed = city != null ? city.seed.ToString() : "12345";
+            string currentW = city != null ? city.mapWidth.ToString() : "30";
+            string currentL = city != null ? city.mapLength.ToString() : "30";
+
+            FeralTheme.Label("Title", content, "Nueva Ciudad", 36, 80, 540, 54, 38);
+            FeralTheme.Label("Subtitle", content, "Genera una ciudad aleatoria o personaliza semilla y dimensiones (20 a 60).", 36, 140, 568, 52, 18, FeralTheme.Muted);
+
+            FeralTheme.Button("BtnRandom", content, "Ciudad Aleatoria (Generar ahora)", 36, 206, 568, 58, () =>
+            {
+                int rSeed = UnityEngine.Random.Range(100000, 999999);
+                if (CityGeneratorPrototipo3.Instance != null)
+                {
+                    CityGeneratorPrototipo3.Instance.RegenerateCityRuntime(rSeed, 30, 30);
+                }
+                Close();
+            }, true);
+
+            var card = FeralTheme.Panel("CustomBox", content, 36, 286, 568, 326, FeralTheme.Card).rectTransform;
+            FeralTheme.Label("CustomHead", card, "Personalizar Semilla y Tamaño", 24, 18, 520, 32, 22, FeralTheme.Gold);
+
+            FeralTheme.Label("SeedLbl", card, "Semilla numérica:", 24, 70, 200, 32, 18);
+            citySeedInput = CreateInputField(card, "SeedInput", currentSeed, 232, 66, 190, 40);
+            FeralTheme.Button("BtnRollSeed", card, "Azar", 434, 66, 110, 40, () =>
+            {
+                if (citySeedInput != null) citySeedInput.text = UnityEngine.Random.Range(100000, 999999).ToString();
+            });
+
+            FeralTheme.Label("WidthLbl", card, "Ancho (celdas):", 24, 128, 200, 32, 18);
+            cityWidthInput = CreateInputField(card, "WidthInput", currentW, 232, 124, 120, 40);
+
+            FeralTheme.Label("LengthLbl", card, "Largo (celdas):", 24, 184, 200, 32, 18);
+            cityLengthInput = CreateInputField(card, "LengthInput", currentL, 232, 180, 120, 40);
+
+            FeralTheme.Button("BtnApplyCustom", card, "Generar con estos datos", 24, 246, 520, 56, ApplyCustomCityFromInputs, true);
+            citySetupStatus = FeralTheme.Label("CityStatus", content, "", 36, 626, 568, 42, 16, FeralTheme.Gold);
+        }
+
+        void ApplyCustomCityFromInputs()
+        {
+            if (CityGeneratorPrototipo3.Instance == null)
+            {
+                if (citySetupStatus != null) citySetupStatus.text = "No se encontró CityGeneratorPrototipo3 en la escena.";
+                return;
+            }
+
+            int targetSeed = UnityEngine.Random.Range(100000, 999999);
+            if (citySeedInput != null && int.TryParse(citySeedInput.text.Trim(), out int s)) targetSeed = Mathf.Abs(s);
+
+            int targetW = 30;
+            if (cityWidthInput != null && int.TryParse(cityWidthInput.text.Trim(), out int w)) targetW = Mathf.Clamp(w, 20, 60);
+
+            int targetL = 30;
+            if (cityLengthInput != null && int.TryParse(cityLengthInput.text.Trim(), out int l)) targetL = Mathf.Clamp(l, 20, 60);
+
+            CityGeneratorPrototipo3.Instance.RegenerateCityRuntime(targetSeed, targetW, targetL);
+            Close();
+        }
+
+        static InputField CreateInputField(Transform parent, string name, string initialValue, float x, float y, float w, float h)
+        {
+            var bg = FeralTheme.Panel(name, parent, x, y, w, h, FeralTheme.Ink);
+            var text = FeralTheme.Label("Text", bg.transform, "", 10, 4, w - 20, h - 8, 18, FeralTheme.Cream);
+            text.alignment = TextAnchor.MiddleLeft;
+            text.supportRichText = false;
+            var input = bg.gameObject.AddComponent<InputField>();
+            input.textComponent = text;
+            input.contentType = InputField.ContentType.IntegerNumber;
+            input.text = initialValue;
+            return input;
         }
 
         void ReturnPage()
         {
-            FeralTheme.Label("Title", content, "¿Volver al menú?", 36, 150, 548, 70, 38);
-            FeralTheme.Label("Body", content, "Se cerrará la sesión actual de Solis.", 36, 258, 548, 150, 25);
-            FeralTheme.Button("Cancel", content, "Seguir jugando", 36, 470, 548, 64, Close, true);
-            FeralTheme.Button("Confirm", content, "Volver al menú", 36, 552, 548, 64, ReturnToMenu);
-            status = FeralTheme.Label("Status", content, "", 36, 645, 548, 60, 18, FeralTheme.Muted);
+            FeralTheme.Label("Title", content, "¿Volver al menú?", 36, 150, 568, 70, 38);
+            FeralTheme.Label("Body", content, "Se cerrará tu sesión actual en la ciudad procedural.", 36, 258, 568, 150, 25);
+            FeralTheme.Button("Cancel", content, "Seguir jugando", 36, 470, 568, 64, Close, true);
+            FeralTheme.Button("Confirm", content, "Volver al menú", 36, 552, 568, 64, ReturnToMenu);
+            status = FeralTheme.Label("Status", content, "", 36, 645, 568, 60, 18, FeralTheme.Muted);
         }
 
         public void ReturnToMenu()
@@ -753,21 +671,17 @@ namespace Prototipo3.UI
             SceneManager.LoadScene(target);
         }
 
-        void EndPage(bool won)
+        void EndPage()
         {
-            FeralTheme.Label("Title", content, won ? "El Amanecer de Solis" : "La noche te alcanzó", 36, 170, 548, 100, 40);
-            FeralTheme.Label("Body", content,
-                won
-                    ? "Dispersaste el Suero Alba-Puro desde la Torre Aethelgard. Sofía y los ciudadanos de Solis han sido curados."
-                    : "Fuiste atrapado en la oscuridad.",
-                36, 300, 548, 140, 25);
-            FeralTheme.Button("Restart", content, won ? "Continuar en Solis" : "Despertar en la Base", 36, 490, 548, 64, () =>
+            FeralTheme.Label("Title", content, "La noche te alcanzó", 36, 170, 568, 100, 40);
+            FeralTheme.Label("Body", content, "Fuiste atrapado en la oscuridad. Reúne materiales y prepara trampas antes del próximo anochecer.", 36, 300, 568, 140, 25);
+            FeralTheme.Button("Restart", content, "Despertar en la Base", 36, 490, 568, 64, () =>
             {
                 Close();
                 Time.timeScale = 1;
             }, true);
-            FeralTheme.Button("Menu", content, "Menú principal", 36, 578, 548, 64, ReturnToMenu);
-            status = FeralTheme.Label("Status", content, "", 36, 660, 548, 54, 18);
+            FeralTheme.Button("Menu", content, "Menú principal", 36, 578, 568, 64, ReturnToMenu);
+            status = FeralTheme.Label("Status", content, "", 36, 660, 568, 54, 18);
         }
 
         void DialoguePage()
@@ -794,66 +708,20 @@ namespace Prototipo3.UI
                 FeralTheme.Illustration("RecipeIcon", card, i + 1, 134, 100, 124);
                 FeralTheme.Label("Description", card, TrapDescription(t), 26, 222, 348, 64, 17);
                 FeralTheme.Label("Cost", card, Recipe(t), 26, 286, 348, 28, 19, FeralTheme.Gold);
-                bool unlocked = RecipeUnlocked(t), ready = CanCraft(t);
-                FeralTheme.Label("Availability", card, ready ? "Materiales disponibles  ·  Tienes " + TrapCount(t) : "Faltan materiales  ·  Tienes " + TrapCount(t), 26, 318, 348, 34, 16, ready && unlocked ? FeralTheme.Ready : FeralTheme.Muted);
+                bool ready = CanCraft(t);
+                FeralTheme.Label("Availability", card, ready ? "Materiales disponibles  ·  Tienes " + TrapCount(t) : "Faltan materiales  ·  Tienes " + TrapCount(t), 26, 318, 348, 34, 16, ready ? FeralTheme.Ready : FeralTheme.Muted);
                 var b = FeralTheme.Button("Craft " + t, card, "Fabricar", 26, 354, 348, 52, () => Craft(t), true);
-                b.interactable = table && unlocked && ready;
+                b.interactable = table && ready;
             }
             FeralTheme.Label("Materials", content, string.Join("     ", ((ItemType[])Enum.GetValues(typeof(ItemType))).Select(t => t + "  " + Count(t))), 36, 660, 1248, 46, 21, FeralTheme.Muted);
         }
 
         public void Craft(TipoTrampa type)
         {
-            if (!table || !table.IsMenuOpen || !CanCraft(type) || !RecipeUnlocked(type)) return;
+            if (!table || !table.IsMenuOpen || !CanCraft(type)) return;
             TrapSystemPrototipo3.EnsureInstance();
             TrapSystemPrototipo3.CraftTrap(type);
             dirty = true;
-        }
-
-        void MissionsPage()
-        {
-            Heading("Diario de misiones (Grafo No Lineal)", "Ramas activas en paralelo, pistas cardinales y objetos clave obtenidos.");
-            var nodes = story?.CurrentGraph?.nodes.Where(n => n.state != StoryNodeState.Locked).ToArray();
-            if (nodes == null || nodes.Length == 0)
-            {
-                FeralTheme.Label("Empty", content, "Inicializando grafo narrativo...", 36, 240, 1000, 130, 28);
-                return;
-            }
-
-            var selected = nodes.FirstOrDefault(n => n.id == selectedMission) ?? nodes.FirstOrDefault(n => n.state == StoryNodeState.Active) ?? nodes[0];
-            var rows = FeralTheme.Scroll("MissionList", content, 36, 208, 550, 480, nodes.Length * 108);
-            for (int i = 0; i < nodes.Length; i++)
-            {
-                var n = nodes[i];
-                var b = FeralTheme.Button("Mission " + n.id, rows, "", 0, i * 108, 530, 96, () => { selectedMission = n.id; RenderPage(); }, selected == n);
-                FeralTheme.Label("Name", b.transform, n.title, 22, 12, 486, 42, 21);
-                string stateLabel = n.state == StoryNodeState.Completed ? $"✓ COMPLETADA [{n.branchTag}]" : n.state == StoryNodeState.Active ? $"▶ EN CURSO [{n.branchTag}]" : $"DISPONIBLE [{n.branchTag}]";
-                FeralTheme.Label("State", b.transform, stateLabel, 22, 63, 486, 24, 15, n.state == StoryNodeState.Completed ? FeralTheme.Ready : FeralTheme.Gold);
-            }
-
-            string progress = selected.requiredItemCount > 1 ? $"\n\nProgreso: {selected.currentItemProgress} / {selected.requiredItemCount}" : "";
-            string keyItemsText = story != null && story.KeyItems.Count > 0
-                ? "\n\nObjetos Clave obtenidos:\n• " + string.Join("\n• ", story.KeyItems)
-                : "\n\nObjetos Clave obtenidos: Ninguno todavía.";
-            string rumorText = story != null && !string.IsNullOrEmpty(story.LastCardinalRumor)
-                ? "\n\nÚltima Pista Cardinal:\n" + story.LastCardinalRumor
-                : "";
-
-            MissionDetail(
-                selected.state == StoryNodeState.Completed ? "COMPLETADA" : "OBJETIVO ACTIVO",
-                selected.title,
-                selected.description + "\n\nPista: " + selected.hint + progress + keyItemsText + rumorText);
-        }
-
-        void MissionDetail(string state, string title, string description)
-        {
-            var pane = FeralTheme.Panel("MissionDetail", content, 624, 208, 660, 480, FeralTheme.Card).rectTransform;
-            FeralTheme.Label("State", pane, state, 28, 24, 604, 32, 17, FeralTheme.Gold);
-            var scroll = FeralTheme.Scroll("DetailScroll", pane, 28, 70, 604, 384, 520);
-            var text = FeralTheme.Label("Content", scroll, title + "\n\n" + description, 10, 10, 570, 520, 22);
-            float h = Mathf.Max(384, text.preferredHeight + 30);
-            text.rectTransform.sizeDelta = new Vector2(570, h);
-            scroll.sizeDelta = new Vector2(scroll.sizeDelta.x, h + 20);
         }
     }
 }

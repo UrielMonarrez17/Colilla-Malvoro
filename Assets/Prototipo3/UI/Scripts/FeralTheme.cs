@@ -76,13 +76,22 @@ namespace Prototipo3.UI
         }
         public static Slider Slider(string name, Transform parent, float x, float y, float width, float value, Action<float> changed)
         {
-            var r = Rect(name, parent, x, y, width, 36);
-            var bg = Panel("Track", r, 0, 12, width, 10, Card);
-            var fill = Panel("Fill", r, 0, 12, width, 10, Gold);
-            var handle = Panel("Handle", r, 0, 4, 16, 28, Cream);
+            var r = Rect(name, parent, x, y, width, 32);
+            var bg = Panel("Track", r, 0, 11, width, 10, Card);
+            var fillArea = Rect("FillArea", r, 7, 11, Mathf.Max(20f, width - 14f), 10);
+            var fill = Panel("Fill", fillArea, 0, 0, 0, 0, Gold);
+            Stretch(fill.rectTransform);
+            var handleArea = Rect("HandleArea", r, 7, 0, Mathf.Max(20f, width - 14f), 32);
+            var handle = Panel("Handle", handleArea, 0, 0, 16, 26, Cream);
+            handle.rectTransform.anchorMin = handle.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            handle.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            handle.rectTransform.anchoredPosition = Vector2.zero;
             handle.raycastTarget = true; bg.raycastTarget = true;
-            var slider = r.gameObject.AddComponent<Slider>(); slider.fillRect = fill.rectTransform;
-            slider.handleRect = handle.rectTransform; slider.targetGraphic = handle; slider.value = value;
+            var slider = r.gameObject.AddComponent<Slider>();
+            slider.fillRect = fill.rectTransform;
+            slider.handleRect = handle.rectTransform;
+            slider.targetGraphic = handle;
+            slider.SetValueWithoutNotify(Mathf.Clamp01(value));
             if (changed != null) slider.onValueChanged.AddListener(v => changed(v));
             return slider;
         }

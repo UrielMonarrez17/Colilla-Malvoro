@@ -198,12 +198,6 @@ namespace Prototipo3
             Debug.Log($"[TrapSystemPrototipo3] ¡Fabricado con éxito: {GetTrapDisplayName(t)}!");
             OnProto3TrapCrafted?.Invoke(t);
 
-            if (Prototipo3.Narrative.QuestCompiler.Instance != null)
-            {
-                string actionName = t == TipoTrampa.Madera ? "fabricar_trampa_madera" : (t == TipoTrampa.Red ? "fabricar_trampa_red" : "fabricar_trampa_puas");
-                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches(actionName);
-            }
-
             return true;
         }
 
@@ -242,12 +236,6 @@ namespace Prototipo3
 
             OnProto3TrapDeployed?.Invoke(tipo);
 
-            if (Prototipo3.Narrative.QuestCompiler.Instance != null)
-            {
-                string actionName = tipo == TipoTrampa.Madera ? "colocar_trampa_madera" : (tipo == TipoTrampa.Red ? "colocar_trampa_red" : "colocar_trampa_puas");
-                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches(actionName);
-            }
-
             return true;
         }
 
@@ -272,9 +260,15 @@ namespace Prototipo3
             Renderer r = barricade.GetComponent<Renderer>();
             if (r != null)
             {
-                Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard") ?? Shader.Find("Sprites/Default");
-                Material m = new Material(sh) { color = new Color(0.48f, 0.28f, 0.12f) };
-                r.material = m;
+                Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Universal Render Pipeline/Unlit");
+                if (sh != null)
+                {
+                    Material m = new Material(sh);
+                    Color c = new Color(0.48f, 0.28f, 0.12f, 1f);
+                    m.color = c;
+                    if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+                    r.material = m;
+                }
             }
 
             NavMeshObstacle obstacle = barricade.AddComponent<NavMeshObstacle>();
@@ -337,20 +331,7 @@ namespace Prototipo3
                 }
             }
 
-            // 2. Sobrecargar paneles y mecanismos en la arena
-            StoryMechanismPrototipo3[] mechanisms = FindObjectsByType<StoryMechanismPrototipo3>(FindObjectsSortMode.None);
-            for (int i = 0; i < mechanisms.Length; i++)
-            {
-                StoryMechanismPrototipo3 mech = mechanisms[i];
-                if (mech == null || !mech.gameObject.activeInHierarchy) continue;
-                float d = Vector3.Distance(center, mech.transform.position);
-                if (d <= radius)
-                {
-                    mech.OnStaticDischargeHit();
-                }
-            }
-
-            // 3. Emitir el señuelo acústico de distracción por compatibilidad
+            // 2. Emitir el señuelo acústico de distracción por compatibilidad
             DeployAcousticDecoy(playerTransform);
         }
 
@@ -412,9 +393,20 @@ namespace Prototipo3
                 Renderer ren = sphere.GetComponent<Renderer>();
                 if (ren != null)
                 {
-                    Shader sh = Shader.Find("Sprites/Default") ?? Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Standard");
+                    Shader sh = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
                     Material m = new Material(sh);
-                    m.color = new Color(0.2f, 0.95f, 0.35f, 0.32f);
+                    Color colPollen = new Color(0.2f, 0.95f, 0.35f, 0.32f);
+                    m.color = colPollen;
+                    if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", colPollen);
+                    if (m.HasProperty("_Surface"))
+                    {
+                        m.SetFloat("_Surface", 1f);
+                        m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                        m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                        m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                        m.SetInt("_ZWrite", 0);
+                        m.renderQueue = 3600;
+                    }
                     ren.material = m;
                     ren.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 }
@@ -466,18 +458,6 @@ namespace Prototipo3
             if (closestEnemy != null)
             {
                 closestEnemy.ApplyStaticParalysis(5f);
-            }
-
-            StoryMechanismPrototipo3[] mechanisms = FindObjectsByType<StoryMechanismPrototipo3>(FindObjectsSortMode.None);
-            for (int i = 0; i < mechanisms.Length; i++)
-            {
-                StoryMechanismPrototipo3 mech = mechanisms[i];
-                if (mech == null || !mech.gameObject.activeInHierarchy) continue;
-                float d = Vector3.Distance(center, mech.transform.position);
-                if (d <= radius)
-                {
-                    mech.OnStaticDischargeHit();
-                }
             }
         }
     }

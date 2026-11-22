@@ -6,7 +6,6 @@ using UnityEngine.UI;
 namespace Prototipo3
 {
     [RequireComponent(typeof(Rigidbody))]
-    [RequireComponent(typeof(CapsuleCollider))]
     public class HamsterControllerPrototipo3 : HamsterController
     {
         [Header("Físicas Mejoradas y Gravedad Prototipo3")]
@@ -45,7 +44,7 @@ namespace Prototipo3
         private Vector3 groundNormal = Vector3.up;
         private float nextJumpTime = 0f;
 
-        // Ralentización externa temporal (ej. Nubes de gas de Clara Valdés)
+        // Ralentización externa temporal
         private float externalSlowMultiplier = 1f;
         private float externalSlowTimer = 0f;
 
@@ -100,7 +99,6 @@ namespace Prototipo3
         private void Update()
         {
             if (Prototipo3.UI.FeralGameUI.BlocksGameplay) return;
-            if (CutsceneManager.Instance != null && CutsceneManager.Instance.IsPlayingCutscene) return;
             if (RespawnManagerPrototipo3.Instance != null && RespawnManagerPrototipo3.Instance.IsRespawning) return;
             if (isDead) return;
 
@@ -179,7 +177,6 @@ namespace Prototipo3
         private void FixedUpdate()
         {
             if (isDead) return;
-            if (CutsceneManager.Instance != null && CutsceneManager.Instance.IsPlayingCutscene) return;
 
             UpdateGroundStatus();
 
@@ -244,11 +241,6 @@ namespace Prototipo3
         private void HandleStealthAndSpeedManagementProto()
         {
             bool crouching = FeralInput.Held(KeyCode.C);
-            if (FeralInput.Pressed(KeyCode.C))
-            {
-                Prototipo3.Narrative.QuestCompiler.Instance?.AdvanceActionIfMatches("agacharse_sigilo");
-                Prototipo3.Narrative.QuestCompiler.Instance?.AdvanceActionIfMatches("espiar_rutina");
-            }
             isCrouching = crouching;
             if (crouching)
             {
@@ -266,7 +258,6 @@ namespace Prototipo3
 
             if (isTryingToSprint)
             {
-                Prototipo3.Narrative.QuestCompiler.Instance?.AdvanceActionIfMatches("correr_estamina");
                 currentBaseSpeed = sprintSpeed;
                 currentStamina -= staminaDrainRate * Time.deltaTime;
             }
@@ -332,11 +323,6 @@ namespace Prototipo3
             isDashing = true;
             nextDashTime = Time.time + dashCooldown;
             InvokeOnDashUsed();
-            if (Prototipo3.Narrative.QuestCompiler.Instance != null)
-            {
-                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("dash_escape");
-                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("romper_linea_vision");
-            }
 
             Vector3 dashDir = moveInput != Vector3.zero ? moveInput : transform.forward;
 
@@ -378,11 +364,6 @@ namespace Prototipo3
             if (currentInteractable != null)
             {
                 Vector3 interactablePos = currentInteractable.transform.position;
-                if (currentInteractable.GetComponentInParent<SpecialBuildingEntrance>() is SpecialBuildingEntrance entrance && entrance.entranceSocket != null)
-                {
-                    interactablePos = entrance.entranceSocket.position;
-                }
-
                 if (!currentInteractable.activeInHierarchy ||
                     Vector3.Distance(transform.position, interactablePos) > 4.2f)
                 {
@@ -399,47 +380,7 @@ namespace Prototipo3
             float bestDist = 3.8f;
             GameObject bestCandidate = null;
 
-            // 1. Personajes Duales en modo pacífico/aliado
-            for (int i = 0; i < DualRoleCharacter.ActiveCharacters.Count; i++)
-            {
-                DualRoleCharacter drc = DualRoleCharacter.ActiveCharacters[i];
-                if (drc == null || !drc.gameObject.activeInHierarchy || drc.IsCurrentlyFeral) continue;
-                float d = Vector3.Distance(transform.position, drc.transform.position);
-                if (d <= bestDist)
-                {
-                    bestDist = d;
-                    bestCandidate = drc.gameObject;
-                }
-            }
-
-            // 2. Mecanismos de Historia
-            for (int i = 0; i < StoryMechanismPrototipo3.ActiveMechanisms.Count; i++)
-            {
-                StoryMechanismPrototipo3 mech = StoryMechanismPrototipo3.ActiveMechanisms[i];
-                if (mech == null || !mech.gameObject.activeInHierarchy || !mech.CanInteract) continue;
-                float d = Vector3.Distance(transform.position, mech.transform.position);
-                if (d <= bestDist)
-                {
-                    bestDist = d;
-                    bestCandidate = mech.gameObject;
-                }
-            }
-
-            // 2.5. Entradas a Edificios Especiales
-            for (int i = 0; i < SpecialBuildingEntrance.ActiveEntrances.Count; i++)
-            {
-                SpecialBuildingEntrance ent = SpecialBuildingEntrance.ActiveEntrances[i];
-                if (ent == null || !ent.gameObject.activeInHierarchy) continue;
-                Vector3 entPos = ent.entranceSocket != null ? ent.entranceSocket.position : ent.transform.position;
-                float d = Vector3.Distance(transform.position, entPos);
-                if (d <= bestDist && d <= ent.interactionRadius)
-                {
-                    bestDist = d;
-                    bestCandidate = ent.gameObject;
-                }
-            }
-
-            // 3. Colliders cercanos con tag Interactable o Door
+            // Colliders cercanos con tag Interactable o Door
             Collider[] nearby = Physics.OverlapSphere(transform.position, 3.4f, ~0, QueryTriggerInteraction.Collide);
             for (int i = 0; i < nearby.Length; i++)
             {
@@ -471,29 +412,13 @@ namespace Prototipo3
 
             if ((FeralInput.Pressed(KeyCode.F) || Input.GetKeyDown(KeyCode.F)) && currentInteractable != null)
             {
-                if (currentInteractable.GetComponentInParent<SpecialBuildingEntrance>() is SpecialBuildingEntrance entrance)
-                {
-                    entrance.Interact();
-                }
-                else if (currentInteractable.GetComponentInParent<DualRoleCharacter>() is DualRoleCharacter dualChar)
-                {
-                    dualChar.InteractWithCharacter();
-                }
-                else if (currentInteractable.GetComponentInParent<StoryMechanismPrototipo3>() is StoryMechanismPrototipo3 mechanism)
-                {
-                    mechanism.Interact();
-                }
-                else if (currentInteractable.GetComponentInParent<CraftingTable>() is CraftingTable craftingTable)
+                if (currentInteractable.GetComponentInParent<CraftingTable>() is CraftingTable craftingTable)
                 {
                     craftingTable.ToggleCraftingMenu();
                 }
                 else if (currentInteractable.GetComponentInParent<LootContainer>() is LootContainer lootContainer)
                 {
                     lootContainer.InteractuarConLoot();
-                }
-                else if (currentInteractable.GetComponentInParent<LuluNPCPrototipo3>() is LuluNPCPrototipo3 luluProto)
-                {
-                    luluProto.InteractuarConLulu();
                 }
                 else if (currentInteractable.GetComponentInParent<LuluNPC>() is LuluNPC lulu)
                 {

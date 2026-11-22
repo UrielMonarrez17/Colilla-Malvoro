@@ -6,10 +6,10 @@ using UnityEngine.UI;
 namespace Prototipo3
 {
     /// <summary>
-    /// PASO 5.2: Sistema de Reinicio tras Muerte (3 Golpes).
-    /// Muestra "Fuiste atrapado en la oscuridad", conserva el estado del StoryManager, la ciudad generada,
-    /// los ítems clave y las trampas fabricadas, reduce al 50% los materiales crudos, avanza el reloj al
-    /// siguiente Amanecer (OnDayStart), restaura la salud a 0 golpes y teletransporta a Kilo a su Base.
+    /// Sistema de Reinicio tras Muerte (3 Golpes).
+    /// Muestra "Atrapado en la penumbra...", conserva la ciudad generada
+    /// y las trampas fabricadas, reduce al 50% los materiales crudos, avanza el reloj al
+    /// siguiente Amanecer (OnDayStart), restaura la salud a 0 golpes y teletransporta al hámster a su Base.
     /// </summary>
     public class RespawnManagerPrototipo3 : MonoBehaviour
     {
@@ -195,7 +195,7 @@ namespace Prototipo3
             {
                 detailsText.text =
                     "Lograste arrastrarte de regreso a tu madriguera antes del alba.\n\n" +
-                    "• Estado de la historia, ciudad generada, ítems clave y trampas fabricadas: CONSERVADOS.\n" +
+                    "• Ciudad generada y trampas fabricadas: CONSERVADAS.\n" +
                     $"• Penalización de materiales crudos (-50%): {penaltyReport}\n" +
                     "• El reloj avanza al siguiente Amanecer (06:00 AM).";
             }
@@ -251,15 +251,19 @@ namespace Prototipo3
 
             Time.timeScale = 1f;
 
-            // 3. Avanzar el reloj al siguiente Amanecer (6:00 AM -> dispara OnDayStart en DualRoleCharacter y EnemyAI)
+            // 3. Avanzar el reloj al siguiente Amanecer (6:00 AM -> dispara OnDayStart en EnemyAI)
             if (TimeManager.Instance != null)
             {
                 TimeManager.Instance.ForceDawnSunrise();
             }
 
-            foreach (DualRoleCharacter drc in DualRoleCharacter.ActiveCharacters)
+            EnemyAI[] enemies = FindObjectsByType<EnemyAI>(FindObjectsSortMode.None);
+            for (int i = 0; i < enemies.Length; i++)
             {
-                if (drc != null) drc.OnDayStart();
+                if (enemies[i] != null)
+                {
+                    enemies[i].ResetVisionConeVisual();
+                }
             }
 
             // 4. Restaurar salud a 0 golpes y teletransportar a Kilo a su Base

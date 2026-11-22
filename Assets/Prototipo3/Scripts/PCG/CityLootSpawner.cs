@@ -136,27 +136,14 @@ namespace Prototipo3
 
         public GameObject CreateLootContainerInstance(Transform parent, string containerName, Vector3 pos, List<ItemType> guaranteed, GameObject prefabToUse)
         {
-            GameObject obj;
-            if (prefabToUse != null)
+            if (prefabToUse == null)
             {
-                obj = Instantiate(prefabToUse, pos, Quaternion.identity, parent);
-                obj.name = containerName;
-            }
-            else
-            {
-                obj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                obj.name = containerName;
-                obj.transform.SetParent(parent, false);
-                obj.transform.position = pos + new Vector3(0f, 0.35f, 0f);
-                obj.transform.localScale = new Vector3(0.8f, 0.7f, 0.8f);
-                BoxCollider bc = obj.GetComponent<BoxCollider>();
-                if (bc != null)
-                {
-                    bc.isTrigger = true;
-                    bc.size = new Vector3(2.4f, 2.2f, 2.4f);
-                }
+                Debug.LogWarning($"[CityLootSpawner] {containerName}: lootPrefab es nulo; asigna un prefab 3D de Loot.");
+                return null;
             }
 
+            GameObject obj = Instantiate(prefabToUse, pos, Quaternion.identity, parent);
+            obj.name = containerName;
             obj.tag = "Interactable";
             LootContainer lc = obj.GetComponent<LootContainer>();
             if (lc == null) lc = obj.AddComponent<LootContainer>();

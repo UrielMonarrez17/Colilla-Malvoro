@@ -9,7 +9,6 @@ using UnityEngine;
 using UnityEngine.UI;
 using Prototipo3;
 using Prototipo3.UI;
-using Prototipo3.Narrative;
 using Object = UnityEngine.Object;
 
 namespace Prototipo3.UI.Editor

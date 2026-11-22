@@ -24,9 +24,20 @@ namespace Prototipo3
             Renderer ren = sphere.GetComponent<Renderer>();
             if (ren != null)
             {
-                Shader sh = Shader.Find("Sprites/Default") ?? Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Standard");
+                Shader sh = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
                 pulseMat = new Material(sh);
-                pulseMat.color = new Color(0.3f, 0.75f, 1f, 0.55f);
+                Color pulseCol = new Color(0.3f, 0.75f, 1f, 0.55f);
+                pulseMat.color = pulseCol;
+                if (pulseMat.HasProperty("_BaseColor")) pulseMat.SetColor("_BaseColor", pulseCol);
+                if (pulseMat.HasProperty("_Surface"))
+                {
+                    pulseMat.SetFloat("_Surface", 1f);
+                    pulseMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                    pulseMat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                    pulseMat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                    pulseMat.SetInt("_ZWrite", 0);
+                    pulseMat.renderQueue = 3600;
+                }
                 ren.material = pulseMat;
                 ren.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             }
@@ -46,7 +57,9 @@ namespace Prototipo3
             transform.localScale = new Vector3(d, 1.2f, d);
             if (pulseMat != null)
             {
-                pulseMat.color = new Color(0.35f, 0.85f, 1f, (1f - t) * 0.55f);
+                Color c = new Color(0.35f, 0.85f, 1f, (1f - t) * 0.55f);
+                pulseMat.color = c;
+                if (pulseMat.HasProperty("_BaseColor")) pulseMat.SetColor("_BaseColor", c);
             }
         }
 

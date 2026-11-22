@@ -1,17 +1,16 @@
 using System;
 using System.Collections.Generic;
+using Unity.AI.Navigation;
 using UnityEngine;
 using UnityEngine.AI;
-using Unity.AI.Navigation;
 
 namespace Prototipo3
 {
     /// <summary>
-    /// PASO 2: Generador Procedural de Ciudad con "Anclas de Distancia Manhattan" y Brújula de Rumores Cardinales.
-    /// Punto 0: Base de Kilo + Mesa de Fabricación + Puesto adyacente de Marco (Tejón Conserje).
-    /// Anillo Cercano (3 a 5 celdas): Prefab_EscuelaBellavista.
-    /// Anillo Medio (6 a 9 celdas, cuadrantes distintos): Prefab_BosqueCeniza y Prefab_HospitalSanJudas.
-    /// Anillo Lejano (10+ celdas o esquina más alejada): Prefab_TorreAethelgard.
+    /// Generador procedural de ciudad para Prototipo 3.
+    /// Mantiene la arquitectura matemática (fases 1 a 4 + SocketSpawnRule) de CityGeneratorMathVersion,
+    /// integrando refugio seguro (InteriorBuilding), horneado de NavMesh, loots en bordes exteriores de edificios
+    /// y delegación de población enemiga en CityEnemyPopulationSpawner.
     /// </summary>
     public class CityGeneratorPrototipo3 : MonoBehaviour
     {
@@ -21,36 +20,19 @@ namespace Prototipo3
         public int seed = 12345;
 
         [Header("Dimensiones de la Ciudad")]
-        public int mapWidth = 40;
-        public int mapLength = 40;
+        public int mapWidth = 30;
+        public int mapLength = 30;
         public float cellSize = 10f;
 
-        [Header("Anclas de Historia (PASO 2 - Distancia Manhattan)")]
-        [Header("Anillos de Distancia Manhattan (Configurables)")]
-        [Tooltip("Distancia Manhattan mínima a la Escuela Bellavista desde la Base")]
-        public int escuelaMinManhattan = 6;
-        [Tooltip("Distancia Manhattan máxima a la Escuela Bellavista desde la Base")]
-        public int escuelaMaxManhattan = 9;
-        [Tooltip("Distancia Manhattan mínima al Bosque y al Hospital desde la Base")]
-        public int medioMinManhattan = 10;
-        [Tooltip("Distancia Manhattan máxima al Bosque y al Hospital desde la Base")]
-        public int medioMaxManhattan = 14;
-        [Tooltip("Distancia Manhattan mínima a la Torre Aethelgard desde la Base")]
-        public int torreMinManhattan = 16;
-
-        public GameObject prefabEscuelaBellavista;
-        public GameObject prefabBosqueCeniza;
-        public GameObject prefabHospitalSanJudas;
-        public GameObject prefabTorreAethelgard;
-        public GameObject prefabMarcoTejon;
-
-        [Header("Listas de Edificios Adicionales")]
+        [Header("Listas de Edificios")]
         public List<GameObject> specialBuildings = new List<GameObject>();
         public List<GameObject> normalBuildings = new List<GameObject>();
 
-        [Header("Loot / Drops")]
-        public GameObject lootPrefab;
-        [Range(0f, 1f)] public float lootProbability = 0.65f;
+        [Header("Refugio Seguro (InteriorBuilding)")]
+        public GameObject safeRefugePrefab;
+
+        [Header("Objetos junto a edificios (loot, props, etc.)")]
+        public List<SocketSpawnRule> socketSpawns = new List<SocketSpawnRule>();
 
         [Header("Prefabs de Caminos y Suelos")]
         public GameObject roadForward;
@@ -64,42 +46,17 @@ namespace Prototipo3
         public float roadHeightY = 0f;
         public CityGenerationSettings settings = new CityGenerationSettings();
 
-        [Header("Puntos de Inicio / Refugio")]
-        public GameObject craftTablePrefab;
+        [Header("Supervivencia (Jugador, Crafteo y Loot)")]
         public Transform hamsterTransform;
+        public GameObject craftTablePrefab;
+        public GameObject lootPrefab;
+        [Range(0f, 1f)] public float lootProbability = 0.65f;
 
-        [Header("Enemigos Ferales (Multiespecie)")]
-        public List<GameObject> enemyPrefabs = new List<GameObject>();
-        public int maxEnemiesToSpawn = 12;
-        public float minEnemyDistanceFromSpawn = 30f;
-
-        // Celdas y Posiciones de Anclas Manhattan
-        public Vector2Int BaseCell { get; private set; }
-        public Vector2Int MarcoCell { get; private set; }
-        public Vector2Int EscuelaCell { get; private set; }
-        public Vector2Int BosqueCell { get; private set; }
-        public Vector2Int HospitalCell { get; private set; }
-        public Vector2Int TorreCell { get; private set; }
-
-        public GameObject SpawnedEscuela { get; private set; }
-        public GameObject SpawnedBosque { get; private set; }
-        public GameObject SpawnedHospital { get; private set; }
-        public GameObject SpawnedTorre { get; private set; }
-        public GameObject SpawnedMarco { get; private set; }
-
-        public List<GameObject> SpawnedSpecialBuildings { get; private set; } = new List<GameObject>();
-        public GameObject SpawnedTobyBuilding { get; private set; }
-        public Vector2Int TobyBuildingCell { get; private set; }
-        public Vector3 TobySpecialBuildingPosition { get; private set; }
-        public Vector3 TobySpecialBuildingEntrancePosition { get; private set; }
-
-        private readonly Dictionary<string, Vector3> landmarkPositions = new Dictionary<string, Vector3>(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, Vector3> landmarkEntrancePositions = new Dictionary<string, Vector3>(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, Vector3> landmarkBossPositions = new Dictionary<string, Vector3>(StringComparer.OrdinalIgnoreCase);
-
-        // Datos generados
+        // Datos públicos para sistemas de juego y enemigos
         public Vector3 PlayerSpawnPoint { get; private set; }
         public Vector3 CraftTableSpawnPoint { get; private set; }
+        public Vector3 SafeRefugeCenter { get; private set; }
+        public Vector3 SafeRefugeEntrancePoint { get; private set; }
         public List<Vector3> LootSpawnPoints { get; private set; } = new List<Vector3>();
         public List<Vector3> EnemySpawnPoints { get; private set; } = new List<Vector3>();
         public List<Vector3> IntersectionPoints { get; private set; } = new List<Vector3>();
@@ -111,8 +68,17 @@ namespace Prototipo3
 
         public event Action OnCityGenerated;
 
-        private static int? pendingSeed = null;
+        private RoadNetwork lastNetwork;
+        private GameObject safeRefugeInstance;
+        private Vector3 safeRefugeFacingDir = Vector3.back;
+
         private const string PendingSeedPrefKey = "Feral_PendingSeed";
+        private const string PendingWidthPrefKey = "Feral_PendingWidth";
+        private const string PendingLengthPrefKey = "Feral_PendingLength";
+
+        private static int? pendingSeed = null;
+        private static int? pendingWidth = null;
+        private static int? pendingLength = null;
 
         public static void SetPendingSeed(int newSeed)
         {
@@ -122,30 +88,66 @@ namespace Prototipo3
             Debug.Log($"[CityGeneratorPrototipo3] Semilla pendiente configurada: {newSeed}");
         }
 
+        public static void SetPendingCityConfig(int newSeed, int width = 30, int length = 30)
+        {
+            int w = Mathf.Clamp(width, 20, 60);
+            int l = Mathf.Clamp(length, 20, 60);
+            pendingSeed = newSeed;
+            pendingWidth = w;
+            pendingLength = l;
+            PlayerPrefs.SetInt(PendingSeedPrefKey, newSeed);
+            PlayerPrefs.SetInt(PendingWidthPrefKey, w);
+            PlayerPrefs.SetInt(PendingLengthPrefKey, l);
+            PlayerPrefs.Save();
+            Debug.Log($"[CityGeneratorPrototipo3] Configuración pendiente guardada: semilla={newSeed}, tamaño={w}x{l}");
+        }
+
         public static bool TryConsumePendingSeed(out int consumedSeed)
         {
+            return TryConsumePendingCityConfig(out consumedSeed, out _, out _);
+        }
+
+        public static bool TryConsumePendingCityConfig(out int consumedSeed, out int consumedWidth, out int consumedLength)
+        {
+            bool hasSeed = false;
+            consumedSeed = 0;
+            consumedWidth = 0;
+            consumedLength = 0;
+
             if (pendingSeed.HasValue)
             {
                 consumedSeed = pendingSeed.Value;
                 pendingSeed = null;
-                if (PlayerPrefs.HasKey(PendingSeedPrefKey))
-                {
-                    PlayerPrefs.DeleteKey(PendingSeedPrefKey);
-                    PlayerPrefs.Save();
-                }
-                return true;
+                hasSeed = true;
             }
-
-            if (PlayerPrefs.HasKey(PendingSeedPrefKey))
+            else if (PlayerPrefs.HasKey(PendingSeedPrefKey))
             {
                 consumedSeed = PlayerPrefs.GetInt(PendingSeedPrefKey);
-                PlayerPrefs.DeleteKey(PendingSeedPrefKey);
-                PlayerPrefs.Save();
-                return true;
+                hasSeed = true;
             }
 
-            consumedSeed = 0;
-            return false;
+            if (pendingWidth.HasValue && pendingLength.HasValue)
+            {
+                consumedWidth = pendingWidth.Value;
+                consumedLength = pendingLength.Value;
+                pendingWidth = null;
+                pendingLength = null;
+            }
+            else if (PlayerPrefs.HasKey(PendingWidthPrefKey) && PlayerPrefs.HasKey(PendingLengthPrefKey))
+            {
+                consumedWidth = PlayerPrefs.GetInt(PendingWidthPrefKey);
+                consumedLength = PlayerPrefs.GetInt(PendingLengthPrefKey);
+            }
+
+            if (hasSeed)
+            {
+                PlayerPrefs.DeleteKey(PendingSeedPrefKey);
+                PlayerPrefs.DeleteKey(PendingWidthPrefKey);
+                PlayerPrefs.DeleteKey(PendingLengthPrefKey);
+                PlayerPrefs.Save();
+            }
+
+            return hasSeed;
         }
 
         private void Awake()
@@ -154,98 +156,59 @@ namespace Prototipo3
             else if (Instance != this) Destroy(this);
         }
 
-        private void OnEnable()
-        {
-        }
-
-        private void OnDisable()
-        {
-        }
-
         private void Start()
         {
-            if (TryConsumePendingSeed(out int incomingSeed))
+            if (TryConsumePendingCityConfig(out int incomingSeed, out int incomingW, out int incomingL))
             {
                 seed = incomingSeed;
-                Debug.Log($"[CityGeneratorPrototipo3] Semilla recibida aplicada: {seed}");
+                if (incomingW >= 20 && incomingL >= 20)
+                {
+                    mapWidth = incomingW;
+                    mapLength = incomingL;
+                }
             }
+
+            if (transform.childCount == 0 || pendingSeed.HasValue)
+            {
+                GenerateCity();
+            }
+        }
+
+        public void RegenerateCityRuntime(int? customSeed = null, int? customWidth = null, int? customLength = null)
+        {
+            seed = customSeed ?? UnityEngine.Random.Range(10000, 999999);
+            if (customWidth.HasValue) mapWidth = Mathf.Clamp(customWidth.Value, 20, 60);
+            if (customLength.HasValue) mapLength = Mathf.Clamp(customLength.Value, 20, 60);
+            Debug.Log($"[CityGeneratorPrototipo3] Regenerando ciudad con semilla {seed} ({mapWidth}x{mapLength})...");
             GenerateCity();
         }
 
-        public static int ManhattanDistance(Vector2Int a, Vector2Int b)
-        {
-            return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
-        }
-
-        /// <summary>
-        /// Regenera la ciudad en tiempo de ejecución (ej. al presionar [G]), horneando el NavMesh
-        /// y conservando el progreso del StoryManager.
-        /// </summary>
-        public void RegenerateCityRuntime(int? customSeed = null)
-        {
-            seed = customSeed ?? UnityEngine.Random.Range(10000, 99999);
-            Debug.Log($"[CityGeneratorPrototipo3] Regenerando ciudad procedural con semilla {seed}...");
-            GenerateCity();
-        }
-
-        [ContextMenu("Generar Ciudad Completa en Editor")]
+        [ContextMenu("Generar Ciudad")]
         public void GenerateCity()
         {
             ClearCity();
 
-            mapWidth = Mathf.Max(26, mapWidth);
-            mapLength = Mathf.Max(26, mapLength);
-
-            LootSpawnPoints.Clear();
-            EnemySpawnPoints.Clear();
-            IntersectionPoints.Clear();
-            DeadEndPoints.Clear();
-            LoopCenterPoints.Clear();
-            landmarkPositions.Clear();
-            landmarkEntrancePositions.Clear();
-            landmarkBossPositions.Clear();
+            mapWidth = Mathf.Clamp(mapWidth, 20, 60);
+            mapLength = Mathf.Clamp(mapLength, 20, 60);
 
             var rng = new CityRandom(new MathPRNG(seed));
             var grid = new CityGrid(mapWidth, mapLength);
             var network = new RoadNetwork(grid, settings);
             var spawner = new BuildingSpawner(transform, cellSize, grid, rng);
 
-            // 1. Red de caminos principal
+            // 1. Red de caminos (igual que CityGeneratorMathVersion)
             new RoadNetworkBuilder(settings, rng, network).Build();
 
-            // 2. Seleccionar Celda Base (Punto 0) en una posición que permita los 3 anillos Manhattan en todas direcciones
-            SelectBaseAndMarcoCells(grid, network, rng);
+            // 1.5 Reservar e instanciar el Refugio Seguro en un lote adyacente a la calle central (no a media calle)
+            bool hasRefuge = TryReserveAndPlaceSafeRefuge(grid);
 
-            // 3. Colocar los 4 Edificios Importantes por Anclas de Distancia Manhattan desde BaseCell
-            PlaceStoryLandmarkAnchors(grid, network, spawner, rng);
+            // 2. Especiales con camino de acceso garantizado
+            new SpecialBuildingPlacer(settings, rng, network, spawner).PlaceAll(specialBuildings);
 
-            // 4. Edificios Especiales y selección del Taller de Toby
-            EnsureStoryBuildingPrefabsLoaded();
-            EnsureSpecialBuildingsListReady();
-            SpawnedSpecialBuildings.Clear();
-            SpawnedTobyBuilding = null;
-
-            var specialPlacer = new SpecialBuildingPlacer(settings, rng, network, spawner);
-            if (specialBuildings != null && specialBuildings.Count > 0)
-            {
-                specialPlacer.PlaceAll(specialBuildings);
-            }
-            SpawnedSpecialBuildings.AddRange(specialPlacer.PlacedInstances);
-
-            // Seleccionar y configurar el edificio especial asignado a Toby
-            try
-            {
-                SetupTobySpecialBuilding(grid, network, spawner, rng);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[CityGeneratorPrototipo3] Error configurando edificio especial de Toby: {ex}");
-            }
-
-            // 5. Relleno con edificios normales
+            // 3. Relleno con edificios normales
             new NormalBuildingPlacer(settings, rng, grid, spawner).PlaceAll(normalBuildings);
 
-            // 6. Instanciar calles y pavimento
+            // 4. Instanciar calles y pavimento
             var roadPrefabs = new RoadPrefabs
             {
                 forward = roadForward,
@@ -258,1006 +221,366 @@ namespace Prototipo3
             new CityInstantiator(grid, transform, cellSize, roadHeightY, roadPrefabs).Instantiate();
 
             Grid = grid;
+            lastNetwork = network;
             LastNetwork = network;
 
-            // 7. Configurar colliders/NavMeshObstacles y hornear NavMesh
-            ConfigurarNavegacionYColisionesCiudad();
+            // 5. Colliders sólidos en edificios, NavMesh y posicionamiento de Jugador/Crafteo
+            ConfigureCityCollidersAndBakeNavMesh();
+            AnalyzeRoadTopology(grid, network);
+            PlacePlayerAndCraftTable(grid, hasRefuge);
 
-            // 8. Analizar topología vial
-            AnalizarTopologiaVial(grid, network);
+            // 6. Loots estrictamente sobre bordes exteriores de edificios y fuera de colliders
+            EnsureDefaultLootSocketRule();
+            List<Bounds> buildingBounds = CollectBuildingWorldBounds();
+            SpawnSocketObjectsOnBuildingBorders(rng, grid, buildingBounds);
+            SpawnStarterLootNearBase(rng, grid, buildingBounds);
 
-            // 9. Ubicar Refugio Inicial (Base de Kilo + Mesa de Fabricación) y a Marco en la calle adyacente
-            UbicarRefugioInicialYMarco(grid);
-
-            // 10. Poblar el interior/entorno de los 4 edificios clave (NPCs, Jefes Duales y Mecanismos)
-            // Si StoryManagerPrototipo3 existe, este poblará los artefactos mediante OnCityGenerated -> BindGraphToWorld
-            StoryWorldBinder binder = FindAnyObjectByType<StoryWorldBinder>();
-            if (binder != null && StoryManagerPrototipo3.Instance == null)
-            {
-                binder.PopulateLandmarkActorsAndMechanisms(this);
-            }
-
-            // 11. Generar Loot usando Sockets de edificios y callejones
-            GenerarLootEnSockets(grid, rng);
-
-            // 12. Generar Enemigos Ferales multiespecie en loops, intersecciones y dead-ends
-            GenerarEnemigosFerales(rng);
-
-            // 13. Re-muestrear todos los NavMeshAgents sobre el NavMesh recién horneado
+            // 7. Población de enemigos delegada exclusivamente a CityEnemyPopulationSpawner
+            SpawnCityEnemies(rng);
             SnapAllAgentsToNavMesh();
 
-            Debug.Log(
-                $"[CityGeneratorPrototipo3] Ciudad generada (Semilla {seed}). Anclas Manhattan desde Base {BaseCell}:\n" +
-                $"• Marco (Adyacente): {MarcoCell} (dM = {ManhattanDistance(BaseCell, MarcoCell)})\n" +
-                $"• Escuela Bellavista (Anillo Cercano 3-5): {EscuelaCell} (dM = {ManhattanDistance(BaseCell, EscuelaCell)})\n" +
-                $"• Bosque Ceniza (Anillo Medio 6-9): {BosqueCell} (dM = {ManhattanDistance(BaseCell, BosqueCell)})\n" +
-                $"• Hospital San Judas (Anillo Medio 6-9): {HospitalCell} (dM = {ManhattanDistance(BaseCell, HospitalCell)})\n" +
-                $"• Torre Aethelgard (Anillo Lejano 10+): {TorreCell} (dM = {ManhattanDistance(BaseCell, TorreCell)})"
-            );
-
             OnCityGenerated?.Invoke();
+            Debug.Log($"[CityGeneratorPrototipo3] Ciudad lista. Semilla={seed}, Tamaño={mapWidth}x{mapLength}, Refugio={SafeRefugeCenter}, Spawn={PlayerSpawnPoint}, Enemigos={EnemySpawnPoints.Count}, Loot={LootSpawnPoints.Count}");
         }
 
-        private void SelectBaseAndMarcoCells(CityGrid grid, RoadNetwork network, CityRandom rng)
+        private bool TryReserveAndPlaceSafeRefuge(CityGrid grid)
         {
-            // Buscamos una celda de carretera alrededor de (Width/3, Length/3) para tener espacio amplio en los 4 cuadrantes y para distancia 10+
-            Vector2Int idealCenter = new Vector2Int(Mathf.Clamp(grid.Width / 3, 8, grid.Width - 12), Mathf.Clamp(grid.Length / 3, 8, grid.Length - 12));
-            Vector2Int bestCell = new Vector2Int(-1, -1);
+            SafeRefugeCenter = Vector3.zero;
+            SafeRefugeEntrancePoint = Vector3.zero;
+            safeRefugeInstance = null;
+            safeRefugeFacingDir = Vector3.back;
+
+            if (safeRefugePrefab == null) return false;
+
+            Vector2 mapCenter = new Vector2(grid.Width * 0.5f, grid.Length * 0.5f);
+            Vector2Int bestCell = Vector2Int.zero;
+            Vector2Int bestRoadDir = Vector2Int.zero;
             float bestScore = float.MaxValue;
-
-            for (int x = 6; x < grid.Width - 10; x++)
-            {
-                for (int y = 6; y < grid.Length - 10; y++)
-                {
-                    Vector2Int p = new Vector2Int(x, y);
-                    if (grid.IsRoad(p))
-                    {
-                        float d = Vector2Int.Distance(p, idealCenter);
-                        if (d < bestScore)
-                        {
-                            bestScore = d;
-                            bestCell = p;
-                        }
-                    }
-                }
-            }
-
-            if (bestCell.x < 0)
-            {
-                // Si no había carretera cerca, buscar cualquier carretera o crearla en idealCenter
-                for (int x = 2; x < grid.Width - 2; x++)
-                {
-                    for (int y = 2; y < grid.Length - 2; y++)
-                    {
-                        if (grid.IsRoad(x, y))
-                        {
-                            bestCell = new Vector2Int(x, y);
-                            break;
-                        }
-                    }
-                    if (bestCell.x >= 0) break;
-                }
-            }
-
-            if (bestCell.x < 0)
-            {
-                bestCell = idealCenter;
-                network.PlaceRoad(bestCell);
-            }
-
-            BaseCell = bestCell;
-
-            // Marco el vecino debe estar separado de la Base (dM = 3 a 5 celdas) para que Kilo
-            // no inicie la partida cara a cara con un boss ni se sienta acorralado desde el segundo 0.
-            List<Vector2Int> marcoCandidates = new List<Vector2Int>();
-            for (int x = 1; x < grid.Width - 1; x++)
-            {
-                for (int y = 1; y < grid.Length - 1; y++)
-                {
-                    Vector2Int c = new Vector2Int(x, y);
-                    if (!grid.InBounds(c) || !grid.IsRoad(c) || c == BaseCell) continue;
-                    int dM = ManhattanDistance(BaseCell, c);
-                    if (dM >= 3 && dM <= 5)
-                    {
-                        marcoCandidates.Add(c);
-                    }
-                }
-            }
-
-            if (marcoCandidates.Count > 0)
-            {
-                int idx = rng != null ? rng.Range(marcoCandidates.Count) : 0;
-                MarcoCell = marcoCandidates[idx];
-            }
-            else
-            {
-                // Respaldo seguro a 3 celdas de distancia
-                MarcoCell = BaseCell + new Vector2Int(3, 0);
-                if (grid.InBounds(MarcoCell) && !grid.IsRoad(MarcoCell))
-                {
-                    network.PlaceRoad(MarcoCell);
-                }
-            }
-        }
-
-        private void PlaceStoryLandmarkAnchors(CityGrid grid, RoadNetwork network, BuildingSpawner spawner, CityRandom rng)
-        {
-            // Cargar prefabs desde Assets/Prototipo3/Prefabs/Story/ o Resources si aún no están asignados en el Inspector
-            EnsureStoryBuildingPrefabsLoaded();
-
-            // 1. Anillo Cercano: Escuela Secundaria Bellavista (Cuadrante Noreste: 0)
-            SpawnedEscuela = PlaceLandmarkInManhattanRing(
-                "Escuela",
-                prefabEscuelaBellavista,
-                minManhattan: escuelaMinManhattan,
-                maxManhattan: escuelaMaxManhattan,
-                preferredQuadrant: 0,
-                forbiddenQuadrant: -1,
-                preferFarthest: false,
-                grid, network, rng,
-                out Vector2Int escCell);
-            EscuelaCell = escCell;
-            int escuelaQuadrant = GetQuadrantRelativeToBase(EscuelaCell);
-
-            // 2. Anillo Medio: Bosque Ceniza (Cuadrante Distinto, NUNCA el mismo cuadrante de la Escuela)
-            int bosquePrefQuadrant = (escuelaQuadrant + 1) % 4;
-            SpawnedBosque = PlaceLandmarkInManhattanRing(
-                "Bosque",
-                prefabBosqueCeniza,
-                minManhattan: medioMinManhattan,
-                maxManhattan: medioMaxManhattan,
-                preferredQuadrant: bosquePrefQuadrant,
-                forbiddenQuadrant: escuelaQuadrant,
-                preferFarthest: false,
-                grid, network, rng,
-                out Vector2Int bosCell);
-            BosqueCell = bosCell;
-            int bosqueQuadrant = GetQuadrantRelativeToBase(BosqueCell);
-
-            // 3. Anillo Medio: Hospital General San Judas (Distinto a Bosque y a Escuela)
-            int hospitalPrefQuadrant = (escuelaQuadrant + 2) % 4;
-            if (hospitalPrefQuadrant == bosqueQuadrant) hospitalPrefQuadrant = (hospitalPrefQuadrant + 1) % 4;
-            SpawnedHospital = PlaceLandmarkInManhattanRing(
-                "Hospital",
-                prefabHospitalSanJudas,
-                minManhattan: medioMinManhattan,
-                maxManhattan: medioMaxManhattan,
-                preferredQuadrant: hospitalPrefQuadrant,
-                forbiddenQuadrant: bosqueQuadrant,
-                preferFarthest: false,
-                grid, network, rng,
-                out Vector2Int hospCell);
-            HospitalCell = hospCell;
-
-            // 4. Anillo Lejano: Torre Corporativa Aethelgard
-            int torrePrefQuadrant = (escuelaQuadrant + 3) % 4;
-            SpawnedTorre = PlaceLandmarkInManhattanRing(
-                "Torre",
-                prefabTorreAethelgard,
-                minManhattan: torreMinManhattan,
-                maxManhattan: 999,
-                preferredQuadrant: torrePrefQuadrant,
-                forbiddenQuadrant: -1,
-                preferFarthest: true,
-                grid, network, rng,
-                out Vector2Int torreCell);
-            TorreCell = torreCell;
-
-            if (SpawnedEscuela != null)
-            {
-                WorldRegistry.Register("Escuela", SpawnedEscuela.transform);
-                WorldRegistry.Register("Prefab_EscuelaBellavista", SpawnedEscuela.transform);
-            }
-            if (SpawnedBosque != null)
-            {
-                WorldRegistry.Register("Bosque", SpawnedBosque.transform);
-                WorldRegistry.Register("Prefab_BosqueCeniza", SpawnedBosque.transform);
-            }
-            if (SpawnedHospital != null)
-            {
-                WorldRegistry.Register("Hospital", SpawnedHospital.transform);
-                WorldRegistry.Register("Prefab_HospitalSanJudas", SpawnedHospital.transform);
-            }
-            if (SpawnedTorre != null)
-            {
-                WorldRegistry.Register("Torre", SpawnedTorre.transform);
-                WorldRegistry.Register("Prefab_TorreAethelgard", SpawnedTorre.transform);
-            }
-        }
-
-        private int GetQuadrantRelativeToBase(Vector2Int cell)
-        {
-            int dx = cell.x - BaseCell.x;
-            int dy = cell.y - BaseCell.y;
-            if (dx >= 0 && dy >= 0) return 0; // Noreste (+X, +Y)
-            if (dx < 0 && dy >= 0) return 1;  // Noroeste (-X, +Y)
-            if (dx < 0 && dy < 0) return 2;   // Suroeste (-X, -Y)
-            return 3;                         // Sureste (+X, -Y)
-        }
-
-        private GameObject PlaceLandmarkInManhattanRing(
-            string landmarkKey,
-            GameObject prefab,
-            int minManhattan,
-            int maxManhattan,
-            int preferredQuadrant,
-            int forbiddenQuadrant,
-            bool preferFarthest,
-            CityGrid grid,
-            RoadNetwork network,
-            CityRandom rng,
-            out Vector2Int chosenCell)
-        {
-            List<Vector2Int> candidates = new List<Vector2Int>();
+            bool found = false;
 
             for (int x = 2; x < grid.Width - 2; x++)
             {
                 for (int y = 2; y < grid.Length - 2; y++)
                 {
                     Vector2Int c = new Vector2Int(x, y);
-                    if (c == BaseCell || c == MarcoCell || grid.Get(c) == CellType.SpecialBuilding) continue;
+                    if (grid.Get(c) != CellType.Empty) continue;
 
-                    int dM = ManhattanDistance(BaseCell, c);
-                    if (dM < minManhattan || dM > maxManhattan) continue;
+                    int roadNeighbors = grid.RoadNeighborCount(c);
+                    if (roadNeighbors == 0) continue;
 
-                    int quad = GetQuadrantRelativeToBase(c);
-                    if (forbiddenQuadrant >= 0 && quad == forbiddenQuadrant) continue;
-
-                    candidates.Add(c);
-                }
-            }
-
-            // Si por tamaño de mapa no hubiera en otro cuadrante, relajar restricción de cuadrante manteniendo el anillo Manhattan
-            if (candidates.Count == 0)
-            {
-                for (int x = 1; x < grid.Width - 1; x++)
-                {
-                    for (int y = 1; y < grid.Length - 1; y++)
+                    Vector2Int chosenDir = Vector2Int.zero;
+                    float bestDirAlignment = float.MaxValue;
+                    for (int d = 0; d < CityGrid.Directions.Length; d++)
                     {
-                        Vector2Int c = new Vector2Int(x, y);
-                        int dM = ManhattanDistance(BaseCell, c);
-                        if (dM >= minManhattan && dM <= maxManhattan && c != BaseCell && c != MarcoCell && grid.Get(c) != CellType.SpecialBuilding)
+                        Vector2Int dir = CityGrid.Directions[d];
+                        Vector2Int n = c + dir;
+                        if (!grid.IsRoad(n)) continue;
+                        float alignSq = ((Vector2)n - mapCenter).sqrMagnitude;
+                        if (alignSq < bestDirAlignment)
                         {
-                            candidates.Add(c);
+                            bestDirAlignment = alignSq;
+                            chosenDir = dir;
                         }
                     }
-                }
-            }
 
-            // Ordenar candidatos priorizando celdas Empty junto a una calle (Road) y el cuadrante/distancia deseados
-            candidates.Sort((a, b) =>
-            {
-                int scoreA = ScoreLandmarkCandidate(a, grid, preferredQuadrant, preferFarthest);
-                int scoreB = ScoreLandmarkCandidate(b, grid, preferredQuadrant, preferFarthest);
-                return scoreB.CompareTo(scoreA);
-            });
+                    // Preferir celdas cercanas al centro con 1 o 2 calles adyacentes (lote residencial real, no isla entre 4 calles)
+                    float distSq = ((Vector2)c - mapCenter).sqrMagnitude;
+                    float roadPenalty = roadNeighbors >= 3 ? 36f : 0f;
+                    float score = distSq + roadPenalty;
 
-            chosenCell = candidates.Count > 0 ? candidates[0] : (BaseCell + new Vector2Int(minManhattan, 0));
-
-            // Marcar la celda como SpecialBuilding y garantizar que tenga una celda de carretera adyacente conectada
-            grid.Set(chosenCell, CellType.SpecialBuilding);
-            EnsureAdjacentRoadConnection(chosenCell, grid, network);
-
-            Vector3 worldPos = CellToWorldCenter(chosenCell);
-            GameObject instance;
-
-            if (prefab != null)
-            {
-                instance = Instantiate(prefab, worldPos, Quaternion.identity, transform);
-                instance.name = $"Landmark_{landmarkKey}_{prefab.name}";
-            }
-            else
-            {
-                instance = CreateFallbackSimplePolyBuilding(landmarkKey, worldPos);
-            }
-
-            // Orientar hacia la calle adyacente y determinar celda de entrada
-            Vector2Int entranceCell = chosenCell;
-            for (int d = 0; d < 4; d++)
-            {
-                Vector2Int n = chosenCell + CityGrid.Directions[d];
-                if (grid.IsRoad(n))
-                {
-                    entranceCell = n;
-                    Vector3 roadPos = CellToWorldCenter(n);
-                    Vector3 look = roadPos - worldPos;
-                    look.y = 0f;
-                    if (look.sqrMagnitude > 0.01f)
-                    {
-                        instance.transform.rotation = Quaternion.LookRotation(look.normalized);
-                    }
-                    break;
-                }
-            }
-
-            // Determinar ancla dedicada de calle para el Jefe (a 2-4 celdas de distancia, ~20-40 metros)
-            Vector2Int bossRoadCell = entranceCell;
-            int bestBossDist = -1;
-            for (int rx = -4; rx <= 4; rx++)
-            {
-                for (int ry = -4; ry <= 4; ry++)
-                {
-                    Vector2Int candidate = new Vector2Int(chosenCell.x + rx, chosenCell.y + ry);
-                    if (!grid.InBounds(candidate) || !grid.IsRoad(candidate) || candidate == entranceCell || candidate == BaseCell || candidate == MarcoCell) continue;
-
-                    int dFromChosen = ManhattanDistance(chosenCell, candidate);
-                    if (dFromChosen >= 2 && dFromChosen <= 4)
-                    {
-                        int dFromBase = ManhattanDistance(BaseCell, candidate);
-                        if (dFromBase > bestBossDist)
-                        {
-                            bestBossDist = dFromBase;
-                            bossRoadCell = candidate;
-                        }
-                    }
-                }
-            }
-
-            Vector3 entranceWorldPos = CellToWorldCenter(entranceCell);
-            Vector3 bossPos = bossRoadCell != entranceCell
-                ? CellToWorldCenter(bossRoadCell)
-                : (entranceWorldPos + instance.transform.forward * 16f);
-
-            landmarkPositions[landmarkKey] = worldPos;
-            landmarkEntrancePositions[landmarkKey] = entranceWorldPos;
-            landmarkBossPositions[landmarkKey] = bossPos;
-            return instance;
-        }
-
-        private int ScoreLandmarkCandidate(Vector2Int c, CityGrid grid, int preferredQuadrant, bool preferFarthest)
-        {
-            int score = 0;
-            if (grid.Get(c) == CellType.Empty) score += 500;
-            if (grid.RoadNeighborCount(c) > 0) score += 300;
-            if (preferredQuadrant >= 0 && GetQuadrantRelativeToBase(c) == preferredQuadrant) score += 150;
-
-            int dM = ManhattanDistance(BaseCell, c);
-            if (preferFarthest)
-            {
-                score += Mathf.Min(dM, 28) * 10;
-            }
-            return score;
-        }
-
-        private void EnsureAdjacentRoadConnection(Vector2Int buildingCell, CityGrid grid, RoadNetwork network)
-        {
-            for (int d = 0; d < 4; d++)
-            {
-                Vector2Int n = buildingCell + CityGrid.Directions[d];
-                if (grid.IsRoad(n)) return;
-            }
-
-            // Conectar con la carretera más cercana mediante un pasaje corto
-            Vector2Int entrance = buildingCell + CityGrid.Directions[0];
-            for (int d = 0; d < 4; d++)
-            {
-                Vector2Int cand = buildingCell + CityGrid.Directions[d];
-                if (grid.InBounds(cand) && grid.Get(cand) == CellType.Empty)
-                {
-                    entrance = cand;
-                    break;
-                }
-            }
-
-            if (grid.InBounds(entrance))
-            {
-                if (!network.TryConnectToMain(entrance, 16))
-                {
-                    network.PlaceRoad(entrance);
-                }
-            }
-        }
-
-        private GameObject CreateFallbackSimplePolyBuilding(string landmarkKey, Vector3 worldPos)
-        {
-            string path = "Assets/SimplePoly City - Low Poly Assets/Building_Residential_color01.prefab";
-            if (landmarkKey.IndexOf("Bosque", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                path = "Assets/SimplePoly City - Low Poly Assets/Building_House_02_color01.prefab";
-            }
-            else if (landmarkKey.IndexOf("Hospital", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                path = "Assets/SimplePoly City - Low Poly Assets/Building Sky_small_color01.prefab";
-            }
-            else if (landmarkKey.IndexOf("Torre", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                path = "Assets/SimplePoly City - Low Poly Assets/Building Sky_big_color01.prefab";
-            }
-
-            GameObject spPrefab = null;
-#if UNITY_EDITOR
-            spPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
-#endif
-            if (spPrefab != null)
-            {
-                GameObject inst = Instantiate(spPrefab, worldPos, Quaternion.identity, transform);
-                inst.name = $"Landmark_{landmarkKey}_{spPrefab.name}";
-                return inst;
-            }
-
-            if (normalBuildings != null && normalBuildings.Count > 0 && normalBuildings[0] != null)
-            {
-                GameObject fallbackInst = Instantiate(normalBuildings[0], worldPos, Quaternion.identity, transform);
-                fallbackInst.name = $"Landmark_{landmarkKey}_Fallback";
-                return fallbackInst;
-            }
-
-            GameObject dummy = new GameObject($"Landmark_{landmarkKey}_Empty");
-            dummy.transform.SetParent(transform, false);
-            dummy.transform.position = worldPos;
-            dummy.AddComponent<BuildingData>();
-            dummy.AddComponent<CitySocket>();
-            return dummy;
-        }
-
-        private void EnsureStoryBuildingPrefabsLoaded()
-        {
-#if UNITY_EDITOR
-            if (prefabEscuelaBellavista == null)
-            {
-                prefabEscuelaBellavista = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/Prefab_EscuelaBellavista.prefab")
-                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/Building_Residential_color01.prefab");
-            }
-            if (prefabBosqueCeniza == null)
-            {
-                prefabBosqueCeniza = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/Prefab_BosqueCeniza.prefab")
-                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/Building_House_02_color01.prefab");
-            }
-            if (prefabHospitalSanJudas == null)
-            {
-                prefabHospitalSanJudas = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/Prefab_HospitalSanJudas.prefab")
-                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/Building Sky_small_color01.prefab");
-            }
-            if (prefabTorreAethelgard == null)
-            {
-                prefabTorreAethelgard = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/Prefab_TorreAethelgard.prefab")
-                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/Building Sky_big_color01.prefab");
-            }
-            if (prefabMarcoTejon == null)
-            {
-                prefabMarcoTejon = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/Boss_Marco_Tejon.prefab")
-                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prototipo3/Prefabs/Story/NPC_Marco_Tejon.prefab");
-            }
-
-            if (specialBuildings == null)
-            {
-                specialBuildings = new List<GameObject>();
-            }
-            if (specialBuildings.Count == 0)
-            {
-                GameObject sp = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/special_temp Variant.prefab")
-                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/specialBuildingPrefab.prefab");
-                if (sp != null)
-                {
-                    for (int i = 0; i < 5; i++)
-                    {
-                        specialBuildings.Add(sp);
-                    }
-                }
-            }
-#endif
-        }
-
-        private void EnsureSpecialBuildingsListReady()
-        {
-            if (specialBuildings == null) specialBuildings = new List<GameObject>();
-            specialBuildings.RemoveAll(b => b == null);
-            if (specialBuildings.Count == 0)
-            {
-#if UNITY_EDITOR
-                GameObject sp = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/special_temp Variant.prefab")
-                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/specialBuildingPrefab.prefab");
-                if (sp != null)
-                {
-                    for (int i = 0; i < 5; i++)
-                    {
-                        specialBuildings.Add(sp);
-                    }
-                }
-#endif
-            }
-        }
-
-        private void SetupTobySpecialBuilding(CityGrid grid, RoadNetwork network, BuildingSpawner spawner, CityRandom rng)
-        {
-            GameObject chosenBuilding = null;
-
-            // 1. Elegir entre los edificios especiales generados por SpecialBuildingPlacer
-            if (SpawnedSpecialBuildings.Count > 0)
-            {
-                float bestScore = float.MinValue;
-                for (int i = 0; i < SpawnedSpecialBuildings.Count; i++)
-                {
-                    GameObject b = SpawnedSpecialBuildings[i];
-                    if (b == null) continue;
-
-                    Vector2Int cell = new Vector2Int(
-                        Mathf.FloorToInt(b.transform.position.x / cellSize),
-                        Mathf.FloorToInt(b.transform.position.z / cellSize)
-                    );
-                    int dBase = ManhattanDistance(BaseCell, cell);
-                    int dEscuela = ManhattanDistance(EscuelaCell, cell);
-
-                    float score = 1000f;
-                    // Preferir anillo cercano/medio (4 a 8 celdas de la Base)
-                    if (dBase >= 4 && dBase <= 8)
-                    {
-                        score += 500f - Mathf.Abs(dBase - 5) * 40f;
-                    }
-                    else
-                    {
-                        score -= Mathf.Abs(dBase - 6) * 80f;
-                    }
-                    // Proximidad o afinidad al cuadrante de la Escuela
-                    score -= dEscuela * 15f;
-
-                    if (score > bestScore)
+                    if (score < bestScore)
                     {
                         bestScore = score;
-                        chosenBuilding = b;
+                        bestCell = c;
+                        bestRoadDir = chosenDir;
+                        found = true;
                     }
                 }
             }
 
-            // 2. Si no se generó ningún especial (por restricciones de espacio), colocación asistida de rescate
-            if (chosenBuilding == null)
+            if (!found) return false;
+
+            grid.Set(bestCell, CellType.SpecialBuilding);
+
+            Vector3 worldPos = CellToWorldCenter(bestCell);
+            worldPos.y = roadHeightY;
+
+            // La entrada del InteriorBuilding está en su cara local -Z, así que transform.forward apunta opuesto a bestRoadDir
+            Vector3 worldRoadDir = new Vector3(bestRoadDir.x, 0f, bestRoadDir.y).normalized;
+            Quaternion refugeRot = Quaternion.LookRotation(-worldRoadDir, Vector3.up);
+
+            safeRefugeInstance = Instantiate(safeRefugePrefab, worldPos, refugeRot, transform);
+            safeRefugeInstance.name = "RefugioSeguro_Base";
+
+            SafeRefugeCenter = worldPos;
+            safeRefugeFacingDir = worldRoadDir;
+
+            Transform outsideAnchor = safeRefugeInstance.transform.Find("DoorwayOutsidePoint");
+            SafeRefugeEntrancePoint = outsideAnchor != null
+                ? outsideAnchor.position
+                : worldPos + worldRoadDir * (cellSize * 0.58f);
+            SafeRefugeEntrancePoint = new Vector3(SafeRefugeEntrancePoint.x, roadHeightY, SafeRefugeEntrancePoint.z);
+
+            Transform spawnAnchor = safeRefugeInstance.transform.Find("PlayerSpawnAnchor");
+            PlayerSpawnPoint = spawnAnchor != null
+                ? spawnAnchor.position
+                : worldPos + Vector3.up * 0.1f;
+
+            SafeRefugeZone zone = safeRefugeInstance.GetComponent<SafeRefugeZone>();
+            if (zone != null && outsideAnchor != null)
             {
-                chosenBuilding = RescuePlaceTobyBuilding(grid, network, spawner, rng);
+                zone.doorwayOutsidePoint = outsideAnchor;
             }
 
-            SpawnedTobyBuilding = chosenBuilding;
+            return true;
+        }
 
-            if (SpawnedTobyBuilding != null)
+        private void EnsureDefaultLootSocketRule()
+        {
+            if (lootPrefab == null) return;
+            for (int i = 0; i < socketSpawns.Count; i++)
             {
-                SpawnedTobyBuilding.name = "SpecialBuilding_TallerToby";
-                TobyBuildingCell = new Vector2Int(
-                    Mathf.FloorToInt(SpawnedTobyBuilding.transform.position.x / cellSize),
-                    Mathf.FloorToInt(SpawnedTobyBuilding.transform.position.z / cellSize)
-                );
-                TobySpecialBuildingPosition = SpawnedTobyBuilding.transform.position;
-
-                // Determinar posición de fachada/entrada (frontSocket o calle adyacente)
-                CitySocket socket = BuildingSpawner.GetSocket(SpawnedTobyBuilding);
-                Transform entranceSocketTrans = null;
-                Vector3 entrancePos;
-
-                if (socket != null && socket.frontSocket != null)
+                if (socketSpawns[i] != null && socketSpawns[i].prefab == lootPrefab)
                 {
-                    entranceSocketTrans = socket.frontSocket;
-                    entrancePos = socket.frontSocket.position;
-                    entrancePos.y = roadHeightY;
+                    return;
+                }
+            }
+
+            socketSpawns.Add(new SocketSpawnRule
+            {
+                name = "LootContenedor",
+                prefab = lootPrefab,
+                probability = lootProbability,
+                yOffset = 0f,
+                alignToBuilding = true
+            });
+        }
+
+        private List<Bounds> CollectBuildingWorldBounds()
+        {
+            var list = new List<Bounds>();
+            BuildingData[] buildings = GetComponentsInChildren<BuildingData>(true);
+            for (int i = 0; i < buildings.Length; i++)
+            {
+                BuildingData b = buildings[i];
+                if (b == null || b.GetComponentInParent<SafeRefugeZone>() != null) continue;
+                list.Add(ComputeBuildingWorldBounds(b.gameObject));
+            }
+            return list;
+        }
+
+        private static Bounds ComputeBuildingWorldBounds(GameObject obj)
+        {
+            BoxCollider box = obj.GetComponent<BoxCollider>();
+            if (box != null && box.enabled) return box.bounds;
+
+            Renderer[] rens = obj.GetComponentsInChildren<Renderer>(true);
+            Bounds b = default;
+            bool init = false;
+            for (int i = 0; i < rens.Length; i++)
+            {
+                if (rens[i] == null) continue;
+                if (!init)
+                {
+                    b = rens[i].bounds;
+                    init = true;
                 }
                 else
                 {
-                    Vector2Int entranceCell = TobyBuildingCell;
-                    for (int d = 0; d < 4; d++)
-                    {
-                        Vector2Int n = TobyBuildingCell + CityGrid.Directions[d];
-                        if (grid.IsRoad(n))
-                        {
-                            entranceCell = n;
-                            break;
-                        }
-                    }
-                    entrancePos = CellToWorldCenter(entranceCell);
+                    b.Encapsulate(rens[i].bounds);
                 }
+            }
+            return init ? b : new Bounds(obj.transform.position, new Vector3(7f, 4f, 7f));
+        }
 
-                TobySpecialBuildingEntrancePosition = entrancePos;
+        private void SpawnSocketObjectsOnBuildingBorders(CityRandom rng, CityGrid grid, List<Bounds> buildingBounds)
+        {
+            if (socketSpawns == null || socketSpawns.Count == 0) return;
 
-                // Registrar en diccionarios de puntos cardinales
-                landmarkPositions["Toby"] = TobySpecialBuildingPosition;
-                landmarkPositions["TallerToby"] = TobySpecialBuildingPosition;
-                landmarkPositions["Taller_Toby"] = TobySpecialBuildingPosition;
-                landmarkEntrancePositions["Toby"] = TobySpecialBuildingEntrancePosition;
-                landmarkEntrancePositions["TallerToby"] = TobySpecialBuildingEntrancePosition;
-                landmarkEntrancePositions["Taller_Toby"] = TobySpecialBuildingEntrancePosition;
-                landmarkBossPositions["Toby"] = TobySpecialBuildingEntrancePosition;
+            BuildingData[] buildings = GetComponentsInChildren<BuildingData>(true);
+            Vector3[] cardinalDirs = { Vector3.forward, Vector3.back, Vector3.right, Vector3.left };
 
-                // Registrar en WorldRegistry
-                WorldRegistry.Register("Toby", SpawnedTobyBuilding.transform);
-                WorldRegistry.Register("TallerToby", SpawnedTobyBuilding.transform);
-                WorldRegistry.Register("SpecialBuilding_TallerToby", SpawnedTobyBuilding.transform);
+            foreach (SocketSpawnRule rule in socketSpawns)
+            {
+                if (rule == null || rule.prefab == null) continue;
 
-                // Configurar componente de entrada para el taller de Toby
-                SpecialBuildingEntrance entrance = SpawnedTobyBuilding.GetComponent<SpecialBuildingEntrance>();
-                if (entrance == null)
+                foreach (BuildingData building in buildings)
                 {
-                    entrance = SpawnedTobyBuilding.AddComponent<SpecialBuildingEntrance>();
+                    if (building == null || building.GetComponentInParent<SafeRefugeZone>() != null) continue;
+                    if (!rng.Chance(rule.probability)) continue;
+
+                    TrySpawnOnBuildingExteriorEdge(rule, building.gameObject, rng, grid, buildingBounds, cardinalDirs);
                 }
-                entrance.Configure("TallerToby", "Taller de Robótica de Toby", "TallerToby_Interior", entranceSocketTrans != null ? entranceSocketTrans : SpawnedTobyBuilding.transform);
             }
+        }
 
-            // Configurar entradas en los demás edificios especiales para homogeneidad
-            for (int i = 0; i < SpawnedSpecialBuildings.Count; i++)
+        private void TrySpawnOnBuildingExteriorEdge(
+            SocketSpawnRule rule,
+            GameObject buildingObj,
+            CityRandom rng,
+            CityGrid grid,
+            List<Bounds> buildingBounds,
+            Vector3[] cardinalDirs)
+        {
+            Bounds b = ComputeBuildingWorldBounds(buildingObj);
+
+            // Probar primero caras hacia calle (CellType.Road) y como respaldo espacios vacíos (CellType.Empty)
+            var roadCandidates = new List<(Vector3 pos, Vector3 dir)>();
+            var emptyCandidates = new List<(Vector3 pos, Vector3 dir)>();
+
+            for (int d = 0; d < cardinalDirs.Length; d++)
             {
-                GameObject sb = SpawnedSpecialBuildings[i];
-                if (sb == null || sb == SpawnedTobyBuilding) continue;
+                Vector3 dir = cardinalDirs[d];
+                float halfExt = Mathf.Abs(dir.x) > 0.5f ? b.extents.x : b.extents.z;
+                float tangentHalf = Mathf.Abs(dir.x) > 0.5f ? b.extents.z : b.extents.x;
+                Vector3 tangent = new Vector3(-dir.z, 0f, dir.x);
 
-                sb.name = $"SpecialBuilding_{i + 1}";
-                SpecialBuildingEntrance sbEnt = sb.GetComponent<SpecialBuildingEntrance>();
-                if (sbEnt == null)
+                for (int attempt = 0; attempt < 3; attempt++)
                 {
-                    sbEnt = sb.AddComponent<SpecialBuildingEntrance>();
+                    float slide = tangentHalf > 1.2f ? (rng.Range(-40, 41) * 0.01f * Mathf.Min(tangentHalf * 0.55f, 2.5f)) : 0f;
+                    Vector3 pos = new Vector3(b.center.x, roadHeightY, b.center.z)
+                                + dir * (halfExt + 0.85f)
+                                + tangent * slide;
+
+                    Vector2Int cell = WorldToCell(pos);
+                    if (!grid.InBounds(cell)) continue;
+
+                    CellType ct = grid.Get(cell);
+                    if (ct == CellType.Road) roadCandidates.Add((pos, dir));
+                    else if (ct == CellType.Empty) emptyCandidates.Add((pos, dir));
                 }
-                CitySocket sbSock = BuildingSpawner.GetSocket(sb);
-                Transform sockT = (sbSock != null && sbSock.frontSocket != null) ? sbSock.frontSocket : sb.transform;
-                sbEnt.Configure($"EdificioEspecial_{i + 1}", $"Edificio Especial #{i + 1}", "", sockT);
-            }
-        }
-
-        private GameObject RescuePlaceTobyBuilding(CityGrid grid, RoadNetwork network, BuildingSpawner spawner, CityRandom rng)
-        {
-            GameObject prefab = (specialBuildings != null && specialBuildings.Count > 0 && specialBuildings[0] != null)
-                ? specialBuildings[0]
-                : null;
-
-#if UNITY_EDITOR
-            if (prefab == null)
-            {
-                prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SimplePoly City - Low Poly Assets/special_temp Variant.prefab")
-                    ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/specialBuildingPrefab.prefab");
-            }
-#endif
-            if (prefab == null)
-            {
-                return CreateFallbackSimplePolyBuilding("Toby", CellToWorldCenter(BaseCell + new Vector2Int(4, 0)));
             }
 
-            BuildingData data = BuildingSpawner.GetData(prefab);
-            List<Vector2Int> candidates = new List<Vector2Int>();
+            ShuffleList(roadCandidates, rng);
+            ShuffleList(emptyCandidates, rng);
+            roadCandidates.AddRange(emptyCandidates);
 
-            for (int x = 2; x < grid.Width - 2; x++)
+            for (int i = 0; i < roadCandidates.Count; i++)
             {
-                for (int y = 2; y < grid.Length - 2; y++)
+                (Vector3 candidatePos, Vector3 outwardDir) = roadCandidates[i];
+
+                Vector3 snapped = candidatePos;
+                if (NavMesh.SamplePosition(candidatePos, out NavMeshHit navHit, 1.5f, NavMesh.AllAreas))
                 {
-                    Vector2Int c = new Vector2Int(x, y);
-                    int dM = ManhattanDistance(BaseCell, c);
-                    if (dM >= 4 && dM <= 7 && grid.CanPlaceFootprint(c.x, c.y, data.gridWidth, data.gridLength))
-                    {
-                        candidates.Add(c);
-                    }
+                    snapped = navHit.position;
                 }
-            }
-
-            candidates.Sort((a, b) =>
-            {
-                int scoreA = grid.RoadNeighborCount(a) * 100 - ManhattanDistance(EscuelaCell, a);
-                int scoreB = grid.RoadNeighborCount(b) * 100 - ManhattanDistance(EscuelaCell, b);
-                return scoreB.CompareTo(scoreA);
-            });
-
-            Vector2Int chosen = candidates.Count > 0 ? candidates[0] : (BaseCell + new Vector2Int(4, 0));
-            GameObject go = spawner.Spawn(prefab, chosen.x, chosen.y, data);
-            grid.MarkFootprint(chosen.x, chosen.y, data.gridWidth, data.gridLength, CellType.SpecialBuilding);
-
-            CitySocket socket = BuildingSpawner.GetSocket(go);
-            if (socket != null)
-            {
-                for (int r = 0; r < 4; r++)
+                else
                 {
-                    Vector2Int entrance = spawner.GetFrontCell(socket);
-                    if (network.TryConnectToMain(entrance, settings.maxAccessPathLength)) break;
-                    go.transform.Rotate(0f, 90f, 0f);
+                    continue;
                 }
-            }
-            else
-            {
-                EnsureAdjacentRoadConnection(chosen, grid, network);
-            }
 
-            SpawnedSpecialBuildings.Add(go);
-            return go;
-        }
+                if (!IsLootSpotClear(snapped, buildingBounds)) continue;
 
-        public Vector3 CellToWorldCenter(Vector2Int cell)
-        {
-            return new Vector3(cell.x * cellSize + cellSize * 0.5f, roadHeightY, cell.y * cellSize + cellSize * 0.5f);
-        }
+                snapped.y = roadHeightY + rule.yOffset;
+                Quaternion rot = rule.alignToBuilding
+                    ? Quaternion.LookRotation(outwardDir, Vector3.up)
+                    : Quaternion.Euler(0f, rng.Range(0, 360), 0f);
 
-        public Vector3 GetLandmarkPosition(string locationId)
-        {
-            if (string.IsNullOrEmpty(locationId)) return PlayerSpawnPoint;
-            if (landmarkPositions.TryGetValue(locationId, out Vector3 pos)) return pos;
-
-            if (locationId.IndexOf("Toby", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Toby", out pos)) return pos;
-            if (locationId.IndexOf("Tony", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Toby", out pos)) return pos;
-            if (locationId.IndexOf("Taller", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("TallerToby", out pos)) return pos;
-            if (locationId.IndexOf("Escuela", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Escuela", out pos)) return pos;
-            if (locationId.IndexOf("Bosque", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Bosque", out pos)) return pos;
-            if (locationId.IndexOf("Hospital", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Hospital", out pos)) return pos;
-            if (locationId.IndexOf("Torre", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Torre", out pos)) return pos;
-            if (locationId.IndexOf("Marco", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkPositions.TryGetValue("Marco", out pos)) return pos;
-            return PlayerSpawnPoint;
-        }
-
-        /// <summary>
-        /// Devuelve la posición de la celda de entrada transitable en la calle frente al edificio de historia o especial.
-        /// </summary>
-        public Vector3 GetLandmarkEntrancePosition(string locationId)
-        {
-            if (string.IsNullOrEmpty(locationId)) return PlayerSpawnPoint;
-            if (landmarkEntrancePositions.TryGetValue(locationId, out Vector3 pos)) return pos;
-
-            if (locationId.IndexOf("Toby", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Toby", out pos)) return pos;
-            if (locationId.IndexOf("Tony", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Toby", out pos)) return pos;
-            if (locationId.IndexOf("Taller", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("TallerToby", out pos)) return pos;
-            if (locationId.IndexOf("Escuela", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Escuela", out pos)) return pos;
-            if (locationId.IndexOf("Bosque", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Bosque", out pos)) return pos;
-            if (locationId.IndexOf("Hospital", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Hospital", out pos)) return pos;
-            if (locationId.IndexOf("Torre", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Torre", out pos)) return pos;
-            if (locationId.IndexOf("Marco", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkEntrancePositions.TryGetValue("Marco", out pos)) return pos;
-
-            return GetLandmarkPosition(locationId);
-        }
-
-        /// <summary>
-        /// Devuelve la posición del ancla de calle dedicada para el Jefe (alejada del edificio y de los aliados).
-        /// </summary>
-        public Vector3 GetLandmarkBossPosition(string locationId)
-        {
-            if (string.IsNullOrEmpty(locationId)) return PlayerSpawnPoint;
-            if (landmarkBossPositions.TryGetValue(locationId, out Vector3 pos)) return pos;
-
-            if (locationId.IndexOf("Toby", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("Toby", out pos)) return pos;
-            if (locationId.IndexOf("Taller", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("TallerToby", out pos)) return pos;
-            if (locationId.IndexOf("Escuela", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("Escuela", out pos)) return pos;
-            if (locationId.IndexOf("Bosque", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("Bosque", out pos)) return pos;
-            if (locationId.IndexOf("Hospital", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("Hospital", out pos)) return pos;
-            if (locationId.IndexOf("Torre", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("Torre", out pos)) return pos;
-            if (locationId.IndexOf("Marco", StringComparison.OrdinalIgnoreCase) >= 0 && landmarkBossPositions.TryGetValue("Marco", out pos)) return pos;
-
-            return GetLandmarkPosition(locationId) + new Vector3(16f, 0f, 16f);
-        }
-
-        /// <summary>
-        /// Comprueba si una posición horizontal XZ está dentro de la distancia de despeje de zonas protegidas
-        /// de historia (Base de Kilo, Mesa de Fabricación, Hitos, Entradas, Posiciones de Bosses y Edificio de Toby).
-        /// </summary>
-        public bool IsNearProtectedStoryZone(Vector3 worldPos, float minClearance = 14f)
-        {
-            float minSqr = minClearance * minClearance;
-
-            bool CheckDist(Vector3 target)
-            {
-                if (target == Vector3.zero) return false;
-                float dx = worldPos.x - target.x;
-                float dz = worldPos.z - target.z;
-                return (dx * dx + dz * dz) < minSqr;
-            }
-
-            if (CheckDist(PlayerSpawnPoint)) return true;
-            if (CheckDist(CraftTableSpawnPoint)) return true;
-
-            if (SpawnedTobyBuilding != null && CheckDist(SpawnedTobyBuilding.transform.position)) return true;
-
-            foreach (Vector3 pos in landmarkPositions.Values)
-            {
-                if (CheckDist(pos)) return true;
-            }
-            foreach (Vector3 pos in landmarkEntrancePositions.Values)
-            {
-                if (CheckDist(pos)) return true;
-            }
-            foreach (Vector3 pos in landmarkBossPositions.Values)
-            {
-                if (CheckDist(pos)) return true;
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// PASO 2.5: Calcula en tiempo real si la Escuela, el Bosque, el Hospital o la Torre quedaron al
-        /// Norte, Noreste, Este, Sureste, Sur, Suroeste, Oeste o Noroeste respecto al jugador.
-        /// </summary>
-        public string GetCardinalDirectionFromPlayer(string locationId)
-        {
-            Vector3 targetPos = GetLandmarkPosition(locationId);
-            Transform playerRef = hamsterTransform;
-            if (playerRef == null)
-            {
-                HamsterController hc = FindAnyObjectByType<HamsterController>();
-                if (hc != null) playerRef = hc.transform;
-            }
-
-            Vector3 origin = playerRef != null ? playerRef.position : PlayerSpawnPoint;
-            Vector3 delta = targetPos - origin;
-            delta.y = 0f;
-
-            if (delta.sqrMagnitude < 2.25f)
-            {
-                return "Aquí mismo";
-            }
-
-            // En Unity: +Z = Norte (0°), +X = Este (90°), -Z = Sur (180°), -X = Oeste (270°)
-            float angle = Mathf.Atan2(delta.x, delta.z) * Mathf.Rad2Deg;
-            if (angle < 0f) angle += 360f;
-
-            string[] cardinalNames =
-            {
-                "Norte",
-                "Noreste",
-                "Este",
-                "Sureste",
-                "Sur",
-                "Suroeste",
-                "Oeste",
-                "Noroeste"
-            };
-
-            int idx = Mathf.RoundToInt(angle / 45f) % 8;
-            return cardinalNames[idx];
-        }
-
-        /// <summary>
-        /// Compara coordenadas en el plano horizontal y devuelve una pista cardinal descriptiva y dinámica
-        /// con contexto urbano (ej. "al Noreste, cruzando la avenida comercial", "hacia el Sur, cerca de los almacenes").
-        /// </summary>
-        public string GetCardinalDirectionHint(Vector3 fromPosition, Vector3 targetPosition)
-        {
-            Vector3 delta = targetPosition - fromPosition;
-            delta.y = 0f;
-            float dist = delta.magnitude;
-            if (dist < 4f)
-            {
-                return "aquí mismo en este sector";
-            }
-
-            float angle = Mathf.Atan2(delta.x, delta.z) * Mathf.Rad2Deg;
-            if (angle < 0f) angle += 360f;
-
-            string dir;
-            int idx = Mathf.RoundToInt(angle / 45f) % 8;
-            switch (idx)
-            {
-                case 0: dir = "al Norte"; break;
-                case 1: dir = "al Noreste"; break;
-                case 2: dir = "al Este"; break;
-                case 3: dir = "al Sureste"; break;
-                case 4: dir = "al Sur"; break;
-                case 5: dir = "al Suroeste"; break;
-                case 6: dir = "al Oeste"; break;
-                default: dir = "al Noroeste"; break;
-            }
-
-            string urbanContext;
-            if (dist > 70f)
-            {
-                urbanContext = (idx % 2 == 0) ? ", en la periferia industrial de la ciudad" : ", cruzando los distritos comerciales lejanos";
-            }
-            else if (dist > 35f)
-            {
-                urbanContext = (idx == 1 || idx == 2 || idx == 3) ? ", cruzando la gran avenida comercial" : ", cerca de los almacenes y callejones residenciales";
-            }
-            else
-            {
-                urbanContext = ", pasando las manzanas adyacentes";
-            }
-
-            return $"{dir}{urbanContext}";
-        }
-
-        /// <summary>
-        /// Busca contenedores aún no saqueados (isLooted == false) a una distancia Manhattan mínima respecto a un punto,
-        /// permitiendo filtrar por cuadrante preferido para obligar al jugador a explorar la ciudad.
-        /// </summary>
-        public List<LootContainer> GetUnlootedContainersFarFrom(Vector3 fromWorldPos, int minCellDistance, int preferredQuadrant = -1)
-        {
-            List<LootContainer> result = new List<LootContainer>();
-            LootContainer[] all = FindObjectsByType<LootContainer>(FindObjectsSortMode.None);
-            float minDistanceMeters = minCellDistance * cellSize;
-
-            for (int i = 0; i < all.Length; i++)
-            {
-                LootContainer c = all[i];
-                if (c == null || c.isLooted) continue;
-                float d = Vector3.Distance(fromWorldPos, c.transform.position);
-                if (d < minDistanceMeters) continue;
-
-                if (preferredQuadrant >= 0)
+                GameObject spawned = Instantiate(rule.prefab, snapped, rot, transform);
+                if (spawned.GetComponentInChildren<LootContainer>() != null)
                 {
-                    Vector2Int cell = new Vector2Int(
-                        Mathf.FloorToInt(c.transform.position.x / cellSize),
-                        Mathf.FloorToInt(c.transform.position.z / cellSize)
-                    );
-                    if (GetQuadrantRelativeToBase(cell) != preferredQuadrant) continue;
+                    spawned.tag = "Interactable";
+                    LootSpawnPoints.Add(snapped);
                 }
-
-                result.Add(c);
+                return;
             }
-
-            if (result.Count == 0 && preferredQuadrant >= 0)
-            {
-                for (int i = 0; i < all.Length; i++)
-                {
-                    LootContainer c = all[i];
-                    if (c == null || c.isLooted) continue;
-                    if (Vector3.Distance(fromWorldPos, c.transform.position) >= minDistanceMeters)
-                    {
-                        result.Add(c);
-                    }
-                }
-            }
-
-            result.Sort((a, b) =>
-                Vector3.Distance(fromWorldPos, b.transform.position)
-                    .CompareTo(Vector3.Distance(fromWorldPos, a.transform.position)));
-
-            return result;
         }
 
-        /// <summary>
-        /// Obtiene una celda transitable de carretera en el cuadrante solicitado con separación mínima.
-        /// </summary>
-        public bool TryGetWalkableRoadCellInQuadrant(int quadrant, Vector3 minDistanceFromPos, int minCells, out Vector3 worldPos)
+        private bool IsLootSpotClear(Vector3 worldPos, List<Bounds> buildingBounds)
         {
-            worldPos = Vector3.zero;
-            if (Grid == null) return false;
-
-            List<Vector2Int> candidates = new List<Vector2Int>();
-            float minDist = minCells * cellSize;
-
-            for (int x = 2; x < Grid.Width - 2; x++)
+            if (SafeRefugeCenter != Vector3.zero)
             {
-                for (int y = 2; y < Grid.Length - 2; y++)
+                if (Mathf.Abs(worldPos.x - SafeRefugeCenter.x) < 4.9f &&
+                    Mathf.Abs(worldPos.z - SafeRefugeCenter.z) < 4.9f)
                 {
-                    Vector2Int c = new Vector2Int(x, y);
-                    if (!Grid.IsRoad(c)) continue;
-                    if (quadrant >= 0 && GetQuadrantRelativeToBase(c) != quadrant) continue;
-
-                    Vector3 pos = CellToWorldCenter(c);
-                    if (Vector3.Distance(minDistanceFromPos, pos) >= minDist)
-                    {
-                        candidates.Add(c);
-                    }
+                    return false;
+                }
+                if (Vector3.Distance(worldPos, SafeRefugeEntrancePoint) < 3.0f)
+                {
+                    return false;
                 }
             }
 
-            if (candidates.Count > 0)
+            for (int i = 0; i < buildingBounds.Count; i++)
             {
-                Vector2Int chosen = candidates[UnityEngine.Random.Range(0, candidates.Count)];
-                worldPos = CellToWorldCenter(chosen);
-                return true;
+                Bounds bb = buildingBounds[i];
+                if (worldPos.x >= bb.min.x - 0.35f && worldPos.x <= bb.max.x + 0.35f &&
+                    worldPos.z >= bb.min.z - 0.35f && worldPos.z <= bb.max.z + 0.35f)
+                {
+                    return false;
+                }
             }
 
-            return false;
+            for (int i = 0; i < LootSpawnPoints.Count; i++)
+            {
+                if (Vector3.Distance(worldPos, LootSpawnPoints[i]) < 2.2f) return false;
+            }
+
+            Collider[] hits = Physics.OverlapSphere(worldPos + Vector3.up * 0.65f, 0.72f, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < hits.Length; i++)
+            {
+                Collider col = hits[i];
+                if (col == null) continue;
+                string n = col.gameObject.name;
+                if (n.Contains("Road") || n.Contains("Pavement") || n.Contains("Floor") || n.Contains("Ground") || n.Contains("Pato"))
+                {
+                    continue;
+                }
+                if (col.GetComponentInParent<BuildingData>() != null ||
+                    col.GetComponentInParent<CitySocket>() != null ||
+                    col.GetComponentInParent<SafeRefugeZone>() != null ||
+                    col.bounds.size.y > 0.6f)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
+        private Vector2Int WorldToCell(Vector3 worldPos)
+        {
+            return new Vector2Int(Mathf.FloorToInt(worldPos.x / cellSize), Mathf.FloorToInt(worldPos.z / cellSize));
+        }
 
-        private void ConfigurarNavegacionYColisionesCiudad()
+        private static void ShuffleList<T>(List<T> list, CityRandom rng)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                int r = rng.Range(i, list.Count);
+                (list[i], list[r]) = (list[r], list[i]);
+            }
+        }
+
+        private void ConfigureCityCollidersAndBakeNavMesh()
         {
             BuildingData[] buildings = GetComponentsInChildren<BuildingData>(true);
-            foreach (BuildingData b in buildings)
+            for (int i = 0; i < buildings.Length; i++)
             {
-                if (b == null) continue;
+                BuildingData b = buildings[i];
+                if (b == null || b.GetComponentInParent<SafeRefugeZone>() != null) continue;
                 GameObject bObj = b.gameObject;
 
                 BoxCollider box = bObj.GetComponent<BoxCollider>();
                 if (box == null)
                 {
                     box = bObj.AddComponent<BoxCollider>();
-                    Renderer ren = bObj.GetComponent<Renderer>() ?? bObj.GetComponentInChildren<Renderer>();
-                    if (ren != null)
-                    {
-                        box.center = bObj.transform.InverseTransformPoint(ren.bounds.center);
-                        Vector3 worldSize = ren.bounds.size;
-                        Vector3 lossy = bObj.transform.lossyScale;
-                        box.size = new Vector3(
-                            lossy.x > 0.001f ? worldSize.x / lossy.x : worldSize.x,
-                            lossy.y > 0.001f ? worldSize.y / lossy.y : worldSize.y,
-                            lossy.z > 0.001f ? worldSize.z / lossy.z : worldSize.z
-                        );
-                    }
+                    Bounds enc = ComputeBuildingWorldBounds(bObj);
+                    box.center = bObj.transform.InverseTransformPoint(enc.center);
+                    Vector3 worldSize = enc.size;
+                    Vector3 lossy = bObj.transform.lossyScale;
+                    box.size = new Vector3(
+                        lossy.x > 0.001f ? worldSize.x / lossy.x : worldSize.x,
+                        lossy.y > 0.001f ? worldSize.y / lossy.y : worldSize.y,
+                        lossy.z > 0.001f ? worldSize.z / lossy.z : worldSize.z
+                    );
                 }
 
                 box.enabled = true;
                 box.isTrigger = false;
 
                 NavMeshObstacle obstacle = bObj.GetComponent<NavMeshObstacle>();
-                if (obstacle == null)
-                {
-                    obstacle = bObj.AddComponent<NavMeshObstacle>();
-                }
+                if (obstacle == null) obstacle = bObj.AddComponent<NavMeshObstacle>();
                 obstacle.shape = NavMeshObstacleShape.Box;
                 obstacle.center = box.center;
                 obstacle.size = box.size;
@@ -1267,14 +590,211 @@ namespace Prototipo3
                 obstacle.carvingTimeToStationary = 0.1f;
             }
 
+            Physics.SyncTransforms();
+
             NavMeshSurface navSurface = GetComponent<NavMeshSurface>();
-            if (navSurface == null)
-            {
-                navSurface = gameObject.AddComponent<NavMeshSurface>();
-            }
+            if (navSurface == null) navSurface = gameObject.AddComponent<NavMeshSurface>();
             navSurface.collectObjects = CollectObjects.Children;
             navSurface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
             navSurface.BuildNavMesh();
+        }
+
+        private void AnalyzeRoadTopology(CityGrid grid, RoadNetwork network)
+        {
+            for (int x = 0; x < grid.Width; x++)
+            {
+                for (int y = 0; y < grid.Length; y++)
+                {
+                    Vector2Int cell = new Vector2Int(x, y);
+                    if (!grid.IsRoad(cell)) continue;
+
+                    Vector3 worldPos = CellToWorldCenter(cell);
+                    int neighbors = grid.RoadNeighborCount(cell);
+                    if (neighbors == 1) DeadEndPoints.Add(worldPos);
+                    else if (neighbors >= 3) IntersectionPoints.Add(worldPos);
+                }
+            }
+
+            if (network != null && network.Loops != null)
+            {
+                foreach (RoadLoop loop in network.Loops.All)
+                {
+                    Vector3 center = Vector3.zero;
+                    int count = 0;
+                    foreach (int index in loop.CellIndices)
+                    {
+                        int lx = index % mapWidth;
+                        int ly = index / mapWidth;
+                        center += new Vector3(lx * cellSize + cellSize * 0.5f, roadHeightY, ly * cellSize + cellSize * 0.5f);
+                        count++;
+                    }
+                    if (count > 0) LoopCenterPoints.Add(center / count);
+                }
+            }
+        }
+
+        private void PlacePlayerAndCraftTable(CityGrid grid, bool hasRefuge)
+        {
+            if (hamsterTransform == null)
+            {
+                HamsterController hc = FindAnyObjectByType<HamsterController>();
+                if (hc != null) hamsterTransform = hc.transform;
+            }
+
+            if (hasRefuge && safeRefugeInstance != null)
+            {
+                CraftingTable refugeTable = safeRefugeInstance.GetComponentInChildren<CraftingTable>(true);
+                if (refugeTable != null)
+                {
+                    CraftTableSpawnPoint = refugeTable.transform.position;
+                }
+                else if (craftTablePrefab != null)
+                {
+                    Vector3 tPos = SafeRefugeCenter + safeRefugeInstance.transform.TransformDirection(new Vector3(-2.3f, 0.04f, 1.5f));
+                    GameObject tObj = Instantiate(craftTablePrefab, tPos, Quaternion.identity, safeRefugeInstance.transform);
+                    CraftTableSpawnPoint = tObj.transform.position;
+                }
+
+                // Desactivar cualquier mesa duplicada que hubiera quedado suelta fuera del refugio
+                CraftingTable[] allTables = FindObjectsByType<CraftingTable>(FindObjectsSortMode.None);
+                for (int i = 0; i < allTables.Length; i++)
+                {
+                    if (allTables[i] != null && allTables[i] != refugeTable && !allTables[i].transform.IsChildOf(safeRefugeInstance.transform))
+                    {
+                        allTables[i].gameObject.SetActive(false);
+                    }
+                }
+
+                PlaceHamsterAt(PlayerSpawnPoint, Quaternion.LookRotation(safeRefugeFacingDir, Vector3.up));
+                return;
+            }
+
+            // Respaldo si no hay safeRefugePrefab asignado
+            Vector2Int bestCell = new Vector2Int(grid.Width / 2, grid.Length / 2);
+            float bestDistSq = float.MaxValue;
+            Vector2 mapCenter = new Vector2(grid.Width * 0.5f, grid.Length * 0.5f);
+
+            for (int x = 1; x < grid.Width - 1; x++)
+            {
+                for (int y = 1; y < grid.Length - 1; y++)
+                {
+                    Vector2Int c = new Vector2Int(x, y);
+                    if (!grid.IsRoad(c)) continue;
+                    float dSq = ((Vector2)c - mapCenter).sqrMagnitude;
+                    if (dSq < bestDistSq)
+                    {
+                        bestDistSq = dSq;
+                        bestCell = c;
+                    }
+                }
+            }
+
+            Vector3 rawSpawn = CellToWorldCenter(bestCell);
+            PlayerSpawnPoint = NavMesh.SamplePosition(rawSpawn, out NavMeshHit navHit, 5f, NavMesh.AllAreas)
+                ? navHit.position + Vector3.up * 0.05f
+                : rawSpawn + Vector3.up * 0.1f;
+
+            Vector3 tableTarget = PlayerSpawnPoint + new Vector3(3.0f, 0f, 2.2f);
+            CraftTableSpawnPoint = NavMesh.SamplePosition(tableTarget, out NavMeshHit tableHit, 4f, NavMesh.AllAreas)
+                ? tableHit.position
+                : tableTarget;
+
+            PlaceHamsterAt(PlayerSpawnPoint, Quaternion.LookRotation(Vector3.forward));
+
+            CraftingTable existingTable = FindAnyObjectByType<CraftingTable>();
+            if (existingTable != null)
+            {
+                existingTable.transform.position = CraftTableSpawnPoint;
+                existingTable.transform.rotation = Quaternion.identity;
+            }
+            else if (craftTablePrefab != null)
+            {
+                Instantiate(craftTablePrefab, CraftTableSpawnPoint, Quaternion.identity, transform);
+            }
+        }
+
+        private void PlaceHamsterAt(Vector3 spawnPos, Quaternion rotation)
+        {
+            if (hamsterTransform == null) return;
+            Rigidbody rb = hamsterTransform.GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                rb.position = spawnPos;
+                rb.rotation = rotation;
+            }
+            hamsterTransform.position = spawnPos;
+            hamsterTransform.rotation = rotation;
+        }
+
+        private void SpawnStarterLootNearBase(CityRandom rng, CityGrid grid, List<Bounds> buildingBounds)
+        {
+            GameObject prefabToUse = lootPrefab;
+            if (prefabToUse == null && socketSpawns != null)
+            {
+                for (int i = 0; i < socketSpawns.Count; i++)
+                {
+                    if (socketSpawns[i] != null && socketSpawns[i].prefab != null &&
+                        socketSpawns[i].prefab.GetComponentInChildren<LootContainer>() != null)
+                    {
+                        prefabToUse = socketSpawns[i].prefab;
+                        break;
+                    }
+                }
+            }
+            if (prefabToUse == null) return;
+
+            Vector3 forward = safeRefugeFacingDir.sqrMagnitude > 0.1f ? safeRefugeFacingDir.normalized : Vector3.back;
+            Vector3 right = new Vector3(forward.z, 0f, -forward.x);
+            Vector3 anchorBase = SafeRefugeCenter != Vector3.zero ? SafeRefugeEntrancePoint : PlayerSpawnPoint;
+
+            Vector3[] candidateOffsets =
+            {
+                right * 3.4f - forward * 0.4f,
+                -right * 3.4f - forward * 0.4f,
+                right * 2.8f + forward * 3.2f,
+                -right * 2.8f + forward * 3.2f,
+                forward * 4.2f + right * 1.8f,
+                forward * 4.2f - right * 1.8f
+            };
+            ItemType[][] starterPacks =
+            {
+                new[] { ItemType.Metal, ItemType.Madera, ItemType.Desperdicios },
+                new[] { ItemType.Metal, ItemType.Goma, ItemType.Semillas },
+                new[] { ItemType.Madera, ItemType.Goma, ItemType.Semillas }
+            };
+
+            int spawnedCount = 0;
+            for (int i = 0; i < candidateOffsets.Length && spawnedCount < starterPacks.Length; i++)
+            {
+                Vector3 pos = anchorBase + candidateOffsets[i];
+                pos.y = roadHeightY;
+                if (!NavMesh.SamplePosition(pos, out NavMeshHit hit, 3.5f, NavMesh.AllAreas)) continue;
+                Vector3 snapped = new Vector3(hit.position.x, roadHeightY, hit.position.z);
+                if (!IsLootSpotClear(snapped, buildingBounds)) continue;
+
+                GameObject obj = Instantiate(prefabToUse, snapped, Quaternion.Euler(0f, rng.Range(0, 360), 0f), transform);
+                obj.name = $"StarterLoot_{spawnedCount + 1}";
+                obj.tag = "Interactable";
+                LootContainer lc = obj.GetComponent<LootContainer>();
+                if (lc == null) lc = obj.AddComponent<LootContainer>();
+                lc.itemsGarantizados = new List<ItemType>(starterPacks[spawnedCount]);
+                lc.ConfigurarEfectoResplandor();
+                LootSpawnPoints.Add(snapped);
+                spawnedCount++;
+            }
+        }
+
+        private void SpawnCityEnemies(CityRandom rng)
+        {
+            CityEnemyPopulationSpawner popSpawner = GetComponent<CityEnemyPopulationSpawner>();
+            if (popSpawner == null) popSpawner = FindAnyObjectByType<CityEnemyPopulationSpawner>();
+            if (popSpawner == null)
+            {
+                popSpawner = gameObject.AddComponent<CityEnemyPopulationSpawner>();
+            }
+            popSpawner.SpawnEnemies(this, rng);
         }
 
         private void SnapAllAgentsToNavMesh()
@@ -1293,199 +813,9 @@ namespace Prototipo3
             }
         }
 
-        private void AnalizarTopologiaVial(CityGrid grid, RoadNetwork network)
+        public Vector3 CellToWorldCenter(Vector2Int cell)
         {
-            for (int x = 0; x < grid.Width; x++)
-            {
-                for (int y = 0; y < grid.Length; y++)
-                {
-                    Vector2Int cell = new Vector2Int(x, y);
-                    if (!grid.IsRoad(cell)) continue;
-
-                    Vector3 worldPos = CellToWorldCenter(cell);
-                    int neighbors = grid.RoadNeighborCount(cell);
-
-                    if (neighbors == 1)
-                    {
-                        DeadEndPoints.Add(worldPos);
-                    }
-                    else if (neighbors >= 3)
-                    {
-                        IntersectionPoints.Add(worldPos);
-                    }
-                }
-            }
-
-            if (network != null && network.Loops != null)
-            {
-                foreach (RoadLoop loop in network.Loops.All)
-                {
-                    Vector3 center = Vector3.zero;
-                    int count = 0;
-                    foreach (int index in loop.CellIndices)
-                    {
-                        int lx = index % mapWidth;
-                        int ly = index / mapWidth;
-                        center += new Vector3(lx * cellSize + cellSize * 0.5f, roadHeightY, ly * cellSize + cellSize * 0.5f);
-                        count++;
-                    }
-                    if (count > 0)
-                    {
-                        center /= count;
-                        LoopCenterPoints.Add(center);
-                    }
-                }
-            }
-        }
-
-        private void UbicarRefugioInicialYMarco(CityGrid grid)
-        {
-            Vector3 rawSpawnPoint = CellToWorldCenter(BaseCell);
-            if (NavMesh.SamplePosition(rawSpawnPoint, out NavMeshHit navHit, 5f, NavMesh.AllAreas))
-            {
-                PlayerSpawnPoint = navHit.position + Vector3.up * 0.05f;
-            }
-            else
-            {
-                PlayerSpawnPoint = rawSpawnPoint + Vector3.up * 0.1f;
-            }
-
-            landmarkPositions["Base"] = PlayerSpawnPoint;
-
-            CraftTableSpawnPoint = PlayerSpawnPoint + new Vector3(3.2f, 0f, 2.2f);
-            if (NavMesh.SamplePosition(CraftTableSpawnPoint, out NavMeshHit tableHit, 3f, NavMesh.AllAreas))
-            {
-                CraftTableSpawnPoint = tableHit.position;
-            }
-
-            GameObject shelterMarker = new GameObject("SPAWN_HAMSTER_BASE_PUNTO_0");
-            shelterMarker.transform.SetParent(transform, false);
-            shelterMarker.transform.position = PlayerSpawnPoint;
-
-            // Mover a Kilo a la Base
-            if (hamsterTransform == null)
-            {
-                HamsterController hc = FindAnyObjectByType<HamsterController>();
-                if (hc != null)
-                {
-                    hc.enabled = true;
-                    hamsterTransform = hc.transform;
-                }
-            }
-            else
-            {
-                HamsterController hc = hamsterTransform.GetComponent<HamsterController>();
-                if (hc != null) hc.enabled = true;
-            }
-
-            if (hamsterTransform != null)
-            {
-                Rigidbody rb = hamsterTransform.GetComponent<Rigidbody>();
-                if (rb != null)
-                {
-                    rb.linearVelocity = Vector3.zero;
-                    rb.angularVelocity = Vector3.zero;
-                    rb.position = PlayerSpawnPoint;
-                }
-                hamsterTransform.position = PlayerSpawnPoint;
-                hamsterTransform.rotation = Quaternion.LookRotation(Vector3.forward);
-            }
-
-            // Instanciar o posicionar Mesa de Fabricación en la Base
-            CraftingTable existingTable = FindAnyObjectByType<CraftingTable>();
-            if (existingTable != null)
-            {
-                existingTable.transform.position = CraftTableSpawnPoint;
-                existingTable.transform.rotation = Quaternion.identity;
-            }
-            else if (craftTablePrefab != null)
-            {
-                Instantiate(craftTablePrefab, CraftTableSpawnPoint, Quaternion.identity, transform);
-            }
-            else
-            {
-                GameObject tableObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                tableObj.name = "CraftTable_Prototipo3";
-                tableObj.tag = "Interactable";
-                tableObj.transform.SetParent(transform);
-                tableObj.transform.position = CraftTableSpawnPoint + new Vector3(0, 0.45f, 0);
-                tableObj.transform.localScale = new Vector3(1.5f, 0.8f, 1.0f);
-
-                BoxCollider bc = tableObj.GetComponent<BoxCollider>();
-                if (bc != null)
-                {
-                    bc.isTrigger = true;
-                    bc.size = new Vector3(3.5f, 2.5f, 3.5f);
-                }
-
-                Renderer ren = tableObj.GetComponent<Renderer>();
-                if (ren != null)
-                {
-                    Material mat = new Material(Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard") ?? Shader.Find("Sprites/Default"));
-                    mat.color = new Color(0.48f, 0.30f, 0.15f);
-                    ren.material = mat;
-                }
-
-                existingTable = tableObj.AddComponent<CraftingTable>();
-            }
-
-            WorldRegistry.Register("Base", shelterMarker.transform);
-            if (existingTable != null)
-            {
-                WorldRegistry.Register("CraftTable", existingTable.transform);
-                WorldRegistry.Register("MesaFabricacion", existingTable.transform);
-            }
-
-            // Registrar posición de Marco en la calle adyacente (Punto 0)
-            Vector3 marcoWorldPos = CellToWorldCenter(MarcoCell);
-            if (NavMesh.SamplePosition(marcoWorldPos, out NavMeshHit marcoNavHit, 5f, NavMesh.AllAreas))
-            {
-                marcoWorldPos = marcoNavHit.position;
-            }
-            landmarkPositions["Marco"] = marcoWorldPos;
-            landmarkBossPositions["Marco"] = marcoWorldPos;
-
-            GameObject marcoMarker = new GameObject("MARKER_MARCO_ZONE");
-            marcoMarker.transform.SetParent(transform, false);
-            marcoMarker.transform.position = marcoWorldPos;
-            WorldRegistry.Register("Marco_Zone", marcoMarker.transform);
-        }
-
-        private void GenerarLootEnSockets(CityGrid grid, CityRandom rng)
-        {
-            CityLootSpawner spawner = FindAnyObjectByType<CityLootSpawner>();
-            if (spawner == null) spawner = GetComponent<CityLootSpawner>();
-            if (spawner == null)
-            {
-                GameObject popMgr = GameObject.Find("CityPopulationManager");
-                if (popMgr == null) popMgr = new GameObject("CityPopulationManager");
-                spawner = popMgr.AddComponent<CityLootSpawner>();
-            }
-            spawner.SpawnLoot(this, grid, rng);
-        }
-
-        public GameObject CreateLootContainerInstance(Transform parent, string containerName, Vector3 pos, List<ItemType> guaranteed)
-        {
-            CityLootSpawner spawner = FindAnyObjectByType<CityLootSpawner>();
-            if (spawner == null) spawner = GetComponent<CityLootSpawner>();
-            if (spawner != null)
-            {
-                return spawner.CreateLootContainerInstance(parent, containerName, pos, guaranteed, lootPrefab);
-            }
-            return null;
-        }
-
-        private void GenerarEnemigosFerales(CityRandom rng)
-        {
-            CityEnemyPopulationSpawner spawner = FindAnyObjectByType<CityEnemyPopulationSpawner>();
-            if (spawner == null) spawner = GetComponent<CityEnemyPopulationSpawner>();
-            if (spawner == null)
-            {
-                GameObject popMgr = GameObject.Find("CityPopulationManager");
-                if (popMgr == null) popMgr = new GameObject("CityPopulationManager");
-                spawner = popMgr.AddComponent<CityEnemyPopulationSpawner>();
-            }
-            spawner.SpawnEnemies(this, rng);
+            return new Vector3(cell.x * cellSize + cellSize * 0.5f, roadHeightY, cell.y * cellSize + cellSize * 0.5f);
         }
 
         [ContextMenu("Limpiar Ciudad")]
@@ -1496,53 +826,45 @@ namespace Prototipo3
             IntersectionPoints.Clear();
             DeadEndPoints.Clear();
             LoopCenterPoints.Clear();
-            landmarkPositions.Clear();
-            landmarkEntrancePositions.Clear();
-            landmarkBossPositions.Clear();
-            SpawnedSpecialBuildings.Clear();
-            SpawnedTobyBuilding = null;
-            WorldRegistry.Clear();
+            SafeRefugeCenter = Vector3.zero;
+            SafeRefugeEntrancePoint = Vector3.zero;
+            safeRefugeInstance = null;
 
             for (int i = transform.childCount - 1; i >= 0; i--)
             {
                 Transform child = transform.GetChild(i);
                 if (child == hamsterTransform) continue;
-                if (Application.isPlaying)
-                {
-                    child.SetParent(null);
-                    child.gameObject.SetActive(false);
-                    Destroy(child.gameObject);
-                }
-                else
-                {
-                    DestroyImmediate(child.gameObject);
-                }
-            }
-
-            StoryWorldBinder binder = FindAnyObjectByType<StoryWorldBinder>();
-            if (binder != null)
-            {
-                binder.LimpiarArtefactos();
+                child.SetParent(null);
+                if (Application.isPlaying) Destroy(child.gameObject);
+                else DestroyImmediate(child.gameObject);
             }
 
             CityLootSpawner lootSpawner = FindAnyObjectByType<CityLootSpawner>();
-            if (lootSpawner != null)
-            {
-                lootSpawner.ClearLoot();
-            }
+            if (lootSpawner != null) lootSpawner.ClearLoot();
 
             CityEnemyPopulationSpawner enemySpawner = FindAnyObjectByType<CityEnemyPopulationSpawner>();
-            if (enemySpawner != null)
-            {
-                enemySpawner.ClearEnemies();
-            }
+            if (enemySpawner != null) enemySpawner.ClearEnemies();
 
             if (!Application.isPlaying)
             {
                 NavMeshSurface navSurface = GetComponent<NavMeshSurface>();
-                if (navSurface != null)
+                if (navSurface != null) navSurface.RemoveData();
+            }
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (lastNetwork == null) return;
+
+            Gizmos.color = Color.yellow;
+            foreach (RoadLoop loop in lastNetwork.Loops.All)
+            {
+                foreach (int index in loop.CellIndices)
                 {
-                    navSurface.RemoveData();
+                    int x = index % mapWidth;
+                    int y = index / mapWidth;
+                    Vector3 center = new Vector3(x * cellSize + cellSize / 2f, roadHeightY + 0.5f, y * cellSize + cellSize / 2f);
+                    Gizmos.DrawWireCube(center, new Vector3(cellSize * 0.8f, 1f, cellSize * 0.8f));
                 }
             }
         }

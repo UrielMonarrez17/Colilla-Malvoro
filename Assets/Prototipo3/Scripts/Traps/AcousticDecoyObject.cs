@@ -32,9 +32,15 @@ namespace Prototipo3
                 Renderer bodyRen = body.GetComponent<Renderer>();
                 if (bodyRen != null)
                 {
-                    Material m = new Material(Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard") ?? Shader.Find("Sprites/Default"));
-                    m.color = new Color(0.15f, 0.75f, 1f, 1f);
-                    bodyRen.material = m;
+                    Shader lit = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Universal Render Pipeline/Unlit");
+                    if (lit != null)
+                    {
+                        Material m = new Material(lit);
+                        Color bodyCol = new Color(0.15f, 0.75f, 1f, 1f);
+                        m.color = bodyCol;
+                        if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", bodyCol);
+                        bodyRen.material = m;
+                    }
                 }
             }
 
@@ -49,9 +55,20 @@ namespace Prototipo3
             Renderer rRen = ring.GetComponent<Renderer>();
             if (rRen != null)
             {
-                Shader sh = Shader.Find("Sprites/Default") ?? Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Standard");
+                Shader sh = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
                 ringMat = new Material(sh);
-                ringMat.color = new Color(0.1f, 0.85f, 1f, 0.35f);
+                Color ringCol = new Color(0.1f, 0.85f, 1f, 0.35f);
+                ringMat.color = ringCol;
+                if (ringMat.HasProperty("_BaseColor")) ringMat.SetColor("_BaseColor", ringCol);
+                if (ringMat.HasProperty("_Surface"))
+                {
+                    ringMat.SetFloat("_Surface", 1f);
+                    ringMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                    ringMat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                    ringMat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                    ringMat.SetInt("_ZWrite", 0);
+                    ringMat.renderQueue = 3600;
+                }
                 rRen.material = ringMat;
                 rRen.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             }
@@ -76,7 +93,9 @@ namespace Prototipo3
                 ringVisual.localScale = new Vector3(scale, 0.03f, scale);
                 if (ringMat != null)
                 {
-                    ringMat.color = new Color(0.1f, 0.88f, 1f, (1f - waveT) * 0.42f);
+                    Color c = new Color(0.1f, 0.88f, 1f, (1f - waveT) * 0.42f);
+                    ringMat.color = c;
+                    if (ringMat.HasProperty("_BaseColor")) ringMat.SetColor("_BaseColor", c);
                 }
             }
 

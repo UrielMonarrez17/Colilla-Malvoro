@@ -17,35 +17,16 @@ namespace Prototipo3
         [Tooltip("Distancia de chequeo frontal para evitar atravesar colliders de edificios.")]
         public float buildingCheckDistance = 1.6f;
 
-        [Header("Perfil de Jefe y Mecánicas Tácticas (Prototipo 3)")]
-        public BossProfileType bossProfile = BossProfileType.None;
-
-        [Header("Patrulla Territorial de Jefes")]
-        [Tooltip("Radio máximo de patrulla alrededor del spawner/homeAnchor para Jefes.")]
-        public float bossTerritoryRadius = 15f;
-        [Tooltip("Distancia máxima de persecución antes de que el Jefe rompa la persecución y regrese a su territorio.")]
-        public float bossLeashDistance = 26f;
-
-        [Tooltip("Rector Morales: Detecta carreras ruidosas (Shift sin agacharse C) a gran distancia.")]
-        public bool sensitiveToNoisySprint = false;
-        public float noisySprintDetectionRadius = 25f;
+        [Header("Ajustes Tácticos (Prototipo 3)")]
         public float acousticDecoyVulnerabilityMultiplier = 1.0f;
-
-        [Tooltip("Sultán el Lobo: Multiplicador de olfato (proximidad extrema x2.5).")]
         public float baseSmellRadius = 2.5f;
         public float smellMultiplier = 1.0f;
-
-        [Tooltip("Clara Valdés: Deja un rastro temporal de nubes de gas anestésico.")]
-        public bool leavesAnestheticGasTrail = false;
-        public float gasSpawnInterval = 1.6f;
-        public GameObject anestheticGasCloudPrefab;
 
         private NavMeshAgent protoAgent;
         private Rigidbody protoRb;
         private float obstacleRedirectCooldown = 0f;
+        private float refugeRepelCooldown = 0f;
         private Vector3 lastValidCityPosition;
-
-        private DualRoleCharacter dualRole;
 
         private static readonly MethodInfo MiUpdateAnimator = typeof(EnemyAI).GetMethod("UpdateAnimatorFromMovement", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly MethodInfo MiUpdateVisionCone = typeof(EnemyAI).GetMethod("UpdateVisionConeVisual", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -62,60 +43,31 @@ namespace Prototipo3
         private static readonly FieldInfo FiPlayerController = typeof(EnemyAI).GetField("playerController", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo FiVisionConeObj = typeof(EnemyAI).GetField("visionConeObj", BindingFlags.Instance | BindingFlags.NonPublic);
 
-        // Valores base cacheados para restaurar tras efectos de trampas
         private bool baseValuesCached = false;
         private float baseVisionNormal = 15f;
         private float baseVisionCrouched = 5f;
 
-        // Estado de Trampa 1 (Señuelo Acústico)
         private float acousticDecoyTimer = 0f;
         private Vector3 acousticDecoyPos;
 
-        // Estado de Trampa 3 (Parálisis por Descargador Estático)
         private float staticParalysisTimer = 0f;
         private GameObject paralysisVfxObj;
 
-        // Estado de Trampa 2 (Red Inmovilizadora por 5s)
         private float netImmobilizationTimer = 0f;
         private GameObject netVfxObj;
 
-        // Estado de Trampa 1/3 (Púas: ralentización al 50% por 6s con chispas)
         private float spikeSlowTimer = 0f;
         private float spikeSlowMultiplier = 0.5f;
         private GameObject sparksVfxObj;
-
-        private float gasTrailTimer = 0f;
-
-        private MarcoBossController marcoBossController;
-        private MoralesOwlBossController moralesBossController;
 
         public bool IsDistractedByDecoy => acousticDecoyTimer > 0f;
         public bool IsParalyzedByStatic => staticParalysisTimer > 0f;
         public bool IsNetImmobilized => netImmobilizationTimer > 0f;
         public bool IsSpikeSlowed => spikeSlowTimer > 0f;
 
-        public void CancelActiveBossAttacks()
-        {
-            if (marcoBossController == null && bossProfile == BossProfileType.Marco_Tejon)
-                marcoBossController = GetComponent<MarcoBossController>();
-            if (marcoBossController != null)
-                marcoBossController.InterruptActiveAttack(false, 0f);
+        public void CancelActiveBossAttacks() { }
 
-            if (moralesBossController == null && bossProfile == BossProfileType.Morales_Buho)
-                moralesBossController = GetComponent<MoralesOwlBossController>();
-            if (moralesBossController != null)
-                moralesBossController.InterruptActiveAttack();
-        }
-
-        public bool IsFeralActiveNow()
-        {
-            if (dualRole == null) dualRole = GetComponent<DualRoleCharacter>();
-            if (dualRole != null)
-            {
-                return dualRole.IsCurrentlyFeral;
-            }
-            return IsNight();
-        }
+        public bool IsFeralActiveNow() => IsNight();
 
         private void ForceBaseState(EnemyState targetState)
         {
@@ -132,7 +84,6 @@ namespace Prototipo3
         protected override void Awake()
         {
             base.Awake();
-            dualRole = GetComponent<DualRoleCharacter>();
 
             MonoBehaviour[] scripts = GetComponents<MonoBehaviour>();
             for (int i = 0; i < scripts.Length; i++)
@@ -148,11 +99,7 @@ namespace Prototipo3
             if (CityGeneratorPrototipo3.Instance != null)
             {
                 SetPatrolWaypoints(null);
-                if (IsBossCharacter())
-                {
-                    wanderRadius = bossTerritoryRadius;
-                }
-                else if (wanderRadius < 30f)
+                if (wanderRadius < 30f)
                 {
                     wanderRadius = 35f;
                 }
@@ -165,7 +112,6 @@ namespace Prototipo3
 
             protoAgent = GetComponent<NavMeshAgent>();
             protoRb = GetComponent<Rigidbody>();
-            dualRole = GetComponent<DualRoleCharacter>();
 
             CacheBaseDetectionValues();
 
@@ -277,13 +223,29 @@ namespace Prototipo3
                 Renderer r = paralysisVfxObj.GetComponent<Renderer>();
                 if (r != null)
                 {
-                    Material m = new Material(Shader.Find("Sprites/Default") ?? Shader.Find("Standard"));
-                    m.color = new Color(0.25f, 0.85f, 1f, 0.45f);
-                    r.material = m;
+                    r.material = CreateTransparentVfxMaterial(new Color(0.25f, 0.85f, 1f, 0.45f));
                 }
             }
 
             paralysisVfxObj.SetActive(true);
+        }
+
+        private static Material CreateTransparentVfxMaterial(Color color)
+        {
+            Shader sh = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+            Material m = new Material(sh);
+            m.color = color;
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", color);
+            if (m.HasProperty("_Surface"))
+            {
+                m.SetFloat("_Surface", 1f);
+                m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                m.SetInt("_ZWrite", 0);
+                m.renderQueue = 3600;
+            }
+            return m;
         }
 
         /// <summary>
@@ -341,9 +303,7 @@ namespace Prototipo3
                 Renderer r = netVfxObj.GetComponent<Renderer>();
                 if (r != null)
                 {
-                    Material m = new Material(Shader.Find("Sprites/Default") ?? Shader.Find("Standard"));
-                    m.color = new Color(0.85f, 0.85f, 0.25f, 0.5f);
-                    r.material = m;
+                    r.material = CreateTransparentVfxMaterial(new Color(0.85f, 0.85f, 0.25f, 0.5f));
                 }
             }
 
@@ -388,68 +348,17 @@ namespace Prototipo3
                 Renderer r = sparksVfxObj.GetComponent<Renderer>();
                 if (r != null)
                 {
-                    Material m = new Material(Shader.Find("Sprites/Default") ?? Shader.Find("Standard"));
-                    m.color = new Color(0.2f, 0.6f, 1f, 0.65f);
-                    r.material = m;
+                    r.material = CreateTransparentVfxMaterial(new Color(0.2f, 0.6f, 1f, 0.65f));
                 }
             }
 
             sparksVfxObj.SetActive(true);
         }
 
-        public bool IsBossCharacter()
-        {
-            if (bossProfile != BossProfileType.None) return true;
-            if (dualRole == null) dualRole = GetComponent<DualRoleCharacter>();
-            if (dualRole != null && (dualRole.roleType == CharacterRoleType.PacifiableBoss || dualRole.bossProfile != BossProfileType.None)) return true;
-            return false;
-        }
-
-        private void EnforceBossTerritoryPatrol()
-        {
-            if (!IsBossCharacter()) return;
-            if (dualRole == null) dualRole = GetComponent<DualRoleCharacter>();
-            Vector3 home = dualRole != null ? dualRole.HomeAnchorPosition : transform.position;
-            if (home == Vector3.zero) return;
-
-            float distFromHome = Vector3.Distance(transform.position, home);
-            if (distFromHome > bossTerritoryRadius)
-            {
-                if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh && staticParalysisTimer <= 0f && netImmobilizationTimer <= 0f)
-                {
-                    protoAgent.isStopped = false;
-                    protoAgent.speed = wanderSpeed;
-                    protoAgent.SetDestination(home);
-                }
-            }
-        }
-
-        private void EnforceBossChaseLeash()
-        {
-            if (!IsBossCharacter()) return;
-            if (dualRole == null) dualRole = GetComponent<DualRoleCharacter>();
-            Vector3 home = dualRole != null ? dualRole.HomeAnchorPosition : transform.position;
-            if (home == Vector3.zero) return;
-
-            float distFromHome = Vector3.Distance(transform.position, home);
-            if (distFromHome > bossLeashDistance)
-            {
-                // El jugador abandonó el territorio del jefe: romper persecución y regresar a su ancla
-                CancelActiveBossAttacks();
-                ForceBaseState(EnemyState.Wander);
-                if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
-                {
-                    protoAgent.ResetPath();
-                    protoAgent.speed = wanderSpeed;
-                    protoAgent.SetDestination(home);
-                }
-            }
-        }
-
         private void Update()
         {
             CacheBaseDetectionValues();
-            UpdateTrapAndBossModifiers();
+            UpdateTrapModifiers();
 
             MiUpdateAnimator?.Invoke(this, null);
             UpdateFeralVisionConeVisual();
@@ -462,15 +371,6 @@ namespace Prototipo3
             // bloqueamos por completo la persecución y el ataque hacia el jugador.
             if (staticParalysisTimer > 0f || acousticDecoyTimer > 0f || netImmobilizationTimer > 0f)
             {
-                if (bossProfile == BossProfileType.Morales_Buho && acousticDecoyTimer > 0f && staticParalysisTimer <= 0f && netImmobilizationTimer <= 0f)
-                {
-                    if (moralesBossController == null) moralesBossController = GetComponent<MoralesOwlBossController>();
-                    if (moralesBossController != null) moralesBossController.TryTickBossAI(this, protoAgent, null, IsFeralActiveNow());
-                }
-                else
-                {
-                    CancelActiveBossAttacks();
-                }
                 ForceBaseState(EnemyState.Wander);
                 return;
             }
@@ -481,10 +381,8 @@ namespace Prototipo3
             bool isFeral = IsFeralActiveNow();
             if (!isFeral)
             {
-                CancelActiveBossAttacks();
                 ForceBaseState(EnemyState.Wander);
                 MiUpdateWander?.Invoke(this, null);
-                EnforceBossTerritoryPatrol();
                 return;
             }
 
@@ -493,37 +391,28 @@ namespace Prototipo3
 
             if (hc != null && hc.IsDead)
             {
-                CancelActiveBossAttacks();
                 ForceBaseState(EnemyState.Wander);
                 MiUpdateWander?.Invoke(this, null);
-                EnforceBossTerritoryPatrol();
                 return;
             }
 
-            if (bossProfile == BossProfileType.Marco_Tejon)
+            if (SafeRefugeZone.IsPlayerInsideSafeRefuge)
             {
-                if (marcoBossController == null) marcoBossController = GetComponent<MarcoBossController>();
-                if (marcoBossController != null && marcoBossController.TryTickBossAI(this, protoAgent, hc, isFeral))
+                ForceBaseState(EnemyState.Wander);
+                if (SafeRefugeZone.ActiveZone != null &&
+                    ((protoAgent.hasPath && SafeRefugeZone.ActiveZone.ContainsPoint(protoAgent.destination, 0.4f)) ||
+                     SafeRefugeZone.ActiveZone.ContainsPoint(transform.position, 0.35f)))
                 {
-                    EnforceBossChaseLeash();
-                    return;
+                    RepelFromSafeRefuge(SafeRefugeZone.ActiveZone.GetRepelOrigin());
                 }
-            }
-            else if (bossProfile == BossProfileType.Morales_Buho)
-            {
-                if (moralesBossController == null) moralesBossController = GetComponent<MoralesOwlBossController>();
-                if (moralesBossController != null && moralesBossController.TryTickBossAI(this, protoAgent, hc, isFeral))
-                {
-                    EnforceBossChaseLeash();
-                    return;
-                }
+                MiUpdateWander?.Invoke(this, null);
+                return;
             }
 
             switch (CurrentState)
             {
                 case EnemyState.Wander:
                     MiUpdateWander?.Invoke(this, null);
-                    EnforceBossTerritoryPatrol();
                     bool detected = MiCanDetectInitial != null && (bool)MiCanDetectInitial.Invoke(this, null);
                     if (detected)
                     {
@@ -533,33 +422,17 @@ namespace Prototipo3
 
                 case EnemyState.Chase:
                     MiUpdateChase?.Invoke(this, null);
-                    EnforceBossChaseLeash();
                     break;
 
                 case EnemyState.Attack:
                     MiUpdateAttack?.Invoke(this, null);
-                    EnforceBossChaseLeash();
                     break;
             }
         }
 
         private void UpdateFeralVisionConeVisual()
         {
-            bool isFeral = IsFeralActiveNow();
-            if (IsNight() || !isFeral || !showVisionCone)
-            {
-                MiUpdateVisionCone?.Invoke(this, null);
-                return;
-            }
-
-            // Si es de día pero el jefe está en estado Feral forzado (ej. Morales en el apagón o Kross en la Torre),
-            // aseguramos que su cono de visión también se dibuje.
-            MiEnsureVisionCone?.Invoke(this, null);
-            GameObject coneObj = FiVisionConeObj != null ? FiVisionConeObj.GetValue(this) as GameObject : null;
-            if (coneObj != null && !coneObj.activeSelf)
-            {
-                coneObj.SetActive(true);
-            }
+            MiUpdateVisionCone?.Invoke(this, null);
         }
 
         private void LateUpdate()
@@ -573,7 +446,7 @@ namespace Prototipo3
             PreventBuildingPenetration();
         }
 
-        private void UpdateTrapAndBossModifiers()
+        private void UpdateTrapModifiers()
         {
             // 0. Inmovilización por Red (Trampa de Red - 5 segundos)
             if (netImmobilizationTimer > 0f)
@@ -679,71 +552,13 @@ namespace Prototipo3
             {
                 visionRadiusNormal = baseVisionNormal * 0.5f;
                 visionRadiusCrouched = baseVisionCrouched * 0.5f;
-                backDetectionRadius = bossProfile == BossProfileType.Sultan_Lobo ? 0.4f : 0f;
+                backDetectionRadius = 0f;
             }
             else
             {
                 visionRadiusNormal = baseVisionNormal;
                 visionRadiusCrouched = baseVisionCrouched;
                 backDetectionRadius = baseSmellRadius * Mathf.Max(1f, smellMultiplier);
-            }
-
-            bool isFeral = IsFeralActiveNow();
-
-            // 4. Sensibilidad a carrera ruidosa del Búho Morales (Shift sin C)
-            if (sensitiveToNoisySprint && isFeral && player != null && !pollenActive)
-            {
-                HamsterController hc = player.GetComponent<HamsterController>();
-                if (hc != null && hc.IsSprinting && !hc.isCrouching && !hc.IsDead)
-                {
-                    float dist = Vector3.Distance(transform.position, player.position);
-                    if (dist <= noisySprintDetectionRadius)
-                    {
-                        ForceChasePlayer();
-                    }
-                }
-            }
-
-            if (player != null && CurrentState == EnemyState.Wander && Prototipo3.Narrative.QuestCompiler.Instance != null && !Prototipo3.Narrative.QuestCompiler.Instance.IsCurrentQuestComplete)
-            {
-                var cur = Prototipo3.Narrative.QuestCompiler.Instance.CurrentAction;
-                if (cur != null && cur.actionType == "espiar_rutina")
-                {
-                    HamsterController hc = player.GetComponent<HamsterController>();
-                    if (hc != null && hc.isCrouching && Vector3.Distance(transform.position, player.position) <= 22f)
-                    {
-                        Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("espiar_rutina", "", transform);
-                    }
-                }
-            }
-
-            // 5. Rastro de gas anestésico de Clara Valdés ("La Dama de Gas")
-            if (leavesAnestheticGasTrail && (isFeral || CurrentState == EnemyState.Chase))
-            {
-                gasTrailTimer += Time.deltaTime;
-                if (gasTrailTimer >= gasSpawnInterval)
-                {
-                    gasTrailTimer = 0f;
-                    SpawnAnestheticGasCloud();
-                }
-            }
-        }
-
-        private void SpawnAnestheticGasCloud()
-        {
-            Vector3 spawnPos = transform.position;
-            spawnPos.y = minCitySurfaceY;
-
-            GameObject cloudObj;
-            if (anestheticGasCloudPrefab != null)
-            {
-                cloudObj = Instantiate(anestheticGasCloudPrefab, spawnPos, Quaternion.identity);
-            }
-            else
-            {
-                cloudObj = new GameObject("Clara_AnestheticGasCloud");
-                cloudObj.transform.position = spawnPos;
-                cloudObj.AddComponent<AnestheticGasCloud>();
             }
         }
 
@@ -851,6 +666,16 @@ namespace Prototipo3
             {
                 obstacleRedirectCooldown -= Time.deltaTime;
             }
+            if (refugeRepelCooldown > 0f)
+            {
+                refugeRepelCooldown -= Time.deltaTime;
+            }
+
+            if (SafeRefugeZone.ActiveZone != null && SafeRefugeZone.ActiveZone.ContainsPoint(transform.position, 0.25f))
+            {
+                RepelFromSafeRefuge(SafeRefugeZone.ActiveZone.GetRepelOrigin());
+                return;
+            }
 
             Vector3 checkCenter = transform.position + Vector3.up * 0.6f;
             float checkRadius = Mathf.Max(0.45f, protoAgent.radius);
@@ -940,10 +765,56 @@ namespace Prototipo3
 
                     if (NavMesh.SamplePosition(candidate, out NavMeshHit hit, 6.0f, NavMesh.AllAreas) && hit.position.y >= minCitySurfaceY - 0.2f)
                     {
+                        if (SafeRefugeZone.ActiveZone != null && SafeRefugeZone.ActiveZone.ContainsPoint(hit.position, 1.5f)) continue;
                         protoAgent.SetDestination(hit.position);
                         break;
                     }
                 }
+            }
+        }
+
+        public void RepelFromSafeRefuge(Vector3 refugeCenter)
+        {
+            ForceBaseState(EnemyState.Wander);
+            if (protoAgent == null) protoAgent = GetComponent<NavMeshAgent>();
+            if (protoAgent == null || !protoAgent.enabled || !protoAgent.isOnNavMesh) return;
+
+            SafeRefugeZone zone = SafeRefugeZone.ActiveZone;
+            if (zone != null && zone.ContainsPoint(transform.position, 0.35f) && refugeRepelCooldown <= 0f)
+            {
+                refugeRepelCooldown = 0.35f;
+                Vector3 outsideTarget = zone.GetSafeOutsidePosition();
+                Vector3 pushDir = transform.position - refugeCenter;
+                pushDir.y = 0f;
+                if (pushDir.sqrMagnitude < 0.04f) pushDir = outsideTarget - refugeCenter;
+                pushDir.y = 0f;
+                if (pushDir.sqrMagnitude < 0.01f) pushDir = -zone.transform.forward;
+                pushDir.Normalize();
+
+                Vector3 candidateExit = outsideTarget;
+                for (int step = 0; step < 4; step++)
+                {
+                    Vector3 probe = refugeCenter + pushDir * (6.2f + step * 1.5f);
+                    probe.y = minCitySurfaceY;
+                    if (NavMesh.SamplePosition(probe, out NavMeshHit exitHit, 4.0f, NavMesh.AllAreas) &&
+                        !zone.ContainsPoint(exitHit.position, 0.5f))
+                    {
+                        candidateExit = exitHit.position;
+                        break;
+                    }
+                }
+
+                if (NavMesh.SamplePosition(candidateExit, out NavMeshHit validExit, 5.0f, NavMesh.AllAreas) &&
+                    !zone.ContainsPoint(validExit.position, 0.5f))
+                {
+                    protoAgent.Warp(validExit.position);
+                    lastValidCityPosition = validExit.position;
+                }
+            }
+
+            if (obstacleRedirectCooldown <= 0f)
+            {
+                RedirectAwayFromBuilding(refugeCenter);
             }
         }
     }

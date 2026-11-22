@@ -13,8 +13,10 @@ namespace Prototipo3.UI
     public class MainMenuControllerPrototipo3 : MonoBehaviour
     {
         [Header("Escena Destino (Tutorial / Prototipo3)")]
-        [Tooltip("Ruta o nombre de la escena a cargar.")]
-        public string tutorialSceneName = "Assets/Prototipo3/Prototipo3.unity";
+        [Tooltip("Ruta o nombre de la escena de Sandbox Prototipo 3.")]
+        public string prototypeSceneName = "Assets/Prototipo3/Prototipo3.unity";
+        [Tooltip("Ruta o nombre de la escena del Tutorial.")]
+        public string tutorialSceneName = "Assets/Scenes/Tutorial.unity";
 
         [Header("Video Introductorio Opcional")]
         public VideoPlayer videoPlayer;
@@ -30,6 +32,11 @@ namespace Prototipo3.UI
         private Text audioState;
         private Text status;
         private bool isLoading = false;
+        private GameObject cityModeModal;
+        private InputField seedInputField;
+        private InputField widthInputField;
+        private InputField lengthInputField;
+        private Text modeModalStatus;
 
         private const string PREF_VOLUME = "Feral.UI.MasterVolume";
         private const string PREF_MUTED = "Feral.UI.Muted";
@@ -80,13 +87,13 @@ namespace Prototipo3.UI
 
         private void InitializeButtons()
         {
-            BindButton("Play", StartTutorial);
+            BindButton("Play", OpenPlayModeSelector);
             BindButton("SavedGames", () => ShowPage(1));
             BindButton("AudioSettings", () => ShowPage(2));
             BindButton("Help", () => ShowPage(3));
             BindButton("Quit", () => ShowPage(4));
 
-            BindButton("NewGame", StartTutorial);
+            BindButton("NewGame", OpenPlayModeSelector);
             BindButton("ConfirmQuit", QuitGame);
 
             Button[] allButtons = GetComponentsInChildren<Button>(true);
@@ -204,58 +211,174 @@ namespace Prototipo3.UI
 
         public void StartTutorial()
         {
+            OpenPlayModeSelector();
+        }
+
+        public void OpenPlayModeSelector()
+        {
+            if (isLoading) return;
+            EnsurePlayModeSelector();
+            if (seedInputField != null && string.IsNullOrWhiteSpace(seedInputField.text))
+            {
+                seedInputField.text = UnityEngine.Random.Range(100000, 999999).ToString();
+            }
+            if (cityModeModal != null)
+            {
+                cityModeModal.SetActive(true);
+            }
+        }
+
+        public void ClosePlayModeSelector()
+        {
+            if (cityModeModal != null)
+            {
+                cityModeModal.SetActive(false);
+            }
+        }
+
+        public void LaunchTutorialScene()
+        {
+            if (isLoading) return;
+            isLoading = true;
+            if (InventoryManager.Instance != null) InventoryManager.Instance.Clear();
+            PlayerPrefs.Save();
+
+            string sceneToLoad = ResolveLoadableScene(tutorialSceneName, "Tutorial", "Assets/Scenes/Tutorial.unity");
+            LoadResolvedScene(sceneToLoad, "Tutorial");
+        }
+
+        public void LaunchRandomCityPrototipo3()
+        {
+            int randomSeed = UnityEngine.Random.Range(100000, 999999);
+            LaunchCityWithConfig(randomSeed, 30, 30);
+        }
+
+        public void LaunchCustomCityFromInputs()
+        {
+            int parsedSeed = UnityEngine.Random.Range(100000, 999999);
+            if (seedInputField != null && int.TryParse(seedInputField.text.Trim(), out int s))
+            {
+                parsedSeed = Mathf.Abs(s);
+            }
+
+            int w = 30;
+            if (widthInputField != null && int.TryParse(widthInputField.text.Trim(), out int pw))
+            {
+                w = Mathf.Clamp(pw, 20, 60);
+            }
+
+            int l = 30;
+            if (lengthInputField != null && int.TryParse(lengthInputField.text.Trim(), out int pl))
+            {
+                l = Mathf.Clamp(pl, 20, 60);
+            }
+
+            LaunchCityWithConfig(parsedSeed, w, l);
+        }
+
+        private void LaunchCityWithConfig(int targetSeed, int width, int length)
+        {
             if (isLoading) return;
             isLoading = true;
 
-            int randomSeed = UnityEngine.Random.Range(100000, 999999);
-            CityGeneratorPrototipo3.SetPendingSeed(randomSeed);
-
-            if (status != null)
-            {
-                status.text = $"Iniciando partida (Semilla {randomSeed})...";
-            }
-
-            if (InventoryManager.Instance != null)
-            {
-                InventoryManager.Instance.Clear();
-            }
-
+            CityGeneratorPrototipo3.SetPendingCityConfig(targetSeed, width, length);
+            if (status != null) status.text = $"Generando ciudad (Semilla {targetSeed}, {width}x{length})...";
+            if (modeModalStatus != null) modeModalStatus.text = $"Cargando Prototipo 3 · Semilla {targetSeed}...";
+            if (InventoryManager.Instance != null) InventoryManager.Instance.Clear();
             PlayerPrefs.Save();
 
-            // Cargar escena de destino
-            string sceneToLoad = null;
-            if (!string.IsNullOrEmpty(tutorialSceneName) && Application.CanStreamedLevelBeLoaded(tutorialSceneName))
-            {
-                sceneToLoad = tutorialSceneName;
-            }
-            else if (Application.CanStreamedLevelBeLoaded("Prototipo3"))
-            {
-                sceneToLoad = "Prototipo3";
-            }
-            else if (Application.CanStreamedLevelBeLoaded("Assets/Prototipo3/Prototipo3.unity"))
-            {
-                sceneToLoad = "Assets/Prototipo3/Prototipo3.unity";
-            }
-            else if (Application.CanStreamedLevelBeLoaded("Tutorial"))
-            {
-                sceneToLoad = "Tutorial";
-            }
-            else if (SceneUtility.GetBuildIndexByScenePath("Assets/Prototipo3/Prototipo3.unity") >= 0)
-            {
-                sceneToLoad = "Assets/Prototipo3/Prototipo3.unity";
-            }
+            string sceneToLoad = ResolveLoadableScene(prototypeSceneName, "Prototipo3", "Assets/Prototipo3/Prototipo3.unity");
+            LoadResolvedScene(sceneToLoad, "Prototipo3");
+        }
 
+        private static string ResolveLoadableScene(params string[] candidates)
+        {
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                string c = candidates[i];
+                if (string.IsNullOrEmpty(c)) continue;
+                if (Application.CanStreamedLevelBeLoaded(c) || SceneUtility.GetBuildIndexByScenePath(c) >= 0)
+                {
+                    return c;
+                }
+            }
+            return null;
+        }
+
+        private void LoadResolvedScene(string sceneToLoad, string label)
+        {
             if (!string.IsNullOrEmpty(sceneToLoad))
             {
                 SceneManager.LoadScene(sceneToLoad);
+                return;
             }
-            else
+
+            isLoading = false;
+            if (status != null) status.text = $"No se encontró la escena '{label}' en Build Settings.";
+            if (modeModalStatus != null) modeModalStatus.text = $"No se encontró la escena '{label}' en Build Settings.";
+            Debug.LogError($"[MainMenuControllerPrototipo3] No se encontró la escena '{label}' en Build Settings.");
+        }
+
+        private void EnsurePlayModeSelector()
+        {
+            if (cityModeModal != null) return;
+
+            Canvas parentCanvas = GetComponentInParent<Canvas>();
+            Transform host = parentCanvas != null ? parentCanvas.transform : transform;
+
+            cityModeModal = new GameObject("CityModeSelectorModal", typeof(RectTransform), typeof(Image));
+            cityModeModal.transform.SetParent(host, false);
+            RectTransform rootRt = cityModeModal.GetComponent<RectTransform>();
+            FeralTheme.Stretch(rootRt);
+            cityModeModal.GetComponent<Image>().color = new Color(0.02f, 0.015f, 0.01f, 0.85f);
+
+            var card = FeralTheme.Brush("SelectorCard", cityModeModal.transform, 0, 0, 760, 620, FeralTheme.Ink).rectTransform;
+            card.anchorMin = card.anchorMax = card.pivot = new Vector2(0.5f, 0.5f);
+            card.anchoredPosition = Vector2.zero;
+
+            FeralTheme.Panel("AccentTop", card, 0, 0, 760, 5, FeralTheme.Red);
+            FeralTheme.Label("Kicker", card, "FERAL  ·  SELECCIÓN DE PARTIDA", 36, 26, 688, 28, 16, FeralTheme.Gold);
+            FeralTheme.Label("Title", card, "Elige cómo empezar", 36, 58, 688, 48, 36);
+            FeralTheme.Label("Subtitle", card, "Practica primero en el tutorial o entra directo a una ciudad procedural.", 36, 110, 688, 32, 18, FeralTheme.Muted);
+
+            FeralTheme.Button("BtnTutorial", card, "1. Jugar Tutorial Guiado", 36, 162, 688, 56, LaunchTutorialScene, false);
+            FeralTheme.Button("BtnRandomCity", card, "2. Ciudad Aleatoria (Prototipo 3)", 36, 232, 688, 58, LaunchRandomCityPrototipo3, true);
+
+            var customBox = FeralTheme.Panel("CustomCityBox", card, 36, 308, 688, 226, FeralTheme.Card).rectTransform;
+            FeralTheme.Label("CustomTitle", customBox, "3. Personalizar Ciudad Procedural", 24, 16, 640, 32, 22, FeralTheme.Gold);
+
+            FeralTheme.Label("SeedLbl", customBox, "Semilla numérica:", 24, 60, 190, 30, 17, FeralTheme.Cream);
+            seedInputField = CreateMenuInputField(customBox, "SeedInput", UnityEngine.Random.Range(100000, 999999).ToString(), 220, 56, 230, 38);
+
+            FeralTheme.Button("RandSeedBtn", customBox, "Azar", 464, 56, 196, 38, () =>
             {
-                isLoading = false;
-                ShowPage(1);
-                if (status != null) status.text = "No se encontró la escena destino. Agrégala a las escenas del build.";
-                Debug.LogError("[MainMenuControllerPrototipo3] No se encontró la escena Prototipo3/Tutorial en Build Settings.");
-            }
+                if (seedInputField != null) seedInputField.text = UnityEngine.Random.Range(100000, 999999).ToString();
+            }, false);
+
+            FeralTheme.Label("SizeLbl", customBox, "Tamaño (20 - 60):", 24, 108, 190, 30, 17, FeralTheme.Cream);
+            widthInputField = CreateMenuInputField(customBox, "WidthInput", "30", 220, 104, 100, 38);
+            FeralTheme.Label("SizeX", customBox, "x", 328, 108, 24, 30, 18, FeralTheme.Muted);
+            lengthInputField = CreateMenuInputField(customBox, "LengthInput", "30", 350, 104, 100, 38);
+
+            FeralTheme.Button("BtnCustomCity", customBox, "Generar y Jugar Ciudad Personalizada", 24, 158, 640, 50, LaunchCustomCityFromInputs, true);
+
+            modeModalStatus = FeralTheme.Label("ModeStatus", card, "", 36, 544, 460, 44, 16, FeralTheme.Gold);
+            FeralTheme.Button("BtnCloseModal", card, "Cerrar  [ESC]", 520, 548, 204, 48, ClosePlayModeSelector, false);
+
+            cityModeModal.SetActive(false);
+        }
+
+        private static InputField CreateMenuInputField(Transform parent, string name, string initialValue, float x, float y, float w, float h)
+        {
+            var bg = FeralTheme.Panel(name, parent, x, y, w, h, FeralTheme.Ink);
+            var text = FeralTheme.Label("Text", bg.transform, "", 10, 4, w - 20, h - 8, 18, FeralTheme.Cream);
+            text.alignment = TextAnchor.MiddleLeft;
+            text.supportRichText = false;
+            var input = bg.gameObject.AddComponent<InputField>();
+            input.textComponent = text;
+            input.contentType = InputField.ContentType.IntegerNumber;
+            input.text = initialValue;
+            return input;
         }
 
         public void QuitGame()
@@ -302,6 +425,11 @@ namespace Prototipo3.UI
 #endif
             if (escapePressed)
             {
+                if (cityModeModal != null && cityModeModal.activeSelf)
+                {
+                    ClosePlayModeSelector();
+                    return;
+                }
                 ShowPage(currentPage == 0 ? 4 : 0);
             }
         }

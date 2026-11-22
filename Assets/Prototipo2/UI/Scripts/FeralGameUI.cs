@@ -21,7 +21,9 @@ namespace Prototipo2.UI
         public Canvas Canvas { get; private set; }
         public bool DialogueOpen => CurrentPage == Page.Dialogue;
         RectTransform hud, modal, content;
-        Text health, staminaText, clock, objective, guide, phase, interaction, quickTraps, status;
+        Text health, staminaText, clock, objective, guide, phase, interaction, quickTraps, status, lootFeedback;
+        GameObject lootFeedbackBox;
+        float lootFeedbackExpiryTime;
         MenuBrushGraphic staminaFill, healthFill;
         Text[] trapAmounts = new Text[3];
         MenuBrushGraphic[] trapFrames = new MenuBrushGraphic[3];
@@ -62,6 +64,8 @@ namespace Prototipo2.UI
             modal.gameObject.SetActive(false);
             CraftingTable.OnMenuToggled += CraftingToggled;
             CraftingTable.OnTrapCrafted += Crafted;
+            LootContainer.OnContainerLooted += HandleContainerLooted;
+            LootContainer.OnContainerAlreadyLooted += HandleContainerAlreadyLooted;
             SuppressLegacy();
         }
         IEnumerator Start()
@@ -123,6 +127,10 @@ namespace Prototipo2.UI
                 nextRefresh = Time.unscaledTime + .2f; BindData(); SuppressLegacy(); RefreshHud();
                 if (player && player.IsDead && TutorialPipelineManager.Instance == null && CurrentPage == Page.None) Open(Page.Defeat);
             }
+            if (lootFeedbackBox != null && lootFeedbackBox.activeSelf && Time.unscaledTime >= lootFeedbackExpiryTime)
+            {
+                lootFeedbackBox.SetActive(false);
+            }
         }
         public void Open(Page page)
         {
@@ -163,7 +171,26 @@ namespace Prototipo2.UI
                 story.OnDialogueTriggered -= ShowDialogue; story.OnDemoCompleted -= Won; story.OnActiveNodeChanged -= MissionChanged;
             }
             CraftingTable.OnMenuToggled -= CraftingToggled; CraftingTable.OnTrapCrafted -= Crafted;
+            LootContainer.OnContainerLooted -= HandleContainerLooted;
+            LootContainer.OnContainerAlreadyLooted -= HandleContainerAlreadyLooted;
             ReleasePause(); if (Instance == this) Instance = null;
+        }
+        void HandleContainerLooted(LootContainer container, System.Collections.Generic.List<ItemType> items)
+        {
+            ShowLootFeedback("Recogido:  " + LootContainer.FormatLootSummary(items), 3.6f);
+        }
+        void HandleContainerAlreadyLooted(LootContainer container)
+        {
+            ShowLootFeedback("Contenedor vacío (ya saqueado)", 2.4f);
+        }
+        public void ShowLootFeedback(string msg, float duration)
+        {
+            if (lootFeedback != null && lootFeedbackBox != null)
+            {
+                lootFeedback.text = msg;
+                lootFeedbackBox.SetActive(true);
+                lootFeedbackExpiryTime = Time.unscaledTime + duration;
+            }
         }
         void CraftingToggled(CraftingTable source, bool opened)
         {
@@ -216,6 +243,13 @@ namespace Prototipo2.UI
             interaction.rectTransform.anchorMin = interaction.rectTransform.anchorMax = interaction.rectTransform.pivot = new Vector2(.5f, 0);
             interaction.rectTransform.anchoredPosition = new Vector2(0, 140); interaction.alignment = TextAnchor.MiddleCenter;
             interaction.gameObject.AddComponent<Shadow>().effectDistance = new Vector2(2, -2);
+            var lootPanel = FeralTheme.Brush("LootFeedbackBox", hud, 0, 0, 560, 54, FeralTheme.Ink).rectTransform;
+            lootPanel.anchorMin = lootPanel.anchorMax = lootPanel.pivot = new Vector2(.5f, 0);
+            lootPanel.anchoredPosition = new Vector2(0, 212);
+            lootFeedbackBox = lootPanel.gameObject;
+            lootFeedback = FeralTheme.Label("LootFeedback", lootPanel, "", 16, 8, 528, 38, 20, FeralTheme.Gold);
+            lootFeedback.alignment = TextAnchor.MiddleCenter;
+            lootFeedbackBox.SetActive(false);
         }
         static string Clean(string text) => System.Text.RegularExpressions.Regex.Replace(text ?? "", "<.*?>", "");
         void RefreshHud()
@@ -399,7 +433,7 @@ namespace Prototipo2.UI
             FeralTheme.Button("Inventory", content, "Mochila   [TAB]", 36, 292, 548, 60, () => Open(Page.Inventory));
             FeralTheme.Button("Missions", content, "Misiones   [M]", 36, 369, 548, 60, () => Open(Page.Missions));
             var volumeText = FeralTheme.Label("VolumeLabel", content, "Volumen", 36, 474, 548, 30, 22);
-            var volume = FeralTheme.Slider("Volume", content, 36, 519, 548, PlayerPrefs.GetFloat("Feral.UI.MasterVolume", .8f), v =>
+            var volume = FeralTheme.Slider("Volume", content, 36, 519, 380, PlayerPrefs.GetFloat("Feral.UI.MasterVolume", .8f), v =>
             {
                 PlayerPrefs.SetFloat("Feral.UI.MasterVolume", v); PlayerPrefs.SetInt("Feral.UI.Muted", 0);
                 MainMenuControllerPrototipo2.ApplySavedAudio(); volumeText.text = "Volumen   " + Mathf.RoundToInt(v * 100) + "%";

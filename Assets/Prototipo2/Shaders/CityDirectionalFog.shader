@@ -2,20 +2,23 @@ Shader "Prototipo2/CityDirectionalFog"
 {
     Properties
     {
-        _FogColor ("Fog Color", Color) = (0.04, 0.06, 0.11, 0.95)
-        _FogDensity ("Fog Density", Range(0.001, 0.1)) = 0.025
-        _DirectionalIntensity ("Directional Forward Boost", Range(0.0, 3.0)) = 1.6
-        _NightIntensity ("Night Intensity", Range(0.0, 1.0)) = 1.0
-        _NearDistance ("Near Distance", Float) = 2.0
-        _FarDistance ("Far Distance", Float) = 35.0
+        _FogColor ("Fog Color", Color) = (0.06, 0.09, 0.14, 0.82)
+        _FogDensity ("Fog Density", Range(0.001, 0.1)) = 0.022
+        _DirectionalIntensity ("Directional Forward Boost", Range(0.0, 3.0)) = 1.25
+        _NightIntensity ("Night Intensity", Range(0.0, 1.0)) = 0.0
+        _NearDistance ("Clear Radius", Float) = 11.5
+        _FarDistance ("Far Distance", Float) = 32.0
+        _NoiseScale ("Smog Noise Scale", Float) = 0.065
+        _NoiseSpeed ("Smog Drift Speed", Float) = 0.35
+        _MaxAlpha ("Max Smog Alpha", Range(0.1, 0.95)) = 0.80
     }
     SubShader
     {
-        Tags 
-        { 
-            "RenderType" = "Transparent" 
-            "Queue" = "Transparent+500" 
-            "RenderPipeline" = "UniversalPipeline" 
+        Tags
+        {
+            "RenderType" = "Transparent"
+            "Queue" = "Transparent+400"
+            "RenderPipeline" = "UniversalPipeline"
         }
 
         Pass
@@ -52,10 +55,44 @@ Shader "Prototipo2/CityDirectionalFog"
                 float _NightIntensity;
                 float _NearDistance;
                 float _FarDistance;
+                float _NoiseScale;
+                float _NoiseSpeed;
+                float _MaxAlpha;
             CBUFFER_END
 
             float4 _PlayerPosition;
             float4 _PlayerForward;
+
+            float Hash21(float2 p)
+            {
+                p = frac(p * float2(123.34, 456.21));
+                p += dot(p, p + 45.32);
+                return frac(p.x * p.y);
+            }
+
+            float ValueNoise(float2 p)
+            {
+                float2 i = floor(p);
+                float2 f = frac(p);
+                float2 u = f * f * (3.0 - 2.0 * f);
+
+                float a = Hash21(i);
+                float b = Hash21(i + float2(1.0, 0.0));
+                float c = Hash21(i + float2(0.0, 1.0));
+                float d = Hash21(i + float2(1.0, 1.0));
+
+                return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y);
+            }
+
+            float FbmSmog(float2 xz)
+            {
+                float2 drift1 = float2(_Time.y * _NoiseSpeed, _Time.y * 0.37 * _NoiseSpeed);
+                float2 drift2 = float2(-_Time.y * 0.55 * _NoiseSpeed, _Time.y * 0.28 * _NoiseSpeed);
+                float n1 = ValueNoise(xz * _NoiseScale + drift1);
+                float n2 = ValueNoise(xz * (_NoiseScale * 2.15) + drift2);
+                float n3 = ValueNoise(xz * (_NoiseScale * 4.30) - drift1 * 0.6);
+                return n1 * 0.55 + n2 * 0.30 + n3 * 0.15;
+            }
 
             Varyings Vert(Attributes input)
             {
@@ -67,11 +104,6 @@ Shader "Prototipo2/CityDirectionalFog"
 
             float4 Frag(Varyings input) : SV_Target
             {
-                if (_NightIntensity <= 0.001)
-                {
-                    discard;
-                }
-
                 float2 screenUV = input.positionCS.xy / _ScaledScreenParams.xy;
                 float rawDepth = SampleSceneDepth(screenUV);
 
@@ -82,29 +114,41 @@ Shader "Prototipo2/CityDirectionalFog"
                 #endif
 
                 float3 worldPos = ComputeWorldSpacePosition(screenUV, rawDepth, UNITY_MATRIX_I_VP);
-                float camDist = length(worldPos - _WorldSpaceCameraPos);
 
-                float3 toPixel = worldPos - _PlayerPosition.xyz;
-                float distFromPlayer = length(toPixel.xz);
-                float2 dirFromPlayer = toPixel.xz / max(0.001, distFromPlayer);
+                float2 toPixelXZ = worldPos.xz - _PlayerPosition.xz;
+                float distFromPlayer = length(toPixelXZ);
+                float2 dirFromPlayer = toPixelXZ / max(0.001, distFromPlayer);
                 float2 pForward = normalize(_PlayerForward.xz + float2(0.0001, 0.0001));
 
-                float forwardDot = dot(dirFromPlayer, pForward);
-                float directionalFactor = saturate(forwardDot);
+                float smogNoise = FbmSmog(isSky ? (_WorldSpaceCameraPos.xz + dirFromPlayer * 35.0) : worldPos.xz);
+                float noisePerturb = (smogNoise - 0.5) * 3.8;
 
-                float distFactor = saturate((distFromPlayer - _NearDistance) / max(0.1, _FarDistance));
-                float directionalFog = distFactor * (1.0 + directionalFactor * _DirectionalIntensity);
-                
-                float depthFog = 1.0 - exp(-camDist * _FogDensity);
-                float combinedFog = saturate(max(depthFog, directionalFog * 0.85));
+                float effectiveNear = max(5.0, _NearDistance + noisePerturb * 0.65);
+                float effectiveSpan = max(4.0, _FarDistance - _NearDistance);
+                float radialFactor = smoothstep(effectiveNear, effectiveNear + effectiveSpan, distFromPlayer);
 
-                if (isSky)
+                float forwardDot = saturate(dot(dirFromPlayer, pForward));
+                float directionalBoost = 1.0 + forwardDot * _DirectionalIntensity * _NightIntensity;
+
+                float dayVsNightDensity = lerp(0.32, 1.0, _NightIntensity);
+                float camDist = isSky ? 90.0 : length(worldPos - _WorldSpaceCameraPos);
+                float depthHaze = 1.0 - exp(-max(0.0, camDist - 12.0) * (_FogDensity * dayVsNightDensity));
+
+                float smogWisps = lerp(0.76, 1.24, smogNoise);
+                float rawFog = max(radialFactor * directionalBoost, depthHaze) * smogWisps;
+
+                rawFog *= smoothstep(effectiveNear * 0.72, effectiveNear + 3.5, distFromPlayer);
+
+                float finalAlpha = saturate(rawFog * _FogColor.a);
+                finalAlpha = min(finalAlpha, _MaxAlpha);
+
+                if (finalAlpha <= 0.004)
                 {
-                    combinedFog = 0.85;
+                    discard;
                 }
 
-                float finalAlpha = combinedFog * _NightIntensity * _FogColor.a;
-                return float4(_FogColor.rgb, finalAlpha);
+                float3 finalRgb = _FogColor.rgb * lerp(0.92, 1.12, smogNoise);
+                return float4(finalRgb, finalAlpha);
             }
             ENDHLSL
         }
