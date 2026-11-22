@@ -1,0 +1,29 @@
+PASS: A single uGUI presentation is created
+PASS: No duplicate unified UI
+PASS: Trap additions and removals notify the UI
+PASS: Starting a new session clears crafted traps
+PASS: Modal switching restores the previous time scale and disabled player state
+PASS: Closing input does not leak into gameplay in the same frame
+PASS: Input suppression expires after closing
+PASS: Traps is interactable
+PASS: Equip is interactable
+PASS: Owned traps can be equipped
+PASS: Pause freezes gameplay
+PASS: Resume restores gameplay
+PASS: The actual crafting-table event opens the shared crafting screen
+PASS: Crafting consumes the actual recipe and grants a trap
+PASS: Insufficient materials cannot produce traps
+PASS: Closing crafting synchronizes table and pause state
+PASS: Journal hides unrevealed mission spoilers
+PASS: Journal displays actual objective progress: FERAL  /  PREPÁRATE PARA LA NOCHE | Volver  [ESC] | Diario de misiones | Tu siguiente paso, las pistas que has reunido y los objetivos completados. |  | Encuentra a Lulú | COMPLETADA |  | Una ayuda antes del anochecer | EN CURSO | OBJETIVO | Una ayuda antes del anochecer
+
+Lulú necesita materiales para preparar el refugio.
+
+Pista: Busca en los contenedores de la calle y vuelve con Lulú.
+
+Progreso: 1 / 3
+PASS: Continue is interactable
+PASS: Dialogue confirmation releases pause
+PASS: Tutorial HUD reads the live tutorial objective
+
+ALL CHECKS PASSED

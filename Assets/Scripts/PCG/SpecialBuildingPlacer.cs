@@ -9,6 +9,10 @@ public class SpecialBuildingPlacer
     private readonly RoadNetwork network;
     private readonly BuildingSpawner spawner;
     private readonly List<Vector2Int> placedAnchors = new List<Vector2Int>();
+    private readonly List<GameObject> placedInstances = new List<GameObject>();
+
+    public List<Vector2Int> PlacedAnchors => placedAnchors;
+    public List<GameObject> PlacedInstances => placedInstances;
 
     public SpecialBuildingPlacer(CityGenerationSettings settings, CityRandom rng,
                                  RoadNetwork network, BuildingSpawner spawner)
@@ -19,9 +23,9 @@ public class SpecialBuildingPlacer
         this.spawner = spawner;
     }
 
-    public void PlaceAll(List<GameObject> prefabs)
+    public List<GameObject> PlaceAll(List<GameObject> prefabs)
     {
-        if (prefabs == null) return;
+        if (prefabs == null) return placedInstances;
         CityGrid grid = network.Grid;
 
         foreach (GameObject prefab in prefabs)
@@ -41,16 +45,18 @@ public class SpecialBuildingPlacer
                 if (!grid.CanPlaceFootprint(x, y, data.gridWidth, data.gridLength)) continue;
                 if (!IsFarFromOtherSpecials(x, y)) continue;
 
-                if (TryPlace(prefab, x, y, data))
+                if (TryPlace(prefab, x, y, data, out GameObject placedGo))
                 {
                     placedAnchors.Add(new Vector2Int(x, y));
+                    placedInstances.Add(placedGo);
                     break;
                 }
             }
         }
+        return placedInstances;
     }
 
-    private bool TryPlace(GameObject prefab, int x, int y, BuildingData data)
+    private bool TryPlace(GameObject prefab, int x, int y, BuildingData data, out GameObject placedGo)
     {
         CityGrid grid = network.Grid;
         GameObject go = spawner.Spawn(prefab, x, y, data);
@@ -63,12 +69,17 @@ public class SpecialBuildingPlacer
         for (int r = 0; r < 4; r++)
         {
             Vector2Int entrance = spawner.GetFrontCell(socket);
-            if (network.TryConnectToMain(entrance, settings.maxAccessPathLength)) return true;
+            if (network.TryConnectToMain(entrance, settings.maxAccessPathLength))
+            {
+                placedGo = go;
+                return true;
+            }
             go.transform.Rotate(0f, 90f, 0f);
         }
 
         grid.MarkFootprint(x, y, data.gridWidth, data.gridLength, CellType.Empty);
         spawner.Discard(go);
+        placedGo = null;
         return false;
     }
 

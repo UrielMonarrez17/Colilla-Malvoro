@@ -46,9 +46,9 @@ namespace Prototipo3
             // Garantizar 3 contenedores iniciales cerca de la base para suministros
             Vector3[] starterOffsets =
             {
-                new Vector3(-3.8f, 0f, 2.5f),
-                new Vector3(3.8f, 0f, -2.8f),
-                new Vector3(-3.6f, 0f, -2.6f)
+                new Vector3(-3.2f, 0f, 2.5f),
+                new Vector3(3.5f, 0f, -2.8f),
+                new Vector3(-2.5f, 0f, -3.5f)
             };
             ItemType[][] starterPacks =
             {
@@ -70,11 +70,9 @@ namespace Prototipo3
             foreach (Vector3 deadEndPos in cityGen.DeadEndPoints)
             {
                 if (Vector3.Distance(deadEndPos, cityGen.PlayerSpawnPoint) < 6.0f) continue;
-                if (cityGen.IsNearProtectedStoryZone(deadEndPos, 6.0f)) continue;
 
                 Vector3 dropPos = deadEndPos + new Vector3((float)rng.Range(-1, 2), 0, (float)rng.Range(-1, 2));
                 dropPos.y = cityGen.roadHeightY;
-                if (cityGen.IsNearProtectedStoryZone(dropPos, 6.0f)) continue;
 
                 GameObject spawnerObj = new GameObject($"DropSpawner_Alley_{spawnerIndex++}");
                 spawnerObj.transform.SetParent(dropRoot.transform, false);
@@ -93,23 +91,6 @@ namespace Prototipo3
             foreach (CitySocket socket in spawnedBuildings)
             {
                 if (socket == null || socket.frontSocket == null) continue;
-
-                Transform t = socket.transform;
-                bool isStoryBuilding = false;
-                while (t != null && t != cityGen.transform)
-                {
-                    GameObject go = t.gameObject;
-                    if (go == cityGen.SpawnedEscuela || go == cityGen.SpawnedBosque ||
-                        go == cityGen.SpawnedHospital || go == cityGen.SpawnedTorre ||
-                        go == cityGen.SpawnedTobyBuilding)
-                    {
-                        isStoryBuilding = true;
-                        break;
-                    }
-                    t = t.parent;
-                }
-                if (isStoryBuilding) continue;
-
                 if (!rng.Chance(effectiveProbability)) continue;
 
                 float z = socket.frontSocket.localPosition.z;
@@ -129,8 +110,6 @@ namespace Prototipo3
                 {
                     Vector3 worldPos = socket.transform.TransformPoint(offset);
                     worldPos.y = cityGen.roadHeightY;
-
-                    if (cityGen.IsNearProtectedStoryZone(worldPos, 6.0f)) continue;
 
                     int gridX = Mathf.FloorToInt(worldPos.x / cityGen.cellSize);
                     int gridY = Mathf.FloorToInt(worldPos.z / cityGen.cellSize);

@@ -38,13 +38,6 @@ namespace Prototipo3
         [Tooltip("Referencia al NPC asignado a este edificio (ej. Toby)")]
         public DualRoleCharacter residentNPC;
 
-        [Header("Referencias Opcionales")]
-        [Tooltip("Transform del jugador para chequeos de proximidad")]
-        public Transform playerTransform;
-
-        [Tooltip("Objeto raíz del indicador visual/prompt de la puerta")]
-        public GameObject promptRoot;
-
         private Collider triggerCollider;
         private float lastInteractionTime = -10f;
 
@@ -151,66 +144,12 @@ namespace Prototipo3
             }
         }
 
-        private void EnsurePlayerReference()
-        {
-            if (playerTransform == null || !playerTransform.gameObject.activeInHierarchy)
-            {
-                HamsterControllerPrototipo3 hc3 = FindAnyObjectByType<HamsterControllerPrototipo3>();
-                if (hc3 != null) { playerTransform = hc3.transform; return; }
-                HamsterController hc = FindAnyObjectByType<HamsterController>();
-                if (hc != null) playerTransform = hc.transform;
-            }
-        }
-
-        private void Update()
-        {
-            EnsurePlayerReference();
-
-            if (residentNPC != null && playerTransform != null)
-            {
-                float distToResident = Vector3.Distance(playerTransform.position, residentNPC.transform.position);
-                if (distToResident <= residentNPC.interactDistance)
-                {
-                    if (promptRoot != null) promptRoot.SetActive(false);
-                    return;
-                }
-            }
-
-            if (playerTransform != null)
-            {
-                Vector3 doorPos = entranceSocket != null ? entranceSocket.position : transform.position;
-                float distToDoor = Vector3.Distance(playerTransform.position, doorPos);
-                bool inRange = distToDoor <= interactionRadius;
-
-                if (promptRoot != null && promptRoot.activeSelf != inRange)
-                {
-                    promptRoot.SetActive(inRange);
-                }
-
-                if (inRange && (FeralInput.Pressed(KeyCode.F) || Input.GetKeyDown(KeyCode.F)))
-                {
-                    Interact();
-                }
-            }
-        }
-
         /// <summary>
         /// Ejecuta la acción al interactuar con la puerta del edificio especial.
         /// Si la escena interior existe en la compilación, la carga; de lo contrario, muestra feedback contextual en el HUD.
         /// </summary>
         public void Interact()
         {
-            EnsurePlayerReference();
-            if (residentNPC != null && playerTransform != null)
-            {
-                float distToResident = Vector3.Distance(playerTransform.position, residentNPC.transform.position);
-                if (distToResident <= residentNPC.interactDistance)
-                {
-                    if (promptRoot != null) promptRoot.SetActive(false);
-                    return;
-                }
-            }
-
             if (Time.unscaledTime - lastInteractionTime < 0.6f) return;
             lastInteractionTime = Time.unscaledTime;
 

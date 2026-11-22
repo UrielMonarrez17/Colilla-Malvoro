@@ -13,7 +13,7 @@ public class CameraFollow : MonoBehaviour
     [Tooltip("Qué tan suave sigue la cámara al jugador. Un valor más alto es más rígido.")]
     public float smoothSpeed = 8f;
 
-    void LateUpdate()
+    protected virtual void LateUpdate()
     {
         // Si no hay objetivo asignado, no hacemos nada
         if (target == null) return;
