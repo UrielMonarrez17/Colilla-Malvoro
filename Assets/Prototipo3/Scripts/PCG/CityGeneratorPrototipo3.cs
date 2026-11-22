@@ -1010,6 +1010,43 @@ namespace Prototipo3
         }
 
         /// <summary>
+        /// Comprueba si una posición horizontal XZ está dentro de la distancia de despeje de zonas protegidas
+        /// de historia (Base de Kilo, Mesa de Fabricación, Hitos, Entradas, Posiciones de Bosses y Edificio de Toby).
+        /// </summary>
+        public bool IsNearProtectedStoryZone(Vector3 worldPos, float minClearance = 14f)
+        {
+            float minSqr = minClearance * minClearance;
+
+            bool CheckDist(Vector3 target)
+            {
+                if (target == Vector3.zero) return false;
+                float dx = worldPos.x - target.x;
+                float dz = worldPos.z - target.z;
+                return (dx * dx + dz * dz) < minSqr;
+            }
+
+            if (CheckDist(PlayerSpawnPoint)) return true;
+            if (CheckDist(CraftTableSpawnPoint)) return true;
+
+            if (SpawnedTobyBuilding != null && CheckDist(SpawnedTobyBuilding.transform.position)) return true;
+
+            foreach (Vector3 pos in landmarkPositions.Values)
+            {
+                if (CheckDist(pos)) return true;
+            }
+            foreach (Vector3 pos in landmarkEntrancePositions.Values)
+            {
+                if (CheckDist(pos)) return true;
+            }
+            foreach (Vector3 pos in landmarkBossPositions.Values)
+            {
+                if (CheckDist(pos)) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// PASO 2.5: Calcula en tiempo real si la Escuela, el Bosque, el Hospital o la Torre quedaron al
         /// Norte, Noreste, Este, Sureste, Sur, Suroeste, Oeste o Noroeste respecto al jugador.
         /// </summary>
@@ -1195,13 +1232,6 @@ namespace Prototipo3
                 if (b == null) continue;
                 GameObject bObj = b.gameObject;
 
-                // Los 4 edificios clave tienen interiores/patios transitables con sus propios muros hijos
-                if (bObj == SpawnedEscuela || bObj == SpawnedBosque || bObj == SpawnedHospital || bObj == SpawnedTorre ||
-                    bObj.name.StartsWith("Landmark_", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
                 BoxCollider box = bObj.GetComponent<BoxCollider>();
                 if (box == null)
                 {
@@ -1322,7 +1352,7 @@ namespace Prototipo3
 
             landmarkPositions["Base"] = PlayerSpawnPoint;
 
-            CraftTableSpawnPoint = PlayerSpawnPoint + new Vector3(2.2f, 0f, 1.6f);
+            CraftTableSpawnPoint = PlayerSpawnPoint + new Vector3(3.2f, 0f, 2.2f);
             if (NavMesh.SamplePosition(CraftTableSpawnPoint, out NavMeshHit tableHit, 3f, NavMesh.AllAreas))
             {
                 CraftTableSpawnPoint = tableHit.position;
@@ -1418,7 +1448,6 @@ namespace Prototipo3
             GameObject marcoMarker = new GameObject("MARKER_MARCO_ZONE");
             marcoMarker.transform.SetParent(transform, false);
             marcoMarker.transform.position = marcoWorldPos;
-            WorldRegistry.Register("Marco", marcoMarker.transform);
             WorldRegistry.Register("Marco_Zone", marcoMarker.transform);
         }
 

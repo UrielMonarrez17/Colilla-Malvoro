@@ -381,7 +381,14 @@ namespace Prototipo3.UI
                 }
                 else if (target.GetComponentInParent<SpecialBuildingEntrance>() is SpecialBuildingEntrance entrance)
                 {
-                    interaction.text = $"[ F ]  Puerta: {entrance.buildingDisplayName}";
+                    if (entrance.residentNPC != null && player != null && Vector3.Distance(player.transform.position, entrance.residentNPC.transform.position) <= entrance.residentNPC.interactDistance)
+                    {
+                        interaction.text = !entrance.residentNPC.IsCurrentlyFeral ? $"[ F ]  Hablar con {entrance.residentNPC.displayName}" : $"¡{entrance.residentNPC.displayName} está en modo FERAL!";
+                    }
+                    else
+                    {
+                        interaction.text = $"[ F ]  Puerta: {entrance.buildingDisplayName}";
+                    }
                 }
                 else if (target.GetComponentInParent<CraftingTable>() != null)
                 {
@@ -428,17 +435,34 @@ namespace Prototipo3.UI
                 int activeCount = story.CurrentGraph != null ? story.CurrentGraph.GetActiveNodes().Count : 1;
                 phase.text = activeCount > 1 ? $"RUTAS ACTIVAS ({activeCount})   /   [ M ] DIARIO" : $"MISIÓN [{n.branchTag}]   /   [ M ] DIARIO";
                 string baseSummary = story.GetActiveBranchesSummaryText();
-                if (QuestCompiler.Instance != null && QuestCompiler.Instance.CurrentAction != null)
+                string stepHint = GetActiveNodeStepHint(n, story);
+
+                // Solo adjuntar acción de QuestCompiler si coincide estrictamente con el nodo activo actual
+                bool hasMatchingQuestAction = QuestCompiler.Instance != null &&
+                                              QuestCompiler.Instance.CurrentAction != null &&
+                                              string.Equals(QuestCompiler.Instance.ActiveStoryNodeID, n.id, StringComparison.OrdinalIgnoreCase);
+
+                if (hasMatchingQuestAction)
                 {
                     var act = QuestCompiler.Instance.CurrentAction;
                     string opt = act.isOptional ? "[OPCIONAL] " : "";
                     objective.text = $"{baseSummary}\n\n<color=#FFEE55>▶ {opt}{act.readableDescription}</color>";
-                    guide.text = !string.IsNullOrEmpty(act.cardinalHint) ? $"Rumbo: {act.cardinalHint}" : ("Pista: " + n.hint);
+                    guide.text = !string.IsNullOrEmpty(act.cardinalHint)
+                        ? $"Rumbo: {act.cardinalHint}"
+                        : (!string.IsNullOrEmpty(stepHint) ? ("Paso: " + stepHint) : ("Pista: " + n.hint));
                 }
                 else
                 {
-                    objective.text = baseSummary;
-                    guide.text = "Pista: " + n.hint;
+                    if (!string.IsNullOrEmpty(stepHint))
+                    {
+                        objective.text = $"{baseSummary}\n\n<color=#FFEE55>▶ {stepHint}</color>";
+                        guide.text = "Objetivo: " + stepHint;
+                    }
+                    else
+                    {
+                        objective.text = baseSummary;
+                        guide.text = "Pista: " + n.hint;
+                    }
                 }
 
                 if (radioBanner != null)
@@ -450,6 +474,77 @@ namespace Prototipo3.UI
                             : "Saquea contenedores con [F] para descubrir hacia qué punto cardinal están los edificios clave.";
                     radioBanner.text = rumorOrRadio;
                 }
+            }
+        }
+
+        private string GetActiveNodeStepHint(StoryNode n, StoryManagerPrototipo3 sm)
+        {
+            if (n == null || sm == null) return "";
+
+            switch (n.id)
+            {
+                case "node_0_apertura":
+                    if (!sm.hasSpokenToMarcoDay)
+                        return "Habla con Marco cerca de tu refugio [F].";
+                    if (!sm.hasCraftedInitialTool)
+                    {
+                        bool canCraft = TrapSystemPrototipo3.CanCraftTrap(TipoTrampa.Madera) ||
+                                        TrapSystemPrototipo3.CanCraftTrap(TipoTrampa.Puas) ||
+                                        TrapSystemPrototipo3.CanCraftTrap(TipoTrampa.Red);
+                        return canCraft
+                            ? "Ve a la mesa de fabricación [F] para armar tu primera trampa."
+                            : "Busca materiales en contenedores urbanos con [F] (necesitas madera o chatarra).";
+                    }
+                    return "Regresa al refugio o prepárate para la noche.";
+
+                case "node_a1_escuela":
+                    return "Dirígete al Taller de Robótica de Toby y habla con él [F].";
+
+                case "node_a2_toby":
+                    return "Investiga la Oficina del Rector Morales en la Escuela [F].";
+
+                case "node_a3_apagon":
+                    return "Inspecciona el Laboratorio de Química para conseguir el Vial de Enzima Base [F].";
+
+                case "node_b1_bosque":
+                    if (!sm.hasSpokenToMoka)
+                        return "Habla con la ardilla Moka en el Bosque Ceniza [F].";
+                    return "Habla con el perro Sultán en el claro del Bosque Ceniza [F].";
+
+                case "node_b2_postes":
+                    return "Reactiva los tres postes reflectores del arroyo [F].";
+
+                case "node_b3_sultan":
+                    return "Acciona el interruptor de la subestación de reflectores [F].";
+
+                case "node_c1_hospital":
+                    if (!sm.hasSpokenToSalgado)
+                        return "Habla con el Dr. Salgado en el Hospital San Jude [F].";
+                    if (!sm.hasVisitedSofiaRoom304)
+                        return "Visita a Sofía en la habitación 304 del hospital [F].";
+                    return "Habla con la enfermera Clara en la sala médica [F].";
+
+                case "node_c2_clara":
+                    return "Repara la válvula de la cámara hiperbárica [F].";
+
+                case "node_c3_oxigeno":
+                    if (!sm.HasKeyItem("Cilindro de Oxígeno Puro"))
+                        return "Consigue el Cilindro de Oxígeno Puro en los almacenes [F].";
+                    return "Entrega el cilindro de oxígeno puro al Dr. Salgado [F].";
+
+                case "node_d1_torre":
+                    if (!sm.hasSpokenToVane)
+                        return "Habla con la gata Vane en el vestíbulo de la Torre Aethelgard [F].";
+                    return "Localiza y libera a la Dra. Elena Vargas en su celda de contención [F].";
+
+                case "node_d2_kross":
+                    return "Sobrecarga los tres condensadores fotónicos UV del reactor [F].";
+
+                case "node_d3_final":
+                    return "Acciona el Inyector Central de la chimenea para dispersar la cura [F].";
+
+                default:
+                    return !string.IsNullOrEmpty(n.hint) ? n.hint : "";
             }
         }
 

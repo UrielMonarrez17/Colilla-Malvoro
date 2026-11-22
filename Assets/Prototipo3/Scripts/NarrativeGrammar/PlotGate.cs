@@ -28,31 +28,11 @@ namespace Prototipo3.Narrative
         public string lockedMechanismMessage = "El mecanismo no responde o carece del catalizador adecuado";
 
         /// <summary>
-        /// Comprueba si el nodo de historia requerido está activo en StoryDirector o StoryManagerPrototipo3.
+        /// Comprueba si el nodo de historia requerido está activo en StoryManagerPrototipo3 o StoryDirector.
         /// </summary>
         public bool IsGateOpen()
         {
-            // 1. Consultar primero a StoryDirector (DAG de la campaña)
-            if (StoryDirector.Instance != null)
-            {
-                if (StoryDirector.Instance.IsNodeActive(targetStoryNodeID) || StoryDirector.Instance.IsNodeCompleted(targetStoryNodeID))
-                {
-                    return true;
-                }
-
-                if (allowedStoryNodeIDs != null && allowedStoryNodeIDs.Count > 0)
-                {
-                    for (int i = 0; i < allowedStoryNodeIDs.Count; i++)
-                    {
-                        if (StoryDirector.Instance.IsNodeActive(allowedStoryNodeIDs[i]) || StoryDirector.Instance.IsNodeCompleted(allowedStoryNodeIDs[i]))
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
-
-            // 2. Consulta de respaldo con StoryManagerPrototipo3
+            // 1. Consulta primaria con StoryManagerPrototipo3 (Grafo DAG con estados de nodo exactos)
             if (StoryManagerPrototipo3.Instance != null && StoryManagerPrototipo3.Instance.CurrentGraph != null)
             {
                 StoryNode node = StoryManagerPrototipo3.Instance.CurrentGraph.GetNode(targetStoryNodeID);
@@ -67,6 +47,26 @@ namespace Prototipo3.Narrative
                     {
                         StoryNode alt = StoryManagerPrototipo3.Instance.CurrentGraph.GetNode(allowedStoryNodeIDs[i]);
                         if (alt != null && (alt.state == StoryNodeState.Active || alt.state == StoryNodeState.Completed))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            // 2. Consulta de respaldo con StoryDirector (DAG Macro de la campaña)
+            if (StoryDirector.Instance != null)
+            {
+                if (StoryDirector.Instance.IsNodeActive(targetStoryNodeID) || StoryDirector.Instance.IsNodeCompleted(targetStoryNodeID))
+                {
+                    return true;
+                }
+
+                if (allowedStoryNodeIDs != null && allowedStoryNodeIDs.Count > 0)
+                {
+                    for (int i = 0; i < allowedStoryNodeIDs.Count; i++)
+                    {
+                        if (StoryDirector.Instance.IsNodeActive(allowedStoryNodeIDs[i]) || StoryDirector.Instance.IsNodeCompleted(allowedStoryNodeIDs[i]))
                         {
                             return true;
                         }

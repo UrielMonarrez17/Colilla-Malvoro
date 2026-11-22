@@ -56,7 +56,7 @@ namespace Prototipo3
             List<Vector3> safeEnemySpawns = new List<Vector3>();
             foreach (Vector3 pt in candidatePoints)
             {
-                if (Vector3.Distance(pt, cityGen.PlayerSpawnPoint) >= effectiveMinDist)
+                if (Vector3.Distance(pt, cityGen.PlayerSpawnPoint) >= effectiveMinDist && !cityGen.IsNearProtectedStoryZone(pt, 16f))
                 {
                     safeEnemySpawns.Add(pt);
                 }

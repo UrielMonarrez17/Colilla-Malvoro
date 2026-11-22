@@ -86,10 +86,26 @@ namespace Prototipo3
 
         private float gasTrailTimer = 0f;
 
+        private MarcoBossController marcoBossController;
+        private MoralesOwlBossController moralesBossController;
+
         public bool IsDistractedByDecoy => acousticDecoyTimer > 0f;
         public bool IsParalyzedByStatic => staticParalysisTimer > 0f;
         public bool IsNetImmobilized => netImmobilizationTimer > 0f;
         public bool IsSpikeSlowed => spikeSlowTimer > 0f;
+
+        public void CancelActiveBossAttacks()
+        {
+            if (marcoBossController == null && bossProfile == BossProfileType.Marco_Tejon)
+                marcoBossController = GetComponent<MarcoBossController>();
+            if (marcoBossController != null)
+                marcoBossController.InterruptActiveAttack(false, 0f);
+
+            if (moralesBossController == null && bossProfile == BossProfileType.Morales_Buho)
+                moralesBossController = GetComponent<MoralesOwlBossController>();
+            if (moralesBossController != null)
+                moralesBossController.InterruptActiveAttack();
+        }
 
         public bool IsFeralActiveNow()
         {
@@ -208,6 +224,7 @@ namespace Prototipo3
         public void AttractToAcousticDecoy(Vector3 decoyPos, float duration)
         {
             CacheBaseDetectionValues();
+            CancelActiveBossAttacks();
             acousticDecoyPos = decoyPos;
             acousticDecoyTimer = Mathf.Max(acousticDecoyTimer, duration);
             ForceBaseState(EnemyState.Wander);
@@ -226,6 +243,7 @@ namespace Prototipo3
         public void ApplyStaticParalysis(float seconds)
         {
             CacheBaseDetectionValues();
+            CancelActiveBossAttacks();
             staticParalysisTimer = Mathf.Max(staticParalysisTimer, seconds);
             ForceBaseState(EnemyState.Wander);
 
@@ -273,6 +291,7 @@ namespace Prototipo3
         /// </summary>
         public void ApplyWoodBarricadeRepath(Vector3 barricadePos, float duration = 10f)
         {
+            CancelActiveBossAttacks();
             if (protoAgent == null) protoAgent = GetComponent<NavMeshAgent>();
             if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
             {
@@ -288,6 +307,7 @@ namespace Prototipo3
         public void ApplyNetImmobilization(float duration = 5f)
         {
             CacheBaseDetectionValues();
+            CancelActiveBossAttacks();
             netImmobilizationTimer = Mathf.Max(netImmobilizationTimer, duration);
             ForceBaseState(EnemyState.Wander);
 
@@ -415,6 +435,7 @@ namespace Prototipo3
             if (distFromHome > bossLeashDistance)
             {
                 // El jugador abandonó el territorio del jefe: romper persecución y regresar a su ancla
+                CancelActiveBossAttacks();
                 ForceBaseState(EnemyState.Wander);
                 if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
                 {
@@ -441,6 +462,15 @@ namespace Prototipo3
             // bloqueamos por completo la persecución y el ataque hacia el jugador.
             if (staticParalysisTimer > 0f || acousticDecoyTimer > 0f || netImmobilizationTimer > 0f)
             {
+                if (bossProfile == BossProfileType.Morales_Buho && acousticDecoyTimer > 0f && staticParalysisTimer <= 0f && netImmobilizationTimer <= 0f)
+                {
+                    if (moralesBossController == null) moralesBossController = GetComponent<MoralesOwlBossController>();
+                    if (moralesBossController != null) moralesBossController.TryTickBossAI(this, protoAgent, null, IsFeralActiveNow());
+                }
+                else
+                {
+                    CancelActiveBossAttacks();
+                }
                 ForceBaseState(EnemyState.Wander);
                 return;
             }
@@ -451,6 +481,7 @@ namespace Prototipo3
             bool isFeral = IsFeralActiveNow();
             if (!isFeral)
             {
+                CancelActiveBossAttacks();
                 ForceBaseState(EnemyState.Wander);
                 MiUpdateWander?.Invoke(this, null);
                 EnforceBossTerritoryPatrol();
@@ -462,10 +493,30 @@ namespace Prototipo3
 
             if (hc != null && hc.IsDead)
             {
+                CancelActiveBossAttacks();
                 ForceBaseState(EnemyState.Wander);
                 MiUpdateWander?.Invoke(this, null);
                 EnforceBossTerritoryPatrol();
                 return;
+            }
+
+            if (bossProfile == BossProfileType.Marco_Tejon)
+            {
+                if (marcoBossController == null) marcoBossController = GetComponent<MarcoBossController>();
+                if (marcoBossController != null && marcoBossController.TryTickBossAI(this, protoAgent, hc, isFeral))
+                {
+                    EnforceBossChaseLeash();
+                    return;
+                }
+            }
+            else if (bossProfile == BossProfileType.Morales_Buho)
+            {
+                if (moralesBossController == null) moralesBossController = GetComponent<MoralesOwlBossController>();
+                if (moralesBossController != null && moralesBossController.TryTickBossAI(this, protoAgent, hc, isFeral))
+                {
+                    EnforceBossChaseLeash();
+                    return;
+                }
             }
 
             switch (CurrentState)

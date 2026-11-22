@@ -84,10 +84,6 @@ namespace Prototipo3.Narrative
                 QuestCompiler.Instance.OnQuestCompleted -= HandleQuestCompletedByCompiler;
                 QuestCompiler.Instance.OnQuestCompleted += HandleQuestCompletedByCompiler;
             }
-
-            // Si StoryManagerPrototipo3 ya está activo en escena, él maneja la cinemática de apertura
-            bool smActive = StoryManagerPrototipo3.Instance != null;
-            StartPrologo(playCutscene: !smActive);
         }
 
         private void OnDestroy()
@@ -132,6 +128,16 @@ namespace Prototipo3.Narrative
         {
             if (string.IsNullOrEmpty(targetStoryNodeID)) return false;
 
+            // 1. Consultar primero a StoryManagerPrototipo3.Instance.CurrentGraph
+            if (StoryManagerPrototipo3.Instance != null && StoryManagerPrototipo3.Instance.CurrentGraph != null)
+            {
+                StoryNode node = StoryManagerPrototipo3.Instance.CurrentGraph.GetNode(targetStoryNodeID);
+                if (node != null)
+                {
+                    return node.state == StoryNodeState.Active;
+                }
+            }
+
             string normalized = targetStoryNodeID.ToLowerInvariant();
 
             // Mapeo flexible de alias
@@ -157,13 +163,15 @@ namespace Prototipo3.Narrative
             if (normalized.Contains("hospital") || normalized.Contains("salgado") || normalized.Contains("clara") || normalized.Contains("node_c"))
             {
                 return activeNodeIDs.Contains(CONVERGENCIA_HOSPITAL) ||
-                       activeNodeIDs.Contains("node_c2_clara");
+                       activeNodeIDs.Contains("node_c2_clara") ||
+                       activeNodeIDs.Contains("node_c3_oxigeno");
             }
 
             if (normalized.Contains("torre") || normalized.Contains("vane") || normalized.Contains("kross") || normalized.Contains("elena") || normalized.Contains("node_d"))
             {
                 return activeNodeIDs.Contains(FINAL_TORRE) ||
-                       activeNodeIDs.Contains("node_d2_kross");
+                       activeNodeIDs.Contains("node_d2_kross") ||
+                       activeNodeIDs.Contains("node_d3_final");
             }
 
             return activeNodeIDs.Contains(targetStoryNodeID);
@@ -172,6 +180,17 @@ namespace Prototipo3.Narrative
         public bool IsNodeCompleted(string targetStoryNodeID)
         {
             if (string.IsNullOrEmpty(targetStoryNodeID)) return false;
+
+            // 1. Consultar primero a StoryManagerPrototipo3.Instance.CurrentGraph
+            if (StoryManagerPrototipo3.Instance != null && StoryManagerPrototipo3.Instance.CurrentGraph != null)
+            {
+                StoryNode node = StoryManagerPrototipo3.Instance.CurrentGraph.GetNode(targetStoryNodeID);
+                if (node != null)
+                {
+                    return node.state == StoryNodeState.Completed;
+                }
+            }
+
             string normalized = targetStoryNodeID.ToLowerInvariant();
 
             if (normalized.Contains("prologo") || normalized.Contains("apertura") || normalized.Contains("node_0"))
@@ -254,25 +273,11 @@ namespace Prototipo3.Narrative
 
         private void UnlockBranchAAndB()
         {
-            // El grafo DAG bifurca en paralelo hacia Rama A y Rama B según los checkboxes activos
-            bool canEscuela = StoryManagerPrototipo3.Instance == null || StoryManagerPrototipo3.Instance.enableArcEscuelaMorales;
-            bool canBosque = StoryManagerPrototipo3.Instance == null || StoryManagerPrototipo3.Instance.enableArcBosqueSultan;
-
-            if (canEscuela)
-            {
-                activeMacroNode = RAMA_A_ESCUELA;
-                if (!activeNodeIDs.Contains(RAMA_A_ESCUELA)) activeNodeIDs.Add(RAMA_A_ESCUELA);
-                CompileMacroNodeQuest(RAMA_A_ESCUELA, "ARCO_COMPLEJO");
-                OnMacroNodeActivated?.Invoke(RAMA_A_ESCUELA);
-            }
-
-            if (canBosque)
-            {
-                if (!canEscuela) activeMacroNode = RAMA_B_BOSQUE;
-                if (!activeNodeIDs.Contains(RAMA_B_BOSQUE)) activeNodeIDs.Add(RAMA_B_BOSQUE);
-                CompileMacroNodeQuest(RAMA_B_BOSQUE, "ARCO_COMPLEJO");
-                OnMacroNodeActivated?.Invoke(RAMA_B_BOSQUE);
-            }
+            // Progresión Lineal: Primero se activa únicamente la Rama A (Escuela Bellavista)
+            activeMacroNode = RAMA_A_ESCUELA;
+            if (!activeNodeIDs.Contains(RAMA_A_ESCUELA)) activeNodeIDs.Add(RAMA_A_ESCUELA);
+            CompileMacroNodeQuest(RAMA_A_ESCUELA, "LINEAL");
+            OnMacroNodeActivated?.Invoke(RAMA_A_ESCUELA);
         }
 
         public void CompleteRamaAEscuela()
@@ -294,10 +299,14 @@ namespace Prototipo3.Narrative
                 StoryManagerPrototipo3.Instance.CompleteNodeIfNotDone("node_a3_apagon");
             }
 
-            Debug.Log("[StoryDirector] Rama A (Escuela Bellavista) completada. Obtenido: Vial de Enzima Base.");
+            Debug.Log("[StoryDirector] Rama A (Escuela Bellavista) completada. Obtenido: Vial de Enzima Base. Desbloqueando Rama B (Bosque Ceniza).");
             OnMacroNodeCompleted?.Invoke(RAMA_A_ESCUELA);
 
-            CheckConvergencePreconditions();
+            // Desbloquear y activar Rama B (Bosque Ceniza) linealmente
+            activeMacroNode = RAMA_B_BOSQUE;
+            if (!activeNodeIDs.Contains(RAMA_B_BOSQUE)) activeNodeIDs.Add(RAMA_B_BOSQUE);
+            CompileMacroNodeQuest(RAMA_B_BOSQUE, "LINEAL");
+            OnMacroNodeActivated?.Invoke(RAMA_B_BOSQUE);
         }
 
         public void CompleteRamaBBosque()
@@ -322,7 +331,7 @@ namespace Prototipo3.Narrative
             Debug.Log("[StoryDirector] Rama B (Bosque Ceniza) completada. Obtenido: Filtro de Carbón Biológico.");
             OnMacroNodeCompleted?.Invoke(RAMA_B_BOSQUE);
 
-            CheckConvergencePreconditions();
+            ActivateHospitalConvergence();
         }
 
         private void CheckConvergencePreconditions()

@@ -119,66 +119,6 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &51589276
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 51589280}
-  - component: {fileID: 51589279}
-  - component: {fileID: 51589278}
-  m_Layer: 0
-  m_Name: cityManager2
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 0
---- !u!114 &51589278
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 51589276}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3047cc96693cec4429adb757a9ea5bc2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BuildingData
-  gridWidth: 10
-  gridLength: 10
-  heightOffset: 0
---- !u!114 &51589279
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 51589276}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a90ab16ad59e4bf3a0704cab97dc6e3d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CityGenerator
---- !u!4 &51589280
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 51589276}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.5609, y: -0, z: -0.11551}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &680866396
 GameObject:
   m_ObjectHideFlags: 0
@@ -315,7 +255,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1230917354}
-  - component: {fileID: 1230917353}
+  - component: {fileID: 1230917355}
   m_Layer: 0
   m_Name: cityManagerMath
   m_TagString: Untagged
@@ -323,58 +263,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1230917353
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1230917352}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 451a096027fce704995a4dc7d0286ca4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CityGeneratorMathVersion
-  seed: 55077170
-  mapWidth: 50
-  mapLength: 50
-  cellSize: 10
-  specialBuildings:
-  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
-  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
-  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
-  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
-  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
-  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
-  normalBuildings:
-  - {fileID: 6307648287174884991, guid: bcbe9fd212b1a364b936c34827d0b107, type: 3}
-  - {fileID: 8933974364592397234, guid: b060568a54b6c924abd8725d7b68efcc, type: 3}
-  - {fileID: 1159673734080071651, guid: 83532e369db659c499e2222ecb258582, type: 3}
-  - {fileID: 8192723047899517669, guid: 7ba70a2f6be8cb4498e82fa674c11817, type: 3}
-  - {fileID: 1087492099153203764, guid: b115703a6bd4b6e47b74df1384ee8426, type: 3}
-  - {fileID: 3149756338935192460, guid: 3f35524cbe5005e47a537f0a9f72fcd6, type: 3}
-  lootPrefab: {fileID: 1970939979639782865, guid: 47fda6a705c797c459a99ee8e74c50e2, type: 3}
-  lootProbability: 1
-  roadForward: {fileID: 7879980762663222706, guid: c7ffce7dcdae5a7438c3893dbca2fd71, type: 3}
-  roadAngle: {fileID: 4452075131187004771, guid: 2bf2427616673684e9f50f4b3919a72b, type: 3}
-  roadT: {fileID: 9107833680919219300, guid: 95cb5357500daf7468dfd574662825eb, type: 3}
-  roadX: {fileID: 3399503055853382886, guid: e250a47485e7f0a4390b8873d8c3ed9b, type: 3}
-  roadDeadEnd: {fileID: 7879980762663222706, guid: c7ffce7dcdae5a7438c3893dbca2fd71, type: 3}
-  pedestrianPavement: {fileID: 1629306100895237221, guid: d734acbc0b770544e82fd18766968145, type: 3}
-  roadHeightY: 0
-  settings:
-    minWalkers: 3
-    maxWalkers: 10
-    maxWalkerSteps: 4000
-    turnChancePerSide: 0.276
-    branchChance: 0.175
-    maxRoundaboutCells: 8
-    roundaboutSpacing: 3
-    specialAttempts: 100
-    minCellDistanceBetweenSpecials: 4
-    maxAccessPathLength: 12
-    normalBuildingDensity: 1
-    allowInteriorBuildings: 0
 --- !u!4 &1230917354
 Transform:
   m_ObjectHideFlags: 0
@@ -390,6 +278,66 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1230917355
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1230917352}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2745482d060e9c1409175e78ecb02951, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CityGeneratorMathVersion
+  seed: 12345
+  mapWidth: 50
+  mapLength: 50
+  cellSize: 10
+  specialBuildings:
+  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
+  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
+  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
+  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
+  - {fileID: 4080955172041204136, guid: ae2547a6eb59c2645bd5a83d70f8e6a6, type: 3}
+  normalBuildings:
+  - {fileID: 6307648287174884991, guid: bcbe9fd212b1a364b936c34827d0b107, type: 3}
+  - {fileID: 8933974364592397234, guid: b060568a54b6c924abd8725d7b68efcc, type: 3}
+  - {fileID: 1159673734080071651, guid: 83532e369db659c499e2222ecb258582, type: 3}
+  - {fileID: 8192723047899517669, guid: 7ba70a2f6be8cb4498e82fa674c11817, type: 3}
+  - {fileID: 1087492099153203764, guid: b115703a6bd4b6e47b74df1384ee8426, type: 3}
+  - {fileID: 3149756338935192460, guid: 3f35524cbe5005e47a537f0a9f72fcd6, type: 3}
+  socketSpawns:
+  - name: loot
+    prefab: {fileID: 2516745819975710657, guid: bf48fd1f00f864646a6f2151612ca573, type: 3}
+    probability: 1
+    yOffset: 0
+    alignToBuilding: 0
+  - name: spawns
+    prefab: {fileID: 8793114147818933295, guid: e874ecb2d340b8742a30436a9a7f67b5, type: 3}
+    probability: 1
+    yOffset: 0
+    alignToBuilding: 0
+  roadForward: {fileID: 7879980762663222706, guid: c7ffce7dcdae5a7438c3893dbca2fd71, type: 3}
+  roadAngle: {fileID: 4452075131187004771, guid: 2bf2427616673684e9f50f4b3919a72b, type: 3}
+  roadT: {fileID: 9107833680919219300, guid: 95cb5357500daf7468dfd574662825eb, type: 3}
+  roadX: {fileID: 3399503055853382886, guid: e250a47485e7f0a4390b8873d8c3ed9b, type: 3}
+  roadDeadEnd: {fileID: 7879980762663222706, guid: c7ffce7dcdae5a7438c3893dbca2fd71, type: 3}
+  pedestrianPavement: {fileID: 1629306100895237221, guid: d734acbc0b770544e82fd18766968145, type: 3}
+  roadHeightY: 0
+  settings:
+    minWalkers: 3
+    maxWalkers: 8
+    maxWalkerSteps: 4000
+    turnChancePerSide: 0.1
+    branchChance: 0.2
+    maxRoundaboutCells: 8
+    roundaboutSpacing: 3
+    specialAttempts: 50
+    minCellDistanceBetweenSpecials: 4
+    maxAccessPathLength: 12
+    normalBuildingDensity: 0.613
+    allowInteriorBuildings: 0
 --- !u!1 &1239544639
 GameObject:
   m_ObjectHideFlags: 0
@@ -527,72 +475,10 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
---- !u!1 &1785363577
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1785363579}
-  - component: {fileID: 1785363578}
-  - component: {fileID: 1785363580}
-  m_Layer: 0
-  m_Name: cityManager
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 0
---- !u!114 &1785363578
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1785363577}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a90ab16ad59e4bf3a0704cab97dc6e3d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CityGenerator
---- !u!4 &1785363579
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1785363577}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.5609, y: -0, z: -0.11551}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1785363580
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1785363577}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3047cc96693cec4429adb757a9ea5bc2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BuildingData
-  gridWidth: 10
-  gridLength: 10
-  heightOffset: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 1239544642}
   - {fileID: 680866398}
-  - {fileID: 1785363579}
-  - {fileID: 51589280}
   - {fileID: 1230917354}

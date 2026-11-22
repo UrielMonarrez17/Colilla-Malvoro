@@ -27,10 +27,10 @@ namespace Prototipo3
         public bool enableArcBosqueSultan = true;
 
         [Tooltip("Arco 4: Hospital San Judas (Sofía, Salgado y Boss Clara Valdés)")]
-        public bool enableArcHospitalClara = false;
+        public bool enableArcHospitalClara = true;
 
         [Tooltip("Arco 5: Torre Aethelgard (Agente Vane, Dra. Elena y Boss Kross)")]
-        public bool enableArcTorreKross = false;
+        public bool enableArcTorreKross = true;
 
         [Header("Generación Narrativa")]
         public StoryWorldBinder worldBinder;
@@ -98,6 +98,13 @@ namespace Prototipo3
         {
             if (Instance == null) Instance = this;
             else if (Instance != this) { Destroy(this); return; }
+
+            // Asegurar que los 5 actos estén siempre habilitados para la historia lineal
+            enableArcAperturaMarco = true;
+            enableArcEscuelaMorales = true;
+            enableArcBosqueSultan = true;
+            enableArcHospitalClara = true;
+            enableArcTorreKross = true;
 
             if (worldBinder == null)
             {
@@ -205,6 +212,13 @@ namespace Prototipo3
 
         public void InicializarHistoria()
         {
+            // Asegurar que los 5 actos estén activos independientemente de valores serializados obsoletos
+            enableArcAperturaMarco = true;
+            enableArcEscuelaMorales = true;
+            enableArcBosqueSultan = true;
+            enableArcHospitalClara = true;
+            enableArcTorreKross = true;
+
             CityGeneratorPrototipo3 cityGen = FindAnyObjectByType<CityGeneratorPrototipo3>();
 
             if (currentGraph == null || currentGraph.nodes == null || currentGraph.nodes.Count == 0 || (enableArcAperturaMarco && currentGraph.GetNode("node_0_apertura") == null))
@@ -222,16 +236,9 @@ namespace Prototipo3
                 {
                     SetNodeState("node_0_apertura", StoryNodeState.Active, setFocus: true);
                 }
-                else
+                else if (enableArcEscuelaMorales && currentGraph.GetNode("node_a1_escuela") != null)
                 {
-                    if (enableArcEscuelaMorales && currentGraph.GetNode("node_a1_escuela") != null)
-                    {
-                        SetNodeState("node_a1_escuela", StoryNodeState.Active, setFocus: true);
-                    }
-                    if (enableArcBosqueSultan && currentGraph.GetNode("node_b1_bosque") != null)
-                    {
-                        SetNodeState("node_b1_bosque", StoryNodeState.Active, setFocus: !enableArcEscuelaMorales);
-                    }
+                    SetNodeState("node_a1_escuela", StoryNodeState.Active, setFocus: true);
                 }
             }
 
@@ -286,9 +293,8 @@ namespace Prototipo3
                 if (Vector3.Distance(player.position, schoolPos) <= 13.5f)
                 {
                     hasReachedSchool = true;
-                    CompleteNodeAndUnlockChildren("node_a1_escuela");
-                    EmitRadioTransmission("Dra. Elena Vargas [Radio]",
-                        "Estás frente a la Escuela Secundaria Bellavista. Busca a Toby el Mapache en su taller de robótica (Edificio Especial); él sabe cómo distraer los oídos del Rector Morales.");
+                    // NO autocompletar node_a1_escuela por proximidad: se completa al hablar con Toby en su taller
+                    NotifyProximityToLandmark("Escuela");
                 }
             }
 
@@ -308,9 +314,10 @@ namespace Prototipo3
             if (nodeB1 != null && nodeB1.state == StoryNodeState.Active)
             {
                 Vector3 forestPos = cityGen.GetLandmarkPosition("Bosque");
-                if (Vector3.Distance(player.position, forestPos) <= 15f && hasSpokenToMoka)
+                if (Vector3.Distance(player.position, forestPos) <= 15f)
                 {
-                    CompleteNodeAndUnlockChildren("node_b1_bosque");
+                    hasReachedForest = true;
+                    // NO autocompletar node_b1_bosque por proximidad: se completa al hablar con Sultán/Moka
                 }
             }
 
@@ -411,21 +418,14 @@ namespace Prototipo3
                 node0.state = StoryNodeState.Completed;
             }
 
+            // Progresión Lineal Estricta: Activar SOLAMENTE Rama A (Escuela Bellavista), NUNCA el Bosque simultáneamente
             if (enableArcEscuelaMorales)
             {
                 SetNodeState("node_a1_escuela", StoryNodeState.Active, setFocus: true);
             }
-            if (enableArcBosqueSultan)
-            {
-                SetNodeState("node_b1_bosque", StoryNodeState.Active, setFocus: !enableArcEscuelaMorales);
-            }
-
-            CityGeneratorPrototipo3 cityGen = CityGeneratorPrototipo3.Instance;
-            string dirEscuela = cityGen != null ? cityGen.GetCardinalDirectionFromPlayer("Escuela") : "Norte";
-            string dirBosque = cityGen != null ? cityGen.GetCardinalDirectionFromPlayer("Bosque") : "Oeste";
 
             EmitRadioTransmission("Dra. Elena Vargas [Radio 94.7 MHz]",
-                $"¡Sobreviviste a la transformación de Marco! Se abren dos rutas en paralelo: la Escuela Bellavista está hacia el {dirEscuela} y el Bosque Ceniza hacia el {dirBosque}. Revisa los contenedores con [F] para orientarte.");
+                "Primero busca a Toby el Mapache en su Taller de Robótica para conseguir el Señuelo Acústico antes de entrar a la Escuela Bellavista.");
 
             if (StoryDirector.Instance != null && !StoryDirector.Instance.IsNodeCompleted(StoryDirector.NODE_0_PROLOGO))
             {
@@ -574,7 +574,7 @@ namespace Prototipo3
             }
 
             StoryNode nodeB1 = currentGraph.GetNode("node_b1_bosque");
-            if (nodeB1 != null && nodeB1.state == StoryNodeState.Active)
+            if (nodeB1 != null && nodeB1.state == StoryNodeState.Active && hasSpokenToSultanDay)
             {
                 CompleteNodeAndUnlockChildren("node_b1_bosque");
             }
@@ -586,6 +586,8 @@ namespace Prototipo3
 
         private void HandleSultanInteraction(DualRoleCharacter sultan)
         {
+            hasSpokenToSultanDay = true;
+
             StoryNode nodeB1 = currentGraph.GetNode("node_b1_bosque");
             if (nodeB1 != null && nodeB1.state == StoryNodeState.Active)
             {
@@ -869,14 +871,21 @@ namespace Prototipo3
                 moralesTarget,
                 () =>
                 {
+                    if (worldBinder != null && worldBinder.SpawnedMorales != null)
+                    {
+                        MoralesOwlBossController owlCtrl = worldBinder.SpawnedMorales.GetComponent<MoralesOwlBossController>();
+                        if (owlCtrl != null && mechanism != null)
+                        {
+                            owlCtrl.OnSchoolBlackoutAlert(mechanism.transform.position);
+                        }
+                    }
                     CompleteNodeAndUnlockChildren("node_a3_apagon");
                     if (StoryDirector.Instance != null && !StoryDirector.Instance.IsNodeCompleted(StoryDirector.RAMA_A_ESCUELA))
                     {
                         StoryDirector.Instance.CompleteRamaAEscuela();
                     }
-                    CheckHospitalConvergenceUnlock();
                     EmitRadioTransmission("Dra. Elena Vargas [Radio]",
-                        "¡Tienes el Vial de Enzima Base! ¡Agáchate con [C] y lanza un Señuelo Acústico [1] para distraer al Búho Morales y salir de la escuela!");
+                        "¡Tienes el Vial de Enzima Base! Escapa del Búho Morales y dirígete ahora al Bosque Ceniza para buscar a Moka y a Sultán.");
                     RefreshPointerAndUI();
                 });
         }
@@ -1025,8 +1034,6 @@ namespace Prototipo3
             }
 
             CompleteNodeIfNotDone("node_c1_hospital");
-            SetNodeState("node_c2_clara", StoryNodeState.Active, setFocus: true);
-
             hasPacifiedClara = true;
             mechanism.MarkCompleted();
 
@@ -1034,6 +1041,8 @@ namespace Prototipo3
             {
                 worldBinder.SpawnedClara.PacifyBoss();
             }
+
+            CompleteNodeAndUnlockChildren("node_c2_clara");
 
             OnDialogueTriggered?.Invoke("Cámara Hiperbárica",
                 fromStaticDischarge
@@ -1047,8 +1056,8 @@ namespace Prototipo3
         {
             if (HasKeyItem("Cilindro de Oxígeno Puro"))
             {
-                StoryNode nodeC2Check = currentGraph != null ? currentGraph.GetNode("node_c2_clara") : null;
-                if (nodeC2Check != null && nodeC2Check.state != StoryNodeState.Completed)
+                StoryNode nodeC3Check = currentGraph != null ? currentGraph.GetNode("node_c3_oxigeno") : null;
+                if (nodeC3Check != null && nodeC3Check.state != StoryNodeState.Completed)
                 {
                     DeliverOxygenCylinderAndTriggerKrossCutscene(mechanism.transform);
                 }
@@ -1069,13 +1078,13 @@ namespace Prototipo3
             mechanism.MarkCompleted();
             GrantKeyItem("Cilindro de Oxígeno Puro", "Tercer componente médico obtenido en el quirófano del Hospital General San Judas.");
 
-            StoryNode nodeC2 = currentGraph != null ? currentGraph.GetNode("node_c2_clara") : null;
-            if (nodeC2 != null)
+            StoryNode nodeC3 = currentGraph != null ? currentGraph.GetNode("node_c3_oxigeno") : null;
+            if (nodeC3 != null)
             {
-                nodeC2.currentItemProgress = 1;
+                nodeC3.currentItemProgress = 1;
                 if (worldBinder != null && worldBinder.SpawnedSalgado != null)
                 {
-                    nodeC2.worldPosition = worldBinder.SpawnedSalgado.transform.position;
+                    nodeC3.worldPosition = worldBinder.SpawnedSalgado.transform.position;
                 }
             }
 
@@ -1086,10 +1095,10 @@ namespace Prototipo3
 
         private void DeliverOxygenCylinderAndTriggerKrossCutscene(Transform focusTransform)
         {
-            StoryNode nodeC2 = currentGraph != null ? currentGraph.GetNode("node_c2_clara") : null;
-            if (nodeC2 != null)
+            StoryNode nodeC3 = currentGraph != null ? currentGraph.GetNode("node_c3_oxigeno") : null;
+            if (nodeC3 != null)
             {
-                nodeC2.currentItemProgress = nodeC2.requiredItemCount;
+                nodeC3.currentItemProgress = nodeC3.requiredItemCount;
             }
 
             PlayCutsceneSafe(
@@ -1099,12 +1108,12 @@ namespace Prototipo3
                 focusTransform,
                 () =>
                 {
-                    CompleteNodeAndUnlockChildren("node_c2_clara");
+                    CompleteNodeIfNotDone("node_c2_clara");
+                    CompleteNodeAndUnlockChildren("node_c3_oxigeno");
                     if (StoryDirector.Instance != null && !StoryDirector.Instance.IsNodeCompleted(StoryDirector.CONVERGENCIA_HOSPITAL))
                     {
                         StoryDirector.Instance.CompleteHospitalConvergence(playCutscene: false);
                     }
-                    SetNodeState("node_d1_torre", StoryNodeState.Active, setFocus: true);
                     CityGeneratorPrototipo3 cityGen = CityGeneratorPrototipo3.Instance;
                     string dirTorre = cityGen != null ? cityGen.GetCardinalDirectionFromPlayer("Torre") : "Noreste";
                     EmitRadioTransmission("Agente Vane [Frecuencia Cifrada]",
@@ -1145,6 +1154,8 @@ namespace Prototipo3
                     worldBinder.SpawnedKross.PacifyBoss();
                 }
 
+                CompleteNodeAndUnlockChildren("node_d2_kross");
+
                 OnDialogueTriggered?.Invoke("Núcleo Aethelgard",
                     "¡Los 3 Condensadores Fotónicos UV han sido destruidos (3/3)! El exoesqueleto del Dr. Julián Kross ha colapsado. ¡Corre al Inyector Central [F] e inserta el Suero Alba-Puro!");
             }
@@ -1184,6 +1195,7 @@ namespace Prototipo3
                 () =>
                 {
                     CompleteNodeIfNotDone("node_d2_kross");
+                    CompleteNodeAndUnlockChildren("node_d3_final");
                     if (StoryDirector.Instance != null && !StoryDirector.Instance.IsNodeCompleted(StoryDirector.FINAL_TORRE))
                     {
                         StoryDirector.Instance.CompleteFinalTorre(playCutscene: false);
@@ -1353,6 +1365,7 @@ namespace Prototipo3
                     child.state = StoryNodeState.Active;
                     currentActiveNode = child;
                     Debug.Log($"[StoryManagerPrototipo3] Nuevo Nodo Desbloqueado en DAG: {child.title} ({child.id})");
+                    Prototipo3.Narrative.QuestCompiler.Instance?.CompileQuestForNode(currentActiveNode.id, "LINEAL", 0);
                 }
             }
 
@@ -1408,6 +1421,7 @@ namespace Prototipo3
             if (setFocus && state == StoryNodeState.Active)
             {
                 currentActiveNode = node;
+                Prototipo3.Narrative.QuestCompiler.Instance?.CompileQuestForNode(currentActiveNode.id, "LINEAL", 0);
             }
             else if (currentActiveNode == null || currentActiveNode.state != StoryNodeState.Active)
             {
@@ -1426,6 +1440,7 @@ namespace Prototipo3
                 return;
             }
 
+            StoryNode prevNode = currentActiveNode;
             if (player != null)
             {
                 StoryNode closest = activeList[0];
@@ -1444,6 +1459,11 @@ namespace Prototipo3
             else
             {
                 currentActiveNode = activeList[0];
+            }
+
+            if (currentActiveNode != null && currentActiveNode != prevNode)
+            {
+                Prototipo3.Narrative.QuestCompiler.Instance?.CompileQuestForNode(currentActiveNode.id, "LINEAL", 0);
             }
         }
 

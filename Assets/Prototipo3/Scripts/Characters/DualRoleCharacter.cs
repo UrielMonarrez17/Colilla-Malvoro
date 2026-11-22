@@ -364,6 +364,12 @@ namespace Prototipo3
 
                 if (enemyAI != null)
                 {
+                    MarcoBossController marcoCtrl = GetComponent<MarcoBossController>();
+                    if (marcoCtrl != null) marcoCtrl.InterruptActiveAttack(false, 0f);
+
+                    MoralesOwlBossController moralesCtrl = GetComponent<MoralesOwlBossController>();
+                    if (moralesCtrl != null) moralesCtrl.InterruptActiveAttack();
+
                     enemyAI.HideVisionConeImmediate();
                     enemyAI.enabled = false;
                 }
@@ -401,6 +407,9 @@ namespace Prototipo3
                     enemyAI.visionRadiusCrouched = 5.5f;
                     enemyAI.backDetectionRadius = 2.5f;
                     enemyAI.wanderRadius = 22f;
+                    MarcoBossController marcoCtrl = GetComponent<MarcoBossController>();
+                    if (marcoCtrl == null) marcoCtrl = gameObject.AddComponent<MarcoBossController>();
+                    marcoCtrl.Initialize(enemyAI, this);
                     break;
 
                 case BossProfileType.Morales_Buho:
@@ -414,6 +423,9 @@ namespace Prototipo3
                     enemyAI.sensitiveToNoisySprint = true;
                     enemyAI.noisySprintDetectionRadius = 25f;
                     enemyAI.acousticDecoyVulnerabilityMultiplier = 1.75f;
+                    MoralesOwlBossController moralesCtrl = GetComponent<MoralesOwlBossController>();
+                    if (moralesCtrl == null) moralesCtrl = gameObject.AddComponent<MoralesOwlBossController>();
+                    moralesCtrl.Initialize(enemyAI, this);
                     break;
 
                 case BossProfileType.Sultan_Lobo:
@@ -794,7 +806,7 @@ namespace Prototipo3
         private void OnCollisionEnter(Collision collision)
         {
             if (!isCurrentlyFeral || isPacified || roleType == CharacterRoleType.PureAlly) return;
-            if (enemyAI != null && (enemyAI.IsParalyzedByStatic || enemyAI.IsDistractedByDecoy)) return;
+            if (enemyAI != null && (enemyAI.IsParalyzedByStatic || enemyAI.IsDistractedByDecoy || enemyAI.IsNetImmobilized)) return;
 
             // EnemyOnCollision ya aplica daño cuando TimeManager está en Night;
             // aquí cubrimos a los jefes en estado Feral forzado durante el día (ej. Morales en el apagón o Kross sobrecargado).

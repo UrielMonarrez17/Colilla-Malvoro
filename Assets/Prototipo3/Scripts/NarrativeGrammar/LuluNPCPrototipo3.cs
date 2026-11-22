@@ -288,11 +288,6 @@ namespace Prototipo3
                     transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * 7f);
                 }
             }
-
-            if (distToPlayer <= interactDistance && (FeralInput.Pressed(KeyCode.F) || Input.GetKeyDown(KeyCode.F)))
-            {
-                InteractuarConLulu();
-            }
         }
 
         private void UpdateGuideOrHide()
@@ -318,13 +313,10 @@ namespace Prototipo3
                 hasMetPlayerInEncounter = true;
                 sm.InteractuarConLulu(this);
             }
-            else
+            else if (Prototipo3.UI.FeralGameUI.Instance != null)
             {
-                NarrativeHUDPrototipo3 hud = FindAnyObjectByType<NarrativeHUDPrototipo3>();
-                if (hud != null)
-                {
-                    hud.MostrarDialogo("Lulú", "¡Psst! Hámster, qué alivio verte cuerdo. Mantente en sigilo [C] cuando caiga la noche y recolecta chatarra en los callejones.");
-                }
+                hasMetPlayerInEncounter = true;
+                Prototipo3.UI.FeralGameUI.Instance.ShowDialogue("Lulú", "¡Psst! Hámster, qué alivio verte cuerdo. Mantente en sigilo [C] cuando caiga la noche y recolecta chatarra en los callejones.");
             }
         }
 

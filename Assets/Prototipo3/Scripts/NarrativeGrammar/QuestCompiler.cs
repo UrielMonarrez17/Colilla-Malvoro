@@ -81,47 +81,46 @@ namespace Prototipo3.Narrative
 
         private static void BindHablarNpc(TerminalAction act, string storyNodeId, ref Vector3 previousPos, CityGeneratorPrototipo3 cityGen)
         {
-            // Determinar si es un NPC clave del nodo o un informante de la calle disperso
             Transform targetNpc = null;
+            if (!string.IsNullOrEmpty(act.argument))
+            {
+                targetNpc = WorldRegistry.Get(act.argument);
+            }
 
-            if (storyNodeId.Contains("prologo") || storyNodeId.Contains("apertura") || act.argument.Contains("Marco"))
+            if (targetNpc == null)
             {
-                targetNpc = WorldRegistry.Get("Marco");
-                act.readableDescription = "Habla con el tejón Marco [F] cerca de tu Base";
-            }
-            else if (storyNodeId.Contains("escuela") || act.argument.Contains("Toby") || act.argument.Contains("Tony"))
-            {
-                targetNpc = WorldRegistry.Get("Toby") ?? WorldRegistry.Get("Tony") ?? WorldRegistry.Get("Escuela");
-                act.readableDescription = "Habla con Toby en su taller de robótica (Edificio Especial) [F]";
-            }
-            else if (storyNodeId.Contains("bosque") || act.argument.Contains("Moka") || act.argument.Contains("Sultan"))
-            {
-                targetNpc = WorldRegistry.Get("Bosque");
-                act.readableDescription = "Habla con los aliados del Bosque Ceniza [F]";
-            }
-            else if (storyNodeId.Contains("hospital") || act.argument.Contains("Salgado") || act.argument.Contains("Sofia"))
-            {
-                targetNpc = WorldRegistry.Get("Hospital");
-                act.readableDescription = "Habla con el Dr. Salgado en el Hospital San Judas [F]";
-            }
-            else if (storyNodeId.Contains("torre") || act.argument.Contains("Vane") || act.argument.Contains("Elena"))
-            {
-                targetNpc = WorldRegistry.Get("Torre");
-                act.readableDescription = "Contacta al Agente Vane en la Torre Aethelgard [F]";
-            }
-            else
-            {
-                // Informante secundario en cuadrante opuesto/intermedio
-                DualRoleCharacter[] citizens = GameObject.FindObjectsByType<DualRoleCharacter>(FindObjectsSortMode.None);
-                for (int i = 0; i < citizens.Length; i++)
+                if (storyNodeId.Contains("prologo") || storyNodeId.Contains("apertura") || act.argument.Contains("Marco"))
                 {
-                    if (citizens[i] != null && !citizens[i].IsCurrentlyFeral && citizens[i].roleType != CharacterRoleType.PacifiableBoss)
+                    targetNpc = WorldRegistry.Get("Marco") ?? WorldRegistry.Get("Base");
+                }
+                else if (storyNodeId.Contains("escuela") || act.argument.Contains("Toby") || act.argument.Contains("Tony"))
+                {
+                    targetNpc = WorldRegistry.Get("Toby") ?? WorldRegistry.Get("Tony") ?? WorldRegistry.Get("TallerToby") ?? WorldRegistry.Get("Escuela");
+                }
+                else if (storyNodeId.Contains("bosque") || act.argument.Contains("Moka") || act.argument.Contains("Sultan"))
+                {
+                    targetNpc = WorldRegistry.Get(act.argument) ?? WorldRegistry.Get("Moka") ?? WorldRegistry.Get("Sultan") ?? WorldRegistry.Get("Bosque");
+                }
+                else if (storyNodeId.Contains("hospital") || act.argument.Contains("Salgado") || act.argument.Contains("Sofia") || act.argument.Contains("Clara"))
+                {
+                    targetNpc = WorldRegistry.Get(act.argument) ?? WorldRegistry.Get("Salgado") ?? WorldRegistry.Get("Hospital");
+                }
+                else if (storyNodeId.Contains("torre") || act.argument.Contains("Vane") || act.argument.Contains("Elena") || act.argument.Contains("Kross"))
+                {
+                    targetNpc = WorldRegistry.Get(act.argument) ?? WorldRegistry.Get("Vane") ?? WorldRegistry.Get("Elena") ?? WorldRegistry.Get("Torre");
+                }
+                else
+                {
+                    DualRoleCharacter[] citizens = GameObject.FindObjectsByType<DualRoleCharacter>(FindObjectsSortMode.None);
+                    for (int i = 0; i < citizens.Length; i++)
                     {
-                        targetNpc = citizens[i].transform;
-                        break;
+                        if (citizens[i] != null && !citizens[i].IsCurrentlyFeral && citizens[i].roleType != CharacterRoleType.PacifiableBoss)
+                        {
+                            targetNpc = citizens[i].transform;
+                            break;
+                        }
                     }
                 }
-                act.readableDescription = "Consulta a un ciudadano en la calle [F] sobre el humo ámbar";
             }
 
             if (targetNpc != null)
@@ -133,6 +132,11 @@ namespace Prototipo3.Narrative
             else
             {
                 act.boundPosition = previousPos;
+            }
+
+            if (string.IsNullOrEmpty(act.readableDescription))
+            {
+                act.readableDescription = $"Habla con {act.argument} [F]";
             }
         }
 
@@ -213,54 +217,91 @@ namespace Prototipo3.Narrative
 
         private static void BindFabricarTrampa(TerminalAction act, CityGeneratorPrototipo3 cityGen)
         {
-            Transform tableTransform = WorldRegistry.Get("CraftTable") ?? WorldRegistry.Get("Base");
+            Transform tableTransform = WorldRegistry.Get("CraftTable") ?? WorldRegistry.Get("MesaFabricacion") ?? WorldRegistry.Get("Base");
             if (tableTransform != null)
             {
                 act.boundTarget = tableTransform;
                 act.boundPosition = tableTransform.position;
             }
 
-            string trapName = act.actionType.Contains("madera") ? "Trampa de Madera (Barricada)"
-                            : act.actionType.Contains("red") ? "Trampa de Red (Inmovilizadora)"
-                            : "Trampa de Púas (Sobrecarga/Ralentización)";
+            if (string.IsNullOrEmpty(act.readableDescription))
+            {
+                string trapName = act.actionType.Contains("madera") ? "Trampa de Madera (Barricada)"
+                                : act.actionType.Contains("red") ? "Trampa de Red (Inmovilizadora)"
+                                : "Trampa de Púas (Sobrecarga/Ralentización)";
 
-            act.readableDescription = $"Fabrica 1 {trapName} en la Mesa de la Base";
+                act.readableDescription = $"Fabrica 1 {trapName} en la Mesa de la Base";
+            }
         }
 
         private static void BindInterruptorODucto(TerminalAction act, string storyNodeId, ref Vector3 previousPos, CityGeneratorPrototipo3 cityGen)
         {
-            StoryMechanismPrototipo3[] mechanisms = GameObject.FindObjectsByType<StoryMechanismPrototipo3>(FindObjectsSortMode.None);
-            StoryMechanismPrototipo3 targetMech = null;
-
-            // Filtrar estrictamente por mecanismos que correspondan al nodo actual
-            for (int i = 0; i < mechanisms.Length; i++)
+            Transform targetTransform = null;
+            if (!string.IsNullOrEmpty(act.argument))
             {
-                if (mechanisms[i] == null || mechanisms[i].isCompleted) continue;
-
-                PlotGate gate = mechanisms[i].GetComponent<PlotGate>();
-                if (gate != null)
+                targetTransform = WorldRegistry.Get(act.argument);
+                if (targetTransform == null && act.argument.Contains("Poste_Reflector"))
                 {
-                    if (string.Equals(gate.targetStoryNodeID, storyNodeId, StringComparison.OrdinalIgnoreCase) ||
-                        (gate.allowedStoryNodeIDs != null && gate.allowedStoryNodeIDs.Contains(storyNodeId)))
+                    targetTransform = WorldRegistry.Get("Poste_Reflector_1") ?? WorldRegistry.Get("Poste_Reflector_2") ?? WorldRegistry.Get("Poste_Reflector_3");
+                }
+                if (targetTransform == null && act.argument.Contains("Condensador_UV"))
+                {
+                    targetTransform = WorldRegistry.Get("Condensador_UV_1") ?? WorldRegistry.Get("Condensador_UV_2") ?? WorldRegistry.Get("Condensador_UV_3");
+                }
+            }
+
+            if (targetTransform == null)
+            {
+                StoryMechanismPrototipo3[] mechanisms = GameObject.FindObjectsByType<StoryMechanismPrototipo3>(FindObjectsSortMode.None);
+                for (int i = 0; i < mechanisms.Length; i++)
+                {
+                    if (mechanisms[i] == null || mechanisms[i].isCompleted) continue;
+
+                    if (!string.IsNullOrEmpty(act.argument) && mechanisms[i].mechanismId.IndexOf(act.argument, StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        targetMech = mechanisms[i];
+                        targetTransform = mechanisms[i].transform;
                         break;
+                    }
+
+                    PlotGate gate = mechanisms[i].GetComponent<PlotGate>();
+                    if (gate != null)
+                    {
+                        if (string.Equals(gate.targetStoryNodeID, storyNodeId, StringComparison.OrdinalIgnoreCase) ||
+                            (gate.allowedStoryNodeIDs != null && gate.allowedStoryNodeIDs.Contains(storyNodeId)))
+                        {
+                            targetTransform = mechanisms[i].transform;
+                            break;
+                        }
                     }
                 }
             }
 
-            if (targetMech != null)
+            if (targetTransform == null)
             {
-                act.boundTarget = targetMech.transform;
-                act.boundPosition = targetMech.transform.position;
-                previousPos = targetMech.transform.position;
-                act.readableDescription = $"Acciona {targetMech.displayName} [F]";
+                if (storyNodeId.Contains("escuela") || storyNodeId.Contains("node_a")) targetTransform = WorldRegistry.Get("Escuela");
+                else if (storyNodeId.Contains("bosque") || storyNodeId.Contains("node_b")) targetTransform = WorldRegistry.Get("Bosque");
+                else if (storyNodeId.Contains("hospital") || storyNodeId.Contains("node_c")) targetTransform = WorldRegistry.Get("Hospital");
+                else if (storyNodeId.Contains("torre") || storyNodeId.Contains("node_d")) targetTransform = WorldRegistry.Get("Torre");
+            }
+
+            if (targetTransform != null)
+            {
+                act.boundTarget = targetTransform;
+                act.boundPosition = targetTransform.position;
+                previousPos = targetTransform.position;
+                if (string.IsNullOrEmpty(act.readableDescription))
+                {
+                    act.readableDescription = $"Acciona {targetTransform.name} [F]";
+                }
             }
             else
             {
                 act.boundTarget = null;
                 act.boundPosition = previousPos;
-                act.readableDescription = $"Activa el mecanismo de paso [F] ({act.argument})";
+                if (string.IsNullOrEmpty(act.readableDescription))
+                {
+                    act.readableDescription = $"Activa el mecanismo de paso [F] ({act.argument})";
+                }
             }
         }
 
@@ -359,19 +400,116 @@ namespace Prototipo3.Narrative
 
             CityGeneratorPrototipo3 cityGen = FindAnyObjectByType<CityGeneratorPrototipo3>();
 
-            if (storyNodeId == "node_0_apertura" || storyNodeId.Contains("prologo") || storyNodeId.Contains("apertura"))
+            compiledActions = new List<TerminalAction>();
+
+            switch (storyNodeId)
             {
-                // Secuencia contextual precisa para el Prólogo
-                compiledActions = new List<TerminalAction>
-                {
-                    new TerminalAction("hablar_npc", "Marco", 1, false),
-                    new TerminalAction("saquear_contenedor", "chatarra", 1, false),
-                    new TerminalAction("fabricar_trampa_madera", "", 1, false)
-                };
-            }
-            else
-            {
-                compiledActions = QuestGrammarParser.Derivate(startSymbol, seed, maxRecursionDepth: 2);
+                case "node_0_apertura":
+                    compiledActions.Add(new TerminalAction("hablar_npc", "Marco", 1, false)
+                    {
+                        readableDescription = "Habla con Marco el Tejón en la calle adyacente [F]"
+                    });
+                    compiledActions.Add(new TerminalAction("saquear_contenedor", "chatarra", 1, false)
+                    {
+                        readableDescription = "Saquea contenedores cercanos para obtener Madera y Metal [F]"
+                    });
+                    compiledActions.Add(new TerminalAction("fabricar_trampa_madera", "mesa", 1, false)
+                    {
+                        readableDescription = "Fabrica tu primera herramienta en la Mesa de Trabajo del Refugio [F]"
+                    });
+                    break;
+
+                case "node_a1_escuela":
+                    compiledActions.Add(new TerminalAction("hablar_npc", "Toby", 1, false)
+                    {
+                        readableDescription = "Habla con Toby el Mapache en el Taller de Robótica [F]"
+                    });
+                    break;
+
+                case "node_a2_toby":
+                    compiledActions.Add(new TerminalAction("activar_interruptor", "Oficina_Morales", 1, false)
+                    {
+                        readableDescription = "Espía la bitácora en la Oficina del Rector Morales en la Escuela [F]"
+                    });
+                    break;
+
+                case "node_a3_apagon":
+                    compiledActions.Add(new TerminalAction("activar_interruptor", "Laboratorio_Quimica", 1, false)
+                    {
+                        readableDescription = "Toma la Llave Maestra y el Vial de Enzima Base en el Laboratorio de Química [F]"
+                    });
+                    break;
+
+                case "node_b1_bosque":
+                    compiledActions.Add(new TerminalAction("hablar_npc", "Moka", 1, false)
+                    {
+                        readableDescription = "Habla con Moka la Zarigüeya en la entrada del Bosque Ceniza [F]"
+                    });
+                    compiledActions.Add(new TerminalAction("hablar_npc", "Sultan", 1, false)
+                    {
+                        readableDescription = "Habla con el guardabosques Sultán de día en el Bosque Ceniza [F]"
+                    });
+                    break;
+
+                case "node_b2_postes":
+                    compiledActions.Add(new TerminalAction("activar_interruptor", "Poste_Reflector", 1, false)
+                    {
+                        readableDescription = "Repara los 3 Postes Reflectores del Arroyo con Madera, Goma y Metal [F]"
+                    });
+                    break;
+
+                case "node_b3_sultan":
+                    compiledActions.Add(new TerminalAction("activar_interruptor", "Interruptor_Subestacion", 1, false)
+                    {
+                        readableDescription = "De noche, atrae a Sultán con la Bomba de Polen [2] y activa la Subestación [F]"
+                    });
+                    break;
+
+                case "node_c1_hospital":
+                    compiledActions.Add(new TerminalAction("hablar_npc", "Salgado", 1, false)
+                    {
+                        readableDescription = "Habla con el Dr. Salgado, visita a Sofía y habla con la enfermera Clara en el Hospital [F]"
+                    });
+                    break;
+
+                case "node_c2_clara":
+                    compiledActions.Add(new TerminalAction("activar_interruptor", "Valvula_Hiperbarica", 1, false)
+                    {
+                        readableDescription = "Activa la Válvula de la Cámara Hiperbárica con [F] o Descargador Estático [3]"
+                    });
+                    break;
+
+                case "node_c3_oxigeno":
+                    compiledActions.Add(new TerminalAction("activar_interruptor", "Cilindro_Oxigeno", 1, false)
+                    {
+                        readableDescription = "Recoge el Cilindro de Oxígeno Puro del Quirófano y entrégalo al Dr. Salgado [F]"
+                    });
+                    break;
+
+                case "node_d1_torre":
+                    compiledActions.Add(new TerminalAction("activar_interruptor", "Celda_Dra_Elena", 1, false)
+                    {
+                        readableDescription = "Habla con el Agente Vane y libera a la Dra. Elena en la Torre Aethelgard [F]"
+                    });
+                    break;
+
+                case "node_d2_kross":
+                    compiledActions.Add(new TerminalAction("activar_interruptor", "Condensador_UV", 1, false)
+                    {
+                        readableDescription = "Sobrecarga los 3 Condensadores Fotónicos UV en la Torre Aethelgard [F / Tecla 3]"
+                    });
+                    break;
+
+                case "node_d3_final":
+                    compiledActions.Add(new TerminalAction("activar_interruptor", "Inyector_Central", 1, false)
+                    {
+                        readableDescription = "Inserta el Suero Alba-Puro en el Inyector Central de la Torre [F]"
+                    });
+                    break;
+
+                default:
+                    compiledActions = QuestGrammarParser.Derivate(startSymbol, seed, maxRecursionDepth: 2);
+                    break;
             }
 
             BindingManager.BindActionsToWorld(compiledActions, storyNodeId, cityGen);
@@ -413,6 +551,17 @@ namespace Prototipo3.Narrative
 
             bool typeMatches = curr.actionType.Equals(actionType, StringComparison.OrdinalIgnoreCase);
 
+            // Permitir que cualquier trampa (púas, red, madera) avance la acción de fabricar en el prólogo
+            if (!typeMatches && curr.actionType.Equals("fabricar_trampa_madera", StringComparison.OrdinalIgnoreCase))
+            {
+                if (actionType.Equals("fabricar_trampa_puas", StringComparison.OrdinalIgnoreCase) ||
+                    actionType.Equals("fabricar_trampa_red", StringComparison.OrdinalIgnoreCase) ||
+                    actionType.StartsWith("fabricar_trampa", StringComparison.OrdinalIgnoreCase))
+                {
+                    typeMatches = true;
+                }
+            }
+
             bool isGenericRoleArg = string.IsNullOrEmpty(curr.argument) ||
                                     curr.argument.Equals("informante_calle", StringComparison.OrdinalIgnoreCase) ||
                                     curr.argument.Equals("testigo_barrio", StringComparison.OrdinalIgnoreCase) ||
@@ -441,7 +590,8 @@ namespace Prototipo3.Narrative
                                     curr.argument.Equals("mecanismo_central_arena", StringComparison.OrdinalIgnoreCase) ||
                                     curr.argument.Equals("retirada_segura", StringComparison.OrdinalIgnoreCase) ||
                                     curr.argument.Equals("suero_restaurador", StringComparison.OrdinalIgnoreCase) ||
-                                    curr.argument.Equals("jefe_pacificado", StringComparison.OrdinalIgnoreCase);
+                                    curr.argument.Equals("jefe_pacificado", StringComparison.OrdinalIgnoreCase) ||
+                                    curr.argument.Equals("mesa", StringComparison.OrdinalIgnoreCase);
 
             bool targetMatches = callerTransform != null && curr.boundTarget != null &&
                                  (curr.boundTarget == callerTransform || curr.boundTarget.IsChildOf(callerTransform) || callerTransform.IsChildOf(curr.boundTarget));
