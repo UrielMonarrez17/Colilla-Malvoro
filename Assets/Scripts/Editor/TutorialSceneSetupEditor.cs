@@ -124,16 +124,61 @@ public static class TutorialSceneSetupEditor
             manager.puertaTrampaRefugio = puerta;
         }
 
-        // 6. Posicionar a Lulú en la plaza norte de la ciudad (bloqueada hasta paso BuscarLulu)
+        // 6. Posicionar a Lulú en la plaza norte de la ciudad con escala corregida (1.3) y trigger amplio
         LuluNPC lulu = Object.FindAnyObjectByType<LuluNPC>();
         if (lulu != null)
         {
-            Undo.RecordObject(lulu.transform, "Posicionar Lulu");
+            Undo.RecordObject(lulu.transform, "Posicionar y Escalar Lulu");
             Undo.RecordObject(lulu.gameObject, "Bloquear Lulu Inicial");
             lulu.transform.position = TutorialPipelineManager.POS_LULU_CIUDAD;
             lulu.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+            lulu.transform.localScale = new Vector3(1.3f, 1.3f, 1.3f);
             lulu.gameObject.tag = "Untagged";
+            BoxCollider luluCol = lulu.GetComponent<BoxCollider>();
+            if (luluCol == null) luluCol = lulu.gameObject.AddComponent<BoxCollider>();
+            Undo.RecordObject(luluCol, "Ajustar BoxCollider Lulu");
+            luluCol.enabled = true;
+            luluCol.isTrigger = true;
+            luluCol.center = new Vector3(0f, 0.6f, 0f);
+            luluCol.size = new Vector3(2.2f, 1.4f, 2.2f);
+            EditorUtility.SetDirty(luluCol);
             manager.luluNPC = lulu;
+        }
+
+        // 6b. Configurar Smog atmosférico (DirectionalNightFog) y profundidad URP de Main Camera
+        RenderSettings.fog = false;
+        if (mainCam != null)
+        {
+            var urpCam = mainCam.GetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>();
+            if (urpCam != null)
+            {
+                Undo.RecordObject(urpCam, "Configurar URP Depth Tutorial Camera");
+                urpCam.renderPostProcessing = true;
+                urpCam.requiresDepthOption = UnityEngine.Rendering.Universal.CameraOverrideOption.On;
+                urpCam.requiresColorOption = UnityEngine.Rendering.Universal.CameraOverrideOption.On;
+                EditorUtility.SetDirty(urpCam);
+            }
+        }
+        Prototipo2.DirectionalNightFog nightFog = Object.FindAnyObjectByType<Prototipo2.DirectionalNightFog>();
+        if (nightFog != null)
+        {
+            Undo.RecordObject(nightFog, "Configurar Smog Tutorial");
+            Shader fogSh = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Prototipo2/Shaders/CityDirectionalFog.shader");
+            if (fogSh != null) nightFog.fogShader = fogSh;
+            if (mainCam != null) nightFog.targetCamera = mainCam;
+            if (manager.hamster != null) nightFog.playerTransform = manager.hamster.transform;
+            nightFog.dayFogColor = new Color(0.70f, 0.76f, 0.82f, 0.24f);
+            nightFog.nightFogColor = new Color(0.06f, 0.09f, 0.14f, 0.82f);
+            nightFog.fogDensity = 0.022f;
+            nightFog.directionalForwardBoost = 1.25f;
+            nightFog.nearDistance = 11.5f;
+            nightFog.farDistance = 32f;
+            nightFog.noiseScale = 0.065f;
+            nightFog.noiseSpeed = 0.35f;
+            nightFog.maxSmogAlpha = 0.8f;
+            nightFog.fogTransitionSpeed = 1.8f;
+            nightFog.controlGlobalFog = false;
+            EditorUtility.SetDirty(nightFog);
         }
 
         // 7. Posicionar Contenedores de Basura (bloqueados hasta su paso secuencial correspondiente)
@@ -170,6 +215,7 @@ public static class TutorialSceneSetupEditor
 
         // 7b. Forzar que el tutorial inicie estrictamente en el primer paso obligatorio
         manager.currentState = TutorialPipelineManager.TutorialState.AprenderControles;
+        manager.videoCinematicaInicial = AssetDatabase.LoadAssetAtPath<VideoClip>("Assets/UI/Videos/TestInitialVideo.mp4");
         AlignTutorialUIRectTransforms(manager);
 
         // 8. Corregir VideoPlayer de Cinematica y ocultar UI durante cinemáticas

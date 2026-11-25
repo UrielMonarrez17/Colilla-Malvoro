@@ -119,6 +119,37 @@ namespace Prototipo3.Editor
             Debug.Log("[Prototipo3AssetAndSceneBuilder] Reconstrucción completa: 7 especies enemigas, refugio seguro, flecha Blender, loots exteriores, Tutorial.unity y Prototipo3.unity listos.");
         }
 
+        [MenuItem("Feral/Tutorial/Reconstruir Todas las Mejoras del Tutorial")]
+        public static void RunTutorialOnlyRebuild()
+        {
+            EnsureDir(PropsMaterialsDir);
+            EnsureDir(PropsPrefabsDir);
+
+            Dictionary<string, Material> propMats = CreateOrUpdatePropMaterials();
+            RemapFbxMaterials(Path.Combine(PropsModelsDir, "SM_CraftingTable.fbx"), propMats);
+            RemapFbxMaterials(Path.Combine(PropsModelsDir, "SM_Loot_TrashBin.fbx"), propMats);
+            RemapFbxMaterials(Path.Combine(PropsModelsDir, "SM_Loot_ScrapCrate.fbx"), propMats);
+            RemapFbxMaterials(Path.Combine(PropsModelsDir, "SM_Loot_WasteBag.fbx"), propMats);
+            RemapFbxMaterials(Path.Combine(PropsModelsDir, "SM_MissionArrow.fbx"), propMats);
+
+            AuditProjectMaterialsToUrp();
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+
+            GameObject fbxCraft = AssetDatabase.LoadAssetAtPath<GameObject>($"{PropsModelsDir}/SM_CraftingTable.fbx");
+            GameObject fbxBin = AssetDatabase.LoadAssetAtPath<GameObject>($"{PropsModelsDir}/SM_Loot_TrashBin.fbx");
+            GameObject fbxCrate = AssetDatabase.LoadAssetAtPath<GameObject>($"{PropsModelsDir}/SM_Loot_ScrapCrate.fbx");
+            GameObject fbxBag = AssetDatabase.LoadAssetAtPath<GameObject>($"{PropsModelsDir}/SM_Loot_WasteBag.fbx");
+            GameObject fbxArrow = AssetDatabase.LoadAssetAtPath<GameObject>($"{PropsModelsDir}/SM_MissionArrow.fbx");
+
+            UpgradeGarbageCollectorPrefab(fbxBin, propMats);
+            UpgradeTutorialScene(fbxCraft, new[] { fbxBin, fbxCrate, fbxBag }, fbxArrow, propMats);
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("[Prototipo3AssetAndSceneBuilder] Reconstrucción exclusiva de Tutorial.unity completada sin alterar Prototipo3.unity.");
+        }
+
         private static void EnsureDir(string assetPath)
         {
             if (!Directory.Exists(assetPath))
@@ -816,6 +847,9 @@ namespace Prototipo3.Editor
             // 4. Construir recorrido guiado + cerrar todo el perímetro del tutorial + hornear NavMesh primero
             TutorialLayoutBuilder.Build();
 
+            // 4b. Asegurar escala (1.3) y BoxCollider de Lulú + Smog atmosférico y cámara URP del Tutorial
+            ConfigureTutorialLuluAndSmog();
+
             // 5. Auditar y reubicar cualquier LootContainer atascado dentro de edificios de Tutorial.unity
             RelocateOverlappingTutorialLoots();
 
@@ -849,7 +883,60 @@ namespace Prototipo3.Editor
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, tutorialPath);
-            Debug.Log($"[Prototipo3AssetAndSceneBuilder] Tutorial.unity actualizado (flecha Blender, perímetro cerrado y {containers.Length} contenedores auditados).");
+            Debug.Log($"[Prototipo3AssetAndSceneBuilder] Tutorial.unity actualizado (Lulú 1.3, Smog URP, flecha Blender, perímetro cerrado y {containers.Length} contenedores auditados).");
+        }
+
+        private static void ConfigureTutorialLuluAndSmog()
+        {
+            LuluNPC lulu = UnityEngine.Object.FindAnyObjectByType<LuluNPC>(FindObjectsInactive.Include);
+            if (lulu != null)
+            {
+                lulu.transform.localScale = new Vector3(1.3f, 1.3f, 1.3f);
+                BoxCollider luluCol = lulu.GetComponent<BoxCollider>();
+                if (luluCol == null) luluCol = lulu.gameObject.AddComponent<BoxCollider>();
+                luluCol.enabled = true;
+                luluCol.isTrigger = true;
+                luluCol.center = new Vector3(0f, 0.6f, 0f);
+                luluCol.size = new Vector3(2.2f, 1.4f, 2.2f);
+                EditorUtility.SetDirty(lulu.gameObject);
+                EditorUtility.SetDirty(luluCol);
+            }
+
+            RenderSettings.fog = false;
+            Camera mainCam = Camera.main;
+            if (mainCam != null)
+            {
+                UniversalAdditionalCameraData urpCam = mainCam.GetComponent<UniversalAdditionalCameraData>();
+                if (urpCam != null)
+                {
+                    urpCam.renderPostProcessing = true;
+                    urpCam.requiresDepthOption = CameraOverrideOption.On;
+                    urpCam.requiresColorOption = CameraOverrideOption.On;
+                    EditorUtility.SetDirty(urpCam);
+                }
+            }
+
+            Prototipo2.DirectionalNightFog nightFog = UnityEngine.Object.FindAnyObjectByType<Prototipo2.DirectionalNightFog>(FindObjectsInactive.Include);
+            if (nightFog != null)
+            {
+                Shader fogSh = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Prototipo2/Shaders/CityDirectionalFog.shader");
+                if (fogSh != null) nightFog.fogShader = fogSh;
+                if (mainCam != null) nightFog.targetCamera = mainCam;
+                HamsterController hc = UnityEngine.Object.FindAnyObjectByType<HamsterController>();
+                if (hc != null) nightFog.playerTransform = hc.transform;
+                nightFog.dayFogColor = new Color(0.70f, 0.76f, 0.82f, 0.24f);
+                nightFog.nightFogColor = new Color(0.06f, 0.09f, 0.14f, 0.82f);
+                nightFog.fogDensity = 0.022f;
+                nightFog.directionalForwardBoost = 1.25f;
+                nightFog.nearDistance = 11.5f;
+                nightFog.farDistance = 32f;
+                nightFog.noiseScale = 0.065f;
+                nightFog.noiseSpeed = 0.35f;
+                nightFog.maxSmogAlpha = 0.8f;
+                nightFog.fogTransitionSpeed = 1.8f;
+                nightFog.controlGlobalFog = false;
+                EditorUtility.SetDirty(nightFog);
+            }
         }
 
         private static void UpgradeTutorialMissionArrow(GameObject fbxArrow, Dictionary<string, Material> mats)

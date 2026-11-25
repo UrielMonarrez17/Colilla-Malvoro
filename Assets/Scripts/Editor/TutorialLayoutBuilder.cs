@@ -140,6 +140,21 @@ public static class TutorialLayoutBuilder
         if (gate != null) gate.SetActive(false);
         Physics.SyncTransforms();
         surface.BuildNavMesh();
+        if (surface.navMeshData != null && !AssetDatabase.Contains(surface.navMeshData))
+        {
+            string navDataPath = $"{Folder}/NavMesh_Tutorial_EntornoGuiado.asset";
+            NavMeshData builtData = Object.Instantiate(surface.navMeshData);
+            surface.RemoveData();
+            if (AssetDatabase.LoadAssetAtPath<NavMeshData>(navDataPath) != null)
+            {
+                AssetDatabase.DeleteAsset(navDataPath);
+            }
+            AssetDatabase.CreateAsset(builtData, navDataPath);
+            AssetDatabase.SaveAssets();
+            surface.navMeshData = AssetDatabase.LoadAssetAtPath<NavMeshData>(navDataPath);
+            surface.AddData();
+            EditorUtility.SetDirty(surface);
+        }
         if (gate != null) gate.SetActive(true);
 
         EditorUtility.SetDirty(root.gameObject);

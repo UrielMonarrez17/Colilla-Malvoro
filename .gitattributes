@@ -80,6 +80,7 @@
 #
 # *.asset merge=unityyamlmerge
 #
+NavMesh*.asset binary
 
 
 # ------------------------------------------------------------

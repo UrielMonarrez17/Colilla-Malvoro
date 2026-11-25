@@ -19,6 +19,30 @@ public class CinematicaManager : MonoBehaviour
     private bool canvasUIRootWasActive;
     private bool canvasUIRootStateCaptured;
 
+    private string BuscarRutaVideo(string nombreArchivo)
+    {
+        if (string.IsNullOrEmpty(nombreArchivo)) return null;
+
+        string[] carpetasBusqueda = new string[]
+        {
+            System.IO.Path.Combine(Application.dataPath, "UI", "Videos"),
+            System.IO.Path.Combine(Application.dataPath, "Prototipo2", "UI", "Videos"),
+            System.IO.Path.Combine(Application.dataPath, "Prototipo3", "UI", "Videos"),
+            System.IO.Path.Combine(Application.dataPath, "StreamingAssets", "Cutscenes"),
+            System.IO.Path.Combine(Application.dataPath, "Resources", "Videos"),
+            System.IO.Path.Combine(Application.dataPath, "Prototipo3", "Scripts", "Cinematics")
+        };
+
+        foreach (string carpeta in carpetasBusqueda)
+        {
+            string ruta = System.IO.Path.Combine(carpeta, nombreArchivo);
+            if (System.IO.File.Exists(ruta))
+                return ruta;
+        }
+
+        return null;
+    }
+
     void Awake()
     {
         if (reproductorVideo == null) reproductorVideo = GetComponent<VideoPlayer>();
@@ -26,21 +50,35 @@ public class CinematicaManager : MonoBehaviour
         {
             reproductorVideo.playOnAwake = false;
 
-            // Priorizar videos MP4 de Assets/Prototipo3/Scripts/Cinematics
-            string clipName = reproductorVideo.clip != null ? reproductorVideo.clip.name : "01_Intro_Sofia";
-            string preferredFile = clipName.EndsWith(".mp4", System.StringComparison.OrdinalIgnoreCase) ? clipName : (clipName + ".mp4");
-            string folder = System.IO.Path.Combine(Application.dataPath, "Prototipo3", "Scripts", "Cinematics");
-            string fullPath = System.IO.Path.Combine(folder, preferredFile);
-            if (!System.IO.File.Exists(fullPath))
+            if (reproductorVideo.clip != null)
             {
-                fullPath = System.IO.Path.Combine(folder, "01_Intro_Sofia.mp4");
-            }
+                // Si hay un clip asignado (ej. TestInitialVideo), buscar si existe su archivo MP4 directo en disco para streaming óptimo
+                string clipName = reproductorVideo.clip.name;
+                string preferredFile = clipName.EndsWith(".mp4", System.StringComparison.OrdinalIgnoreCase) ? clipName : (clipName + ".mp4");
+                string ruta = BuscarRutaVideo(preferredFile);
 
-            if (System.IO.File.Exists(fullPath))
+                if (!string.IsNullOrEmpty(ruta))
+                {
+                    reproductorVideo.source = VideoSource.Url;
+                    reproductorVideo.url = ruta;
+                    Debug.Log($"[CinematicaManager] Reproduciendo video desde archivo MP4: {ruta}");
+                }
+                else
+                {
+                    reproductorVideo.source = VideoSource.VideoClip;
+                    Debug.Log($"[CinematicaManager] Reproduciendo video desde VideoClip asignado: {reproductorVideo.clip.name}");
+                }
+            }
+            else
             {
-                reproductorVideo.source = VideoSource.Url;
-                reproductorVideo.url = fullPath;
-                Debug.Log($"[CinematicaManager] Priorizando video MP4 de Prototipo3/Scripts/Cinematics: {fullPath}");
+                // Si no hay clip asignado en el inspector, buscar por defecto TestInitialVideo.mp4 en las carpetas del proyecto
+                string rutaDefault = BuscarRutaVideo("TestInitialVideo.mp4");
+                if (!string.IsNullOrEmpty(rutaDefault))
+                {
+                    reproductorVideo.source = VideoSource.Url;
+                    reproductorVideo.url = rutaDefault;
+                    Debug.Log($"[CinematicaManager] Sin clip asignado: usando TestInitialVideo por defecto: {rutaDefault}");
+                }
             }
         }
     }

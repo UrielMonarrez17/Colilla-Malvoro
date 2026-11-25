@@ -50,6 +50,10 @@ public class TutorialPipelineManager : MonoBehaviour
     public TextMeshProUGUI textoMisionUI;
     public PunteroMision punteroFlecha;
 
+    [Header("Cinemática Inicial (MP4)")]
+    [Tooltip("Video de introducción inicial del tutorial (ej. TestInitialVideo.mp4).")]
+    public VideoClip videoCinematicaInicial;
+
     [Header("Cinemática Tigre (MP4)")]
     [Tooltip("Video del tigre amenazante con la leyenda ¡CORRE!. Si se deja vacío se carga Resources/Videos/TigreCorre.")]
     public VideoClip videoCinematicaTigre;
@@ -115,7 +119,7 @@ public class TutorialPipelineManager : MonoBehaviour
         if (!group) group = target.AddComponent<CanvasGroup>();
         group.alpha = 0; group.blocksRaycasts = false; group.interactable = false;
     }
-    
+
 
     // --- Barreras y Candados de Secuencia Obligatoria ---
     private GameObject barreraSalidaMadriguera;
@@ -205,7 +209,14 @@ public class TutorialPipelineManager : MonoBehaviour
         PrepararEscenaYReferencias();
         ConstruirHudTutorial();
 
-        // Si hay una cinemática de video inicial activa, sincronizar y ocultar toda la UI del tutorial
+        // ===================================================================================
+        // GESTIÓN DE LA CINEMÁTICA INICIAL (TestInitialVideo.mp4)
+        // La cinemática de apertura se ejecuta a través del componente CinematicaManager
+        // (GameObject 'CinematicaInicial' en la escena Tutorial.unity). TutorialPipelineManager
+        // sincroniza su estado aquí: si CinematicaManager está en curso, se activa el flag
+        // 'enCinematica = true' y se oculta el HUD/UI hasta que CinematicaManager invoque
+        // NotificarFinCinematicaInicial().
+        // ===================================================================================
         CinematicaManager cinManager = FindAnyObjectByType<CinematicaManager>();
         if (cinManager != null && !cinManager.CinematicaTerminada)
         {
@@ -262,6 +273,12 @@ public class TutorialPipelineManager : MonoBehaviour
             prefabContenedorLoot = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/PreFabs/LootContainers/GarbageCollector.prefab");
             if (prefabContenedorLoot == null)
                 prefabContenedorLoot = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/PreFabs/Basura2.prefab");
+        }
+        if (videoCinematicaInicial == null)
+        {
+            videoCinematicaInicial = AssetDatabase.LoadAssetAtPath<VideoClip>("Assets/UI/Videos/TestInitialVideo.mp4");
+            if (videoCinematicaInicial == null)
+                videoCinematicaInicial = AssetDatabase.LoadAssetAtPath<VideoClip>("Assets/Prototipo2/UI/Videos/TestInitialVideo.mp4");
         }
 #endif
     }
@@ -363,8 +380,6 @@ public class TutorialPipelineManager : MonoBehaviour
             mesaCrafteoRefugio = FindAnyObjectByType<CraftingTable>();
         if (mesaCrafteoRefugio != null)
         {
-            mesaCrafteoRefugio.transform.position = POS_MESA_REFUGIO;
-            mesaCrafteoRefugio.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
             mesaCrafteoRefugio.gameObject.tag = "Interactable";
             DecorarMesaDeTrabajo(mesaCrafteoRefugio.transform);
             CachearBotonesSecundariosMesa();
@@ -376,8 +391,7 @@ public class TutorialPipelineManager : MonoBehaviour
         if (puertaTrampaRefugio != null)
         {
             Transform rootDoor = puertaTrampaRefugio.transform.root;
-            rootDoor.position = POS_PUERTA_TRAMPA_REF;
-            rootDoor.rotation = Quaternion.Euler(0f, 0f, 0f);
+
             puertaTrampaRefugio.gameObject.tag = "Door";
             // Asegurarnos de que empiece SIN trampa instalada para que el jugador la coloque en la Fase 3
             puertaTrampaRefugio.LimpiarTrampa();
@@ -387,8 +401,7 @@ public class TutorialPipelineManager : MonoBehaviour
             luluNPC = FindAnyObjectByType<LuluNPC>();
         if (luluNPC != null)
         {
-            luluNPC.transform.position = POS_LULU_CIUDAD;
-            luluNPC.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+
             luluNPC.gameObject.tag = "Interactable";
         }
 
@@ -397,6 +410,20 @@ public class TutorialPipelineManager : MonoBehaviour
 
         // 9. Acomodar Contenedores de Basura en la Ciudad y Ciudadanos Pacíficos (Día 1)
         CrearContenedoresYCiudadanosDia1();
+
+        // 10. Sincronizar y validar referencia a Cinemática Inicial (TestInitialVideo)
+        CinematicaManager cinManagerRef = FindAnyObjectByType<CinematicaManager>();
+        if (cinManagerRef != null)
+        {
+            var vpRef = cinManagerRef.reproductorVideo != null ? cinManagerRef.reproductorVideo : cinManagerRef.GetComponent<VideoPlayer>();
+            if (vpRef != null && videoCinematicaInicial != null)
+            {
+                if (vpRef.clip == null || vpRef.clip.name.Contains("Sofia"))
+                {
+                    vpRef.clip = videoCinematicaInicial;
+                }
+            }
+        }
     }
 
     private Light FindDirectionalLight()
