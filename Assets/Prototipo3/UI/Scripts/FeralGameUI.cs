@@ -121,6 +121,8 @@ namespace Prototipo3.UI
         void Crafted(TipoTrampa type) { dirty = true; }
 
         bool Cinematic =>
+            PortraitDialogueUIPrototipo3.IsConversationActive ||
+            StoryDirectorPrototipo3.IsDemoVictoryOpen ||
             (RespawnManagerPrototipo3.Instance != null && RespawnManagerPrototipo3.Instance.IsRespawning) ||
             (TutorialPipelineManager.Instance != null && TutorialPipelineManager.Instance.enCinematica) ||
             FindObjectsByType<CinematicaManager>(FindObjectsSortMode.None).Any(c => c.isActiveAndEnabled && !c.CinematicaTerminada);
@@ -356,6 +358,10 @@ namespace Prototipo3.UI
                 {
                     interaction.text = "";
                 }
+                else if (target.GetComponentInParent<StoryInteractablePrototipo3>() is StoryInteractablePrototipo3 storyInt)
+                {
+                    interaction.text = storyInt.GetPromptText();
+                }
                 else if (target.GetComponentInParent<CraftingTable>() != null)
                 {
                     interaction.text = "[ F ]  Usar mesa de fabricación";
@@ -388,13 +394,25 @@ namespace Prototipo3.UI
             bool isNight = tm != null && tm.CurrentCycleState == TimeManager.CycleState.Night;
             clock.text = tm == null ? "" : $"{(isNight ? "NOCHE" : "DÍA")}   {tm.CurrentHour:00}:{tm.CurrentMinute:00}";
 
-            var city = CityGeneratorPrototipo3.Instance;
-            string seedInfo = city != null ? $"#{city.seed} ({city.mapWidth}x{city.mapLength})" : "ACTIVA";
-            phase.text = $"CIUDAD PROCEDURAL · SEMILLA {seedInfo}";
-            objective.text = isNight
-                ? "¡Cae la noche feral! Evade a los depredadores con sigilo [C], dash o trampas [1][2][3]."
-                : "Explora la ciudad: recoge recursos con [F] y fabrica trampas en tu mesa central.";
-            guide.text = "[G] Ciudad aleatoria  ·  [ESC] Configurar semilla y tamaño";
+            var story = StoryDirectorPrototipo3.Instance;
+            if (story != null && story.storyModeEnabled)
+            {
+                phase.text = story.GetHudPhaseTitle() ?? "MODO HISTORIA";
+                objective.text = story.GetHudObjectiveText() ?? "";
+                guide.text = NetLauncherWeaponPrototipo3.Instance != null && NetLauncherWeaponPrototipo3.Instance.isUnlocked
+                    ? "[CLICK IZQ / E] Pistola Lanza Redes  ·  [1/2/3] Trampas"
+                    : "[F] Interactuar  ·  [TAB] Mochila  ·  [1/2/3] Trampas";
+            }
+            else
+            {
+                var city = CityGeneratorPrototipo3.Instance;
+                string seedInfo = city != null ? $"#{city.seed} ({city.mapWidth}x{city.mapLength})" : "ACTIVA";
+                phase.text = $"CIUDAD PROCEDURAL · SEMILLA {seedInfo}";
+                objective.text = isNight
+                    ? "¡Cae la noche feral! Evade a los depredadores con sigilo [C], dash o trampas [1][2][3]."
+                    : "Explora la ciudad: recoge recursos con [F] y fabrica trampas en tu mesa central.";
+                guide.text = "[G] Ciudad aleatoria  ·  [ESC] Configurar semilla y tamaño";
+            }
         }
 
         void SuppressLegacy()

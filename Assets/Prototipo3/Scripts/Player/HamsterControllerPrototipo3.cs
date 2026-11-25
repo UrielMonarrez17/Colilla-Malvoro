@@ -99,6 +99,7 @@ namespace Prototipo3
         private void Update()
         {
             if (Prototipo3.UI.FeralGameUI.BlocksGameplay) return;
+            if (PortraitDialogueUIPrototipo3.IsConversationActive || StoryDirectorPrototipo3.IsDemoVictoryOpen) return;
             if (RespawnManagerPrototipo3.Instance != null && RespawnManagerPrototipo3.Instance.IsRespawning) return;
             if (isDead) return;
 
@@ -412,7 +413,11 @@ namespace Prototipo3
 
             if ((FeralInput.Pressed(KeyCode.F) || Input.GetKeyDown(KeyCode.F)) && currentInteractable != null)
             {
-                if (currentInteractable.GetComponentInParent<CraftingTable>() is CraftingTable craftingTable)
+                if (currentInteractable.GetComponentInParent<StoryInteractablePrototipo3>() is StoryInteractablePrototipo3 storyInter)
+                {
+                    storyInter.Interact(this);
+                }
+                else if (currentInteractable.GetComponentInParent<CraftingTable>() is CraftingTable craftingTable)
                 {
                     craftingTable.ToggleCraftingMenu();
                 }

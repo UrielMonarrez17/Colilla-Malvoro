@@ -249,6 +249,16 @@ namespace Prototipo3.UI
 
         public void LaunchRandomCityPrototipo3()
         {
+            StoryDirectorPrototipo3.PendingStoryMode = true;
+            if (StoryDirectorPrototipo3.Instance != null) StoryDirectorPrototipo3.Instance.ResetCampaignForNewGame(true);
+            int randomSeed = UnityEngine.Random.Range(100000, 999999);
+            LaunchCityWithConfig(randomSeed, 30, 30);
+        }
+
+        public void LaunchSandboxFreePrototipo3()
+        {
+            StoryDirectorPrototipo3.PendingStoryMode = false;
+            if (StoryDirectorPrototipo3.Instance != null) StoryDirectorPrototipo3.Instance.ResetCampaignForNewGame(false);
             int randomSeed = UnityEngine.Random.Range(100000, 999999);
             LaunchCityWithConfig(randomSeed, 30, 30);
         }
@@ -341,8 +351,8 @@ namespace Prototipo3.UI
             FeralTheme.Label("Title", card, "Elige cómo empezar", 36, 58, 688, 48, 36);
             FeralTheme.Label("Subtitle", card, "Practica primero en el tutorial o entra directo a una ciudad procedural.", 36, 110, 688, 32, 18, FeralTheme.Muted);
 
-            FeralTheme.Button("BtnTutorial", card, "1. Jugar Tutorial Guiado", 36, 162, 688, 56, LaunchTutorialScene, false);
-            FeralTheme.Button("BtnRandomCity", card, "2. Ciudad Aleatoria (Prototipo 3)", 36, 232, 688, 58, LaunchRandomCityPrototipo3, true);
+            FeralTheme.Button("BtnTutorial", card, "1. Jugar Modo Historia (Demo Lineal)", 36, 162, 688, 56, LaunchRandomCityPrototipo3, true);
+            FeralTheme.Button("BtnRandomCity", card, "2. Ciudad Libre Sandbox (Sin Historia)", 36, 232, 688, 58, LaunchSandboxFreePrototipo3, false);
 
             var customBox = FeralTheme.Panel("CustomCityBox", card, 36, 308, 688, 226, FeralTheme.Card).rectTransform;
             FeralTheme.Label("CustomTitle", customBox, "3. Personalizar Ciudad Procedural", 24, 16, 640, 32, 22, FeralTheme.Gold);

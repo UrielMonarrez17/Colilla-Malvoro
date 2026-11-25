@@ -67,7 +67,7 @@ namespace Prototipo3
 
         public void CancelActiveBossAttacks() { }
 
-        public bool IsFeralActiveNow() => IsNight();
+        public bool IsFeralActiveNow() => StoryDirectorPrototipo3.AllowFeralGlobally && IsNight();
 
         private void ForceBaseState(EnemyState targetState)
         {

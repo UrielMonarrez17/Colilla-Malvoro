@@ -251,8 +251,12 @@ namespace Prototipo3
 
             Time.timeScale = 1f;
 
-            // 3. Avanzar el reloj al siguiente Amanecer (6:00 AM -> dispara OnDayStart en EnemyAI)
-            if (TimeManager.Instance != null)
+            // 3. Avanzar el reloj al siguiente Amanecer (salvo si estamos en la huida nocturna obligatoria de Marco Feral)
+            bool keepFeralNight = StoryDirectorPrototipo3.Instance != null &&
+                                  StoryDirectorPrototipo3.Instance.storyModeEnabled &&
+                                  StoryDirectorPrototipo3.Instance.CurrentPhase == StoryPhase.EscapeMarcoFeral;
+
+            if (TimeManager.Instance != null && !keepFeralNight)
             {
                 TimeManager.Instance.ForceDawnSunrise();
             }
@@ -266,10 +270,11 @@ namespace Prototipo3
                 }
             }
 
-            // 4. Restaurar salud a 0 golpes y teletransportar a Kilo a su Base
+            // 4. Restaurar salud a 0 golpes y teletransportar a Kilo a su Base o punto de entrada de la Escuela
+            GameObject respawnMarker = GameObject.FindWithTag("Respawn");
             Vector3 basePos = CityGeneratorPrototipo3.Instance != null
                 ? CityGeneratorPrototipo3.Instance.PlayerSpawnPoint
-                : Vector3.zero;
+                : (respawnMarker != null ? respawnMarker.transform.position : new Vector3(0f, 0.15f, -8f));
 
             if (boundPlayer == null)
             {
