@@ -72,8 +72,8 @@ MonoBehaviour:
   currentCaptureHealth: 100
   featherProjectilePrefab: {fileID: 3552427423695902125, guid: c8acf5f89b4fb054d860db4175cfdafc, type: 3}
   arenaCenter: {x: 0, y: 0, z: 0}
-  arenaHalfExtents: {x: 13.5, y: 8}
-  cruiseAltitudeY: 3.2
+  arenaHalfExtents: {x: 13.2, y: 7.6}
+  cruiseAltitudeY: 3.35
   groundAltitudeY: 0.05
 --- !u!1001 &1362974594129715421
 PrefabInstance:

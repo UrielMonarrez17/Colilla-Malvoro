@@ -224,20 +224,23 @@ namespace Prototipo3
             lastNetwork = network;
             LastNetwork = network;
 
-            // 5. Colliders sólidos en edificios, NavMesh y posicionamiento de Jugador/Crafteo
+            // 5. Losa continua anti-caídas bajo toda la ciudad, colliders sólidos en edificios, NavMesh y posicionamiento
+            EnsureContinuousCityGroundSlab(grid);
             ConfigureCityCollidersAndBakeNavMesh();
             AnalyzeRoadTopology(grid, network);
             PlacePlayerAndCraftTable(grid, hasRefuge);
 
-            // 6. Loots estrictamente sobre bordes exteriores de edificios y fuera de colliders
+            // 6. Loots abundantes sobre bordes de edificios + aceras, callejones e intersecciones
             EnsureDefaultLootSocketRule();
             List<Bounds> buildingBounds = CollectBuildingWorldBounds();
             SpawnSocketObjectsOnBuildingBorders(rng, grid, buildingBounds);
+            SpawnAbundantStreetAndAlleyLoot(rng, grid, buildingBounds);
             SpawnStarterLootNearBase(rng, grid, buildingBounds);
 
-            // 7. Población de enemigos delegada exclusivamente a CityEnemyPopulationSpawner
+            // 7. Población de enemigos delegada exclusivamente a CityEnemyPopulationSpawner + faroles nocturnos prácticos
             SpawnCityEnemies(rng);
             SnapAllAgentsToNavMesh();
+            CityStreetLampManagerPrototipo3.ConfigureCityLamps(transform);
 
             OnCityGenerated?.Invoke();
             Debug.Log($"[CityGeneratorPrototipo3] Ciudad lista. Semilla={seed}, Tamaño={mapWidth}x{mapLength}, Refugio={SafeRefugeCenter}, Spawn={PlayerSpawnPoint}, Enemigos={EnemySpawnPoints.Count}, Loot={LootSpawnPoints.Count}");
@@ -312,6 +315,10 @@ namespace Prototipo3
             safeRefugeInstance = Instantiate(safeRefugePrefab, worldPos, refugeRot, transform);
             safeRefugeInstance.name = "RefugioSeguro_Base";
 
+            SafeRefugeZone zone = safeRefugeInstance.GetComponent<SafeRefugeZone>();
+            if (zone == null) zone = safeRefugeInstance.AddComponent<SafeRefugeZone>();
+            zone.NormalizeRefugeFloorAndAnchors();
+
             SafeRefugeCenter = worldPos;
             safeRefugeFacingDir = worldRoadDir;
 
@@ -323,11 +330,10 @@ namespace Prototipo3
 
             Transform spawnAnchor = safeRefugeInstance.transform.Find("PlayerSpawnAnchor");
             PlayerSpawnPoint = spawnAnchor != null
-                ? spawnAnchor.position
-                : worldPos + Vector3.up * 0.1f;
+                ? new Vector3(spawnAnchor.position.x, roadHeightY + 0.08f, spawnAnchor.position.z)
+                : worldPos + Vector3.up * 0.08f;
 
-            SafeRefugeZone zone = safeRefugeInstance.GetComponent<SafeRefugeZone>();
-            if (zone != null && outsideAnchor != null)
+            if (outsideAnchor != null)
             {
                 zone.doorwayOutsidePoint = outsideAnchor;
             }
@@ -400,17 +406,112 @@ namespace Prototipo3
             BuildingData[] buildings = GetComponentsInChildren<BuildingData>(true);
             Vector3[] cardinalDirs = { Vector3.forward, Vector3.back, Vector3.right, Vector3.left };
 
-            foreach (SocketSpawnRule rule in socketSpawns)
+            // Máximo 1 contenedor por edificio (rotando variedad de prefab) para abundancia equilibrada (~150 loots en vez de 655) sin tirones al inicio!
+            for (int b = 0; b < buildings.Length; b++)
             {
+                BuildingData building = buildings[b];
+                if (building == null || building.GetComponentInParent<SafeRefugeZone>() != null) continue;
+                if (!rng.Chance(0.52f)) continue;
+
+                SocketSpawnRule rule = socketSpawns[rng.Range(0, socketSpawns.Count)];
                 if (rule == null || rule.prefab == null) continue;
 
-                foreach (BuildingData building in buildings)
-                {
-                    if (building == null || building.GetComponentInParent<SafeRefugeZone>() != null) continue;
-                    if (!rng.Chance(rule.probability)) continue;
+                TrySpawnOnBuildingExteriorEdge(rule, building.gameObject, rng, grid, buildingBounds, cardinalDirs);
+            }
+        }
 
-                    TrySpawnOnBuildingExteriorEdge(rule, building.gameObject, rng, grid, buildingBounds, cardinalDirs);
+        private void EnsureContinuousCityGroundSlab(CityGrid grid)
+        {
+            Transform oldSlab = transform.Find("CityGroundSafetySlab");
+            if (oldSlab != null)
+            {
+                if (Application.isPlaying) Destroy(oldSlab.gameObject);
+                else DestroyImmediate(oldSlab.gameObject);
+            }
+
+            float totalW = (grid.Width + 8) * cellSize;
+            float totalL = (grid.Length + 8) * cellSize;
+            Vector3 center = new Vector3(grid.Width * cellSize * 0.5f, roadHeightY - 0.51f, grid.Length * cellSize * 0.5f);
+
+            GameObject slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            slab.name = "CityGroundSafetySlab";
+            slab.transform.SetParent(transform, false);
+            slab.transform.position = center;
+            slab.transform.localScale = new Vector3(totalW, 1.0f, totalL);
+
+            Renderer r = slab.GetComponent<Renderer>();
+            if (r != null)
+            {
+                Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+                Material m = new Material(sh);
+                Color asphalt = new Color(0.19f, 0.20f, 0.22f, 1f);
+                m.color = asphalt;
+                if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", asphalt);
+                m.SetFloat("_Smoothness", 0.15f);
+                r.sharedMaterial = m;
+            }
+
+            BoxCollider bc = slab.GetComponent<BoxCollider>();
+            if (bc != null)
+            {
+                bc.enabled = true;
+                bc.isTrigger = false;
+            }
+        }
+
+        private void SpawnAbundantStreetAndAlleyLoot(CityRandom rng, CityGrid grid, List<Bounds> buildingBounds)
+        {
+            List<GameObject> lootVariants = new List<GameObject>();
+            if (socketSpawns != null)
+            {
+                for (int i = 0; i < socketSpawns.Count; i++)
+                {
+                    if (socketSpawns[i] != null && socketSpawns[i].prefab != null &&
+                        socketSpawns[i].prefab.GetComponentInChildren<LootContainer>() != null)
+                    {
+                        lootVariants.Add(socketSpawns[i].prefab);
+                    }
                 }
+            }
+            if (lootVariants.Count == 0 && lootPrefab != null) lootVariants.Add(lootPrefab);
+            if (lootVariants.Count == 0) return;
+
+            var candidates = new List<Vector3>();
+            for (int x = 1; x < grid.Width - 1; x++)
+            {
+                for (int y = 1; y < grid.Length - 1; y++)
+                {
+                    Vector2Int c = new Vector2Int(x, y);
+                    CellType ct = grid.Get(c);
+                    if (ct != CellType.Road && ct != CellType.Empty) continue;
+
+                    Vector3 cellCenter = CellToWorldCenter(c);
+                    // Colocar en las esquinas/aceras de las celdas para no estorbar el centro del carril
+                    candidates.Add(cellCenter + new Vector3(3.4f, 0f, 3.4f));
+                    candidates.Add(cellCenter + new Vector3(-3.4f, 0f, -3.4f));
+                    if (ct == CellType.Empty)
+                    {
+                        candidates.Add(cellCenter + new Vector3(-3.2f, 0f, 3.2f));
+                    }
+                }
+            }
+
+            ShuffleList(candidates, rng);
+            int extraTarget = Mathf.Clamp((grid.Width * grid.Length) / 20, 36, 65);
+            int spawned = 0;
+
+            for (int i = 0; i < candidates.Count && spawned < extraTarget; i++)
+            {
+                Vector3 candidate = candidates[i];
+                if (!NavMesh.SamplePosition(candidate, out NavMeshHit navHit, 2.2f, NavMesh.AllAreas)) continue;
+                Vector3 snapped = new Vector3(navHit.position.x, roadHeightY, navHit.position.z);
+                if (!IsLootSpotClear(snapped, buildingBounds)) continue;
+
+                GameObject chosen = lootVariants[rng.Range(0, lootVariants.Count)];
+                GameObject obj = Instantiate(chosen, snapped, Quaternion.Euler(0f, rng.Range(0, 360), 0f), transform);
+                obj.tag = "Interactable";
+                LootSpawnPoints.Add(snapped);
+                spawned++;
             }
         }
 
@@ -590,6 +691,20 @@ namespace Prototipo3
                 obstacle.carvingTimeToStationary = 0.1f;
             }
 
+            // Desactivar temporalmente MeshColliders cuyas mallas no tengan Read/Write activado (Pavement/Road) durante BuildNavMesh:
+            // CityGroundSafetySlab + BoxColliders de edificios cubren toda la geometría caminable y esto elimina +500 stacktraces al arrancar!
+            MeshCollider[] allMeshCols = GetComponentsInChildren<MeshCollider>(false);
+            var tempDisabled = new List<MeshCollider>(allMeshCols.Length);
+            for (int i = 0; i < allMeshCols.Length; i++)
+            {
+                MeshCollider mc = allMeshCols[i];
+                if (mc != null && mc.enabled && mc.sharedMesh != null && !mc.sharedMesh.isReadable)
+                {
+                    mc.enabled = false;
+                    tempDisabled.Add(mc);
+                }
+            }
+
             Physics.SyncTransforms();
 
             NavMeshSurface navSurface = GetComponent<NavMeshSurface>();
@@ -597,6 +712,12 @@ namespace Prototipo3
             navSurface.collectObjects = CollectObjects.Children;
             navSurface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
             navSurface.BuildNavMesh();
+
+            for (int i = 0; i < tempDisabled.Count; i++)
+            {
+                if (tempDisabled[i] != null) tempDisabled[i].enabled = true;
+            }
+            Physics.SyncTransforms();
         }
 
         private void AnalyzeRoadTopology(CityGrid grid, RoadNetwork network)

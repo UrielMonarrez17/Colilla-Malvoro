@@ -11,7 +11,7 @@ namespace Prototipo3.UI
         {
             vh.Clear();
             Rect r = rectTransform.rect;
-            const int steps = 80;
+            const int steps = 24;
             for (int i = 0; i <= steps; i++)
             {
                 float t = i / (float)steps;

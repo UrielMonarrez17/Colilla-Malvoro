@@ -15,11 +15,11 @@ namespace Prototipo3
     public class MarcoFeralBossAI : MonoBehaviour
     {
         [Header("Parámetros de Jefe Invencible")]
-        public float basePursuitSpeed = 6.9f;
-        public float bullChargeSpeed = 12.2f;
-        public float meleeHitRange = 2.05f;
-        public float escapeDistanceRequired = 36f;
-        public float minPursuitTimeBeforeEscape = 7.5f;
+        public float basePursuitSpeed = 6.7f;
+        public float bullChargeSpeed = 11.8f;
+        public float meleeHitRange = 1.95f;
+        public float escapeDistanceRequired = 44f;
+        public float minPursuitTimeBeforeEscape = 15f;
         public GameObject debrisProjectilePrefab;
 
         public event Action OnPlayerEscapedMarco;
@@ -35,7 +35,7 @@ namespace Prototipo3
         private float specialCooldown = 3.2f;
         private float staggerTimer = 0f;
 
-        private enum BossSubState { Pursuing, WindupCharge, Charging, ThrowingDebris }
+        private enum BossSubState { Pursuing, PostHitRecovery, WindupCharge, Charging, ThrowingDebris }
         private BossSubState subState = BossSubState.Pursuing;
         private float stateTimer = 0f;
         private Vector3 chargeDirection;
@@ -45,6 +45,12 @@ namespace Prototipo3
         {
             gameObject.tag = "Enemy";
             agent = GetComponent<NavMeshAgent>();
+            if (agent != null) agent.stoppingDistance = 1.45f;
+
+            // Hacer su collider trigger para que jamás pueda prensar ni trabar físicamente el Rigidbody del hámster
+            Collider col = GetComponent<Collider>();
+            if (col != null) col.isTrigger = true;
+
             anim = GetComponentInChildren<Animator>();
             EnsureTelegraphLine();
         }
@@ -127,10 +133,9 @@ namespace Prototipo3
             activePursuitTimer += Time.deltaTime;
             float dist = Vector3.Distance(transform.position, player.transform.position);
 
-            // Condición de escape exitoso:
-            // 1) Llegar al Refugio Seguro y aguantar 2.2s a salvo, O
-            // 2) Alejarse más de escapeDistanceRequired tras sobrevivir al menos minPursuitTimeBeforeEscape
-            if (SafeRefugeZone.IsPlayerInsideSafeRefuge)
+            // Detección inmediata y confiable al llegar al Refugio Seguro (como Marco aparece lejos a ~50m, llegar a casa te salva al instante!)
+            bool insideRefugeNow = SafeRefugeZone.IsPointOrPlayerInRefuge(player.transform.position);
+            if (insideRefugeNow)
             {
                 safeRefugeStayTimer += Time.deltaTime;
             }
@@ -139,17 +144,25 @@ namespace Prototipo3
                 safeRefugeStayTimer = 0f;
             }
 
-            float escapeProgress = Mathf.Clamp01(Mathf.Max(
-                safeRefugeStayTimer / 2.2f,
-                activePursuitTimer >= minPursuitTimeBeforeEscape ? (dist / escapeDistanceRequired) : (dist / escapeDistanceRequired) * 0.75f));
+            bool escapedByRefuge = safeRefugeStayTimer >= 0.18f;
+            bool escapedByStreetDistance = activePursuitTimer >= minPursuitTimeBeforeEscape && dist >= escapeDistanceRequired;
+
+            float refugeApproachProgress = 0f;
+            if (CityGeneratorPrototipo3.Instance != null && CityGeneratorPrototipo3.Instance.SafeRefugeCenter != Vector3.zero)
+            {
+                float dToHome = Vector3.Distance(player.transform.position, CityGeneratorPrototipo3.Instance.SafeRefugeCenter);
+                refugeApproachProgress = Mathf.Clamp01(1f - (dToHome - 4.8f) / 48f);
+            }
+            float distProgress = Mathf.Clamp01(dist / escapeDistanceRequired);
+            float escapeProgress = insideRefugeNow ? 1f : Mathf.Max(refugeApproachProgress * 0.85f, distProgress * 0.85f);
 
             BossHudPrototipo3.EnsureInstance().ShowBoss(
                 "MARCO EL TEJÓN (FERAL)  ·  INVENCIBLE",
-                "¡No se le puede vencer! Escapa a tu Refugio Seguro o aléjate por las calles  [Q Dash / 1-2-3 Trampas]",
-                1f - escapeProgress * 0.85f,
+                "¡NO PUEDES VENCERLO! ¡Sigue la flecha dorada hasta entrar a tu Refugio Seguro para escapar!",
+                1f - escapeProgress * 0.90f,
                 new Color(0.95f, 0.32f, 0.08f, 1f));
 
-            if (safeRefugeStayTimer >= 2.2f || (activePursuitTimer >= minPursuitTimeBeforeEscape && dist >= escapeDistanceRequired))
+            if (escapedByRefuge || escapedByStreetDistance)
             {
                 escapeTriggered = true;
                 BossHudPrototipo3.EnsureInstance().HideBoss();
@@ -171,6 +184,12 @@ namespace Prototipo3
             {
                 case BossSubState.Pursuing:
                     TickPursuit(dist);
+                    break;
+                case BossSubState.PostHitRecovery:
+                    stateTimer -= Time.deltaTime;
+                    if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
+                    UpdateAnimSpeed(0f);
+                    if (stateTimer <= 0f) subState = BossSubState.Pursuing;
                     break;
                 case BossSubState.WindupCharge:
                     TickWindupCharge();
@@ -205,10 +224,13 @@ namespace Prototipo3
 
             if (!SafeRefugeZone.IsPlayerInsideSafeRefuge && dist <= meleeHitRange && meleeCooldown <= 0f)
             {
-                meleeCooldown = 1.65f;
+                meleeCooldown = 2.0f;
                 TriggerAnimAttack();
                 player.ReceiveDamage();
                 BossHudPrototipo3.EnsureInstance().TriggerFlash(new Color(1f, 0.25f, 0.05f), 0.35f);
+                // Pausa de rugido tras golpear para darle ventana limpia a Kilo de correr y nunca encimar su collider
+                subState = BossSubState.PostHitRecovery;
+                stateTimer = 1.25f;
                 return;
             }
 

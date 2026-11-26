@@ -43,10 +43,15 @@ namespace Prototipo3
         private bool isJumping = false;
         private Vector3 groundNormal = Vector3.up;
         private float nextJumpTime = 0f;
+        private Transform visualModelTransform;
+        private Vector3 visualBaseLocalScale = Vector3.one;
+        private bool visualScaleCached = false;
 
-        // Ralentización externa temporal
+        // Ralentización externa temporal e invulnerabilidad post-golpe anti-atasco
         private float externalSlowMultiplier = 1f;
         private float externalSlowTimer = 0f;
+        private float postHitInvulnTimer = 0f;
+        private readonly System.Collections.Generic.List<Collider> ignoredEnemyColliders = new System.Collections.Generic.List<Collider>();
 
         public bool IsGrounded => isGrounded;
         public bool IsJumping => isJumping;
@@ -59,6 +64,7 @@ namespace Prototipo3
             {
                 gameObject.tag = "Player";
             }
+            NormalizePlayerCollidersAndVisual();
         }
 
         private void Start()
@@ -71,10 +77,13 @@ namespace Prototipo3
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             rb.interpolation = RigidbodyInterpolation.Interpolate;
 
+            NormalizePlayerCollidersAndVisual();
+
             initialScale = transform.localScale;
             if (initialScale.sqrMagnitude < 0.000001f)
             {
-                initialScale = new Vector3(0.0042f, 0.0042f, 0.0042f);
+                initialScale = Vector3.one;
+                transform.localScale = Vector3.one;
             }
 
             currentStamina = maxStamina;
@@ -88,6 +97,61 @@ namespace Prototipo3
 
             TrapSystemPrototipo3.EnsureInstance();
             RespawnManagerPrototipo3.EnsureInstance();
+        }
+
+        /// <summary>
+        /// Corrige el BoxCollider automático de [RequireComponent(typeof(BoxCollider))] para que su base quede exactamente en y=0
+        /// (evitando que el hámster flote 0.5m en el aire) y elimina colliders duplicados en la raíz.
+        /// </summary>
+        public void NormalizePlayerCollidersAndVisual()
+        {
+            float sx = Mathf.Max(0.0001f, Mathf.Abs(transform.localScale.x));
+            float sy = Mathf.Max(0.0001f, Mathf.Abs(transform.localScale.y));
+            float sz = Mathf.Max(0.0001f, Mathf.Abs(transform.localScale.z));
+
+            // Si el hámster usa escala 1.0 con VisualModel hijo (Prototipo3 y Escuelas), configurar BoxCollider exacto al ras de y=0
+            if (sy > 0.2f)
+            {
+                CapsuleCollider extraCap = GetComponent<CapsuleCollider>();
+                if (extraCap != null) extraCap.enabled = false;
+
+                BoxCollider box = GetComponent<BoxCollider>();
+                if (box == null) box = gameObject.AddComponent<BoxCollider>();
+                box.enabled = true;
+                box.isTrigger = false;
+                box.size = new Vector3(0.44f / sx, 0.56f / sy, 0.52f / sz);
+                box.center = new Vector3(0f, 0.28f / sy, 0f);
+            }
+
+            Transform vis = transform.Find("VisualModel");
+            if (vis != null)
+            {
+                visualModelTransform = vis;
+                if (!visualScaleCached)
+                {
+                    visualBaseLocalScale = vis.localScale;
+                    visualScaleCached = true;
+                }
+
+                // Asegurar que la base de las patas del modelo visual descanse exactamente en local y = 0
+                MeshRenderer[] mrs = vis.GetComponentsInChildren<MeshRenderer>(true);
+                if (mrs.Length > 0)
+                {
+                    float minWorldY = float.MaxValue;
+                    for (int i = 0; i < mrs.Length; i++)
+                    {
+                        if (mrs[i] != null) minWorldY = Mathf.Min(minWorldY, mrs[i].bounds.min.y);
+                    }
+                    if (minWorldY < float.MaxValue)
+                    {
+                        float deltaWorldY = transform.position.y - minWorldY;
+                        if (Mathf.Abs(deltaWorldY) > 0.005f && Mathf.Abs(deltaWorldY) < 2.5f)
+                        {
+                            vis.position += new Vector3(0f, deltaWorldY, 0f);
+                        }
+                    }
+                }
+            }
         }
 
         public void ApplyExternalSlow(float multiplier, float duration)
@@ -109,6 +173,22 @@ namespace Prototipo3
                 if (externalSlowTimer <= 0f)
                 {
                     externalSlowMultiplier = 1f;
+                }
+            }
+
+            if (postHitInvulnTimer > 0f)
+            {
+                postHitInvulnTimer -= Time.deltaTime;
+                if (visualModelTransform != null)
+                {
+                    // Parpadeo sutil de invulnerabilidad para indicar ventana de escape
+                    bool blinkVis = Mathf.FloorToInt(postHitInvulnTimer * 16f) % 2 == 0;
+                    Renderer[] rens = visualModelTransform.GetComponentsInChildren<Renderer>(true);
+                    for (int i = 0; i < rens.Length; i++) if (rens[i] != null) rens[i].enabled = blinkVis;
+                }
+                if (postHitInvulnTimer <= 0f)
+                {
+                    RestoreEnemyCollisionsAndVisibility();
                 }
             }
 
@@ -179,6 +259,7 @@ namespace Prototipo3
         {
             if (isDead) return;
 
+            EnforceMinimumFloorSafety();
             UpdateGroundStatus();
 
             if (!isDashing)
@@ -188,6 +269,32 @@ namespace Prototipo3
             }
 
             ApplyCustomGravity();
+            EnforceMinimumFloorSafety();
+        }
+
+        private void LateUpdate()
+        {
+            if (!isDead) EnforceMinimumFloorSafety();
+        }
+
+        private void EnforceMinimumFloorSafety()
+        {
+            float minSurfaceY = CityGeneratorPrototipo3.Instance != null ? CityGeneratorPrototipo3.Instance.roadHeightY : 0f;
+            if (transform.position.y < minSurfaceY - 0.04f)
+            {
+                Vector3 safePos = new Vector3(transform.position.x, minSurfaceY + 0.02f, transform.position.z);
+                transform.position = safePos;
+                if (rb != null && !rb.isKinematic)
+                {
+                    rb.position = safePos;
+                    if (rb.linearVelocity.y < 0f)
+                    {
+                        rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+                    }
+                }
+                isGrounded = true;
+                isJumping = false;
+            }
         }
 
         private void UpdateGroundStatus()
@@ -243,9 +350,13 @@ namespace Prototipo3
         {
             bool crouching = FeralInput.Held(KeyCode.C);
             isCrouching = crouching;
-            if (crouching)
+
+            // Escalar únicamente el modelo visual al agacharse para no encoger ni hundir el Collider físico contra el suelo
+            if (visualModelTransform != null && visualScaleCached)
             {
-                transform.localScale = new Vector3(initialScale.x, initialScale.y * 0.5f, initialScale.z);
+                visualModelTransform.localScale = crouching
+                    ? new Vector3(visualBaseLocalScale.x * 1.08f, visualBaseLocalScale.y * 0.55f, visualBaseLocalScale.z * 1.08f)
+                    : visualBaseLocalScale;
             }
             else
             {
@@ -447,8 +558,77 @@ namespace Prototipo3
             }
         }
 
+        public override void ReceiveDamage()
+        {
+            if (isDead || postHitInvulnTimer > 0f) return;
+
+            base.ReceiveDamage();
+
+            if (!isDead)
+            {
+                // Activar 1.4s de invulnerabilidad + atravesar colliders enemigos + impulso de escape para jamás quedar trabado!
+                postHitInvulnTimer = 1.4f;
+                externalSlowMultiplier = 1f;
+                externalSlowTimer = 0f;
+                isDashing = false;
+
+                Collider myCol = GetComponent<Collider>();
+                Vector3 pushAway = Vector3.zero;
+
+                Collider[] nearby = Physics.OverlapSphere(transform.position, 4.5f, ~0, QueryTriggerInteraction.Collide);
+                for (int i = 0; i < nearby.Length; i++)
+                {
+                    Collider c = nearby[i];
+                    if (c == null || c == myCol) continue;
+                    bool isEnemy = c.CompareTag("Enemy") || c.GetComponentInParent<EnemyAI>() != null ||
+                                   c.GetComponentInParent<MarcoFeralBossAI>() != null || c.GetComponentInParent<OwlRectorBossAI>() != null;
+                    if (!isEnemy) continue;
+
+                    if (myCol != null && !c.isTrigger)
+                    {
+                        Physics.IgnoreCollision(myCol, c, true);
+                        ignoredEnemyColliders.Add(c);
+                    }
+
+                    Vector3 diff = transform.position - c.transform.position;
+                    diff.y = 0f;
+                    if (diff.sqrMagnitude > 0.001f) pushAway += diff.normalized;
+                }
+
+                if (rb != null && !rb.isKinematic)
+                {
+                    Vector3 escapeDir = pushAway.sqrMagnitude > 0.01f ? pushAway.normalized : -transform.forward;
+                    rb.linearVelocity = new Vector3(escapeDir.x * 9.5f, 2.2f, escapeDir.z * 9.5f);
+                }
+            }
+        }
+
+        private void RestoreEnemyCollisionsAndVisibility()
+        {
+            Collider myCol = GetComponent<Collider>();
+            if (myCol != null)
+            {
+                for (int i = 0; i < ignoredEnemyColliders.Count; i++)
+                {
+                    if (ignoredEnemyColliders[i] != null)
+                    {
+                        Physics.IgnoreCollision(myCol, ignoredEnemyColliders[i], false);
+                    }
+                }
+            }
+            ignoredEnemyColliders.Clear();
+
+            if (visualModelTransform != null)
+            {
+                Renderer[] rens = visualModelTransform.GetComponentsInChildren<Renderer>(true);
+                for (int i = 0; i < rens.Length; i++) if (rens[i] != null) rens[i].enabled = true;
+            }
+        }
+
         public override void RespawnOrHeal(Vector3? newPosition = null)
         {
+            postHitInvulnTimer = 0f;
+            RestoreEnemyCollisionsAndVisibility();
             base.RespawnOrHeal(newPosition);
             isGrounded = true;
             isJumping = false;

@@ -65,21 +65,21 @@ namespace Prototipo3
 
                 case StoryInteractableKind.SchoolCityEntranceHole:
                     if (StoryDirectorPrototipo3.Instance != null && !StoryDirectorPrototipo3.Instance.CanEnterSchoolFromCity)
-                        return "Agujero en la reja de la High School (Investiga primero la ciudad)";
+                        return "Alcantarilla sellada hacia la High School (Investiga primero la ciudad)";
                     return StoryDirectorPrototipo3.Instance != null && StoryDirectorPrototipo3.Instance.CurrentPhase == StoryPhase.EnterSchoolFinalBattle
-                        ? "[ F ]  Entrar a la Cancha de Básquet (Batalla Final)"
-                        : "[ F ]  Colarse por el agujero a la High School";
+                        ? "[ F ]  Bajar por la alcantarilla a la Cancha de Básquet (Batalla Final)"
+                        : "[ F ]  Bajar por la alcantarilla hacia la High School";
 
                 case StoryInteractableKind.SchoolPandemicClueLab:
-                    return "[ F ]  Investigar cápsulas rotas de Helios-9";
+                    return "[ F ]  Tomar papeles confidenciales de Helios-9";
 
                 case StoryInteractableKind.SchoolEscapeHoleToCity:
-                    return "[ F ]  Escapar por el agujero hacia la Ciudad";
+                    return "[ F ]  Escapar por la alcantarilla hacia la Ciudad";
 
                 case StoryInteractableKind.GymFloodlightSwitch:
                     return switchCooldownRemaining > 0f
                         ? $"Reflector UV recargando ({switchCooldownRemaining:F0}s)"
-                        : "[ F ]  Activar Reflector UV (Aturde al Búho Rector)";
+                        : "[ F ]  Sobrecargar Reflector UV (Derriba al Búho)";
 
                 default:
                     return "[ F ]  Interactuar";
@@ -106,20 +106,31 @@ namespace Prototipo3
         private void TriggerGymFloodlight()
         {
             if (switchCooldownRemaining > 0f) return;
-            switchCooldownRemaining = 12f;
-
-            if (linkedSpotlight != null)
-            {
-                linkedSpotlight.color = new Color(0.25f, 0.92f, 1f, 1f);
-                linkedSpotlight.intensity = 14f;
-            }
-
-            BossHudPrototipo3.EnsureInstance().TriggerFlash(new Color(0.25f, 0.95f, 1f), 0.35f);
 
             OwlRectorBossAI owl = FindAnyObjectByType<OwlRectorBossAI>();
             if (owl != null && !owl.IsDefeated)
             {
-                owl.ForceDazzleGrounding(4.6f, "¡Reflector UV encendido! ¡El Búho Rector cayó cegado: USA EL LANZA REDES [CLICK IZQ / E]!");
+                // Requiere que el Búho no esté demasiado lejos del reflector (<= 19m) para premiar el posicionamiento táctico!
+                float distToOwl = Vector2.Distance(
+                    new Vector2(transform.position.x, transform.position.z),
+                    new Vector2(owl.transform.position.x, owl.transform.position.z));
+
+                if (distToOwl > 20.5f)
+                {
+                    if (UI.FeralGameUI.Instance != null)
+                        UI.FeralGameUI.Instance.ShowLootFeedback("¡El Búho está muy lejos de este reflector! Espera a que vuele más cerca o ve a su esquina.", 2.4f);
+                    return;
+                }
+
+                switchCooldownRemaining = 22f;
+                if (linkedSpotlight != null)
+                {
+                    linkedSpotlight.color = new Color(0.25f, 0.92f, 1f, 1f);
+                    linkedSpotlight.intensity = 15f;
+                }
+
+                BossHudPrototipo3.EnsureInstance().TriggerFlash(new Color(0.25f, 0.95f, 1f), 0.35f);
+                owl.ForceDazzleGrounding(2.7f, "¡Reflector UV impactó! ¡Cayó a la duela: DISPÁRALE UNA RED YA [CLICK IZQ / E]!");
             }
         }
     }

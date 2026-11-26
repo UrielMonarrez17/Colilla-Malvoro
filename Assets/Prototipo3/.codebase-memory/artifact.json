@@ -1,11 +1,11 @@
 {
     "schema_version": 2,
-    "commit": "63f2d03daf005fb0f5364959e2d6e6479dad44a8",
-    "indexed_at": "2026-11-25T17:51:51Z",
+    "commit": "ea81397162cc7f2362f82ee8142b021db8c3a561",
+    "indexed_at": "2026-11-26T01:38:52Z",
     "project": "C-Users-rodri-FeralCarbon-Colilla-Malvoro-Assets-Prototipo3",
-    "nodes": 1605,
-    "edges": 5459,
-    "original_size": 9830400,
-    "compressed_size": 1476349,
+    "nodes": 1727,
+    "edges": 5878,
+    "original_size": 10420224,
+    "compressed_size": 1576036,
     "compression_level": 3
 }
