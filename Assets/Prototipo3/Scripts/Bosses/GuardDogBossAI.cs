@@ -31,6 +31,12 @@ namespace Prototipo3
         private Vector3 lungeDir;
         private bool showingHud = false;
 
+        /// <summary>True cuando el Perro Guardián está en estado feral persiguiendo activamente al jugador fuera del refugio.</summary>
+        public bool IsActivelyChasingPlayer =>
+            isActiveAndEnabled && baseAi != null && baseAi.isActiveAndEnabled &&
+            baseAi.IsFeralActiveNow() && !SafeRefugeZone.IsPlayerInsideSafeRefuge &&
+            baseAi.CurrentState == EnemyAI.EnemyState.Chase;
+
         private void Awake()
         {
             baseAi = GetComponent<EnemyAIPrototipo3>();

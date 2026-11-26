@@ -40,68 +40,29 @@ public class CraftingTable : MonoBehaviour
         OnMenuToggled?.Invoke(this, false);
     }
 
-    // --- LÓGICA DE CRAFTEO ---
+    // --- LÓGICA DE CRAFTEO (Unificada con TrapSystemPrototipo3) ---
 
     public void CraftTrap1()
     {
-        if (InventoryManager.Instance == null) return;
-
-        // Trampa de Púas: 1 Metal, 1 Madera
-        if (InventoryManager.Instance.HasEnoughItem(ItemType.Metal, 1) && 
-            InventoryManager.Instance.HasEnoughItem(ItemType.Madera, 1))
-        {
-            // Descontamos los materiales
-            InventoryManager.Instance.RemoveItem(ItemType.Metal, 1);
-            InventoryManager.Instance.RemoveItem(ItemType.Madera, 1);
-            
-            // Añadimos la trampa al inventario
-            InventoryManager.Instance.AddTrampa(TipoTrampa.Puas);
-            Debug.Log("✅ ¡Trampa de Púas crafteada con éxito!");
-            OnTrapCrafted?.Invoke(TipoTrampa.Puas);
-        }
-        else
-        {
-            Debug.Log("❌ Faltan materiales. Necesitas: 1 Metal, 1 Madera.");
-        }
+        TryCraftViaProto3System(TipoTrampa.Puas);
     }
 
     public void CraftTrap2()
     {
-        if (InventoryManager.Instance == null) return;
-
-        // Trampa de Red: 1 Goma, 1 Desperdicios
-        if (InventoryManager.Instance.HasEnoughItem(ItemType.Goma, 1) && 
-            InventoryManager.Instance.HasEnoughItem(ItemType.Desperdicios, 1))
-        {
-            InventoryManager.Instance.RemoveItem(ItemType.Goma, 1);
-            InventoryManager.Instance.RemoveItem(ItemType.Desperdicios, 1);
-            
-            InventoryManager.Instance.AddTrampa(TipoTrampa.Red);
-            Debug.Log("✅ ¡Trampa de Red crafteada con éxito!");
-            OnTrapCrafted?.Invoke(TipoTrampa.Red);
-        }
-        else
-        {
-            Debug.Log("❌ Faltan materiales. Necesitas: 1 Goma, 1 Desperdicio.");
-        }
+        TryCraftViaProto3System(TipoTrampa.Red);
     }
 
     public void CraftTrap3()
     {
-        if (InventoryManager.Instance == null) return;
+        TryCraftViaProto3System(TipoTrampa.Madera);
+    }
 
-        // Trampa de Madera: 2 Madera
-        if (InventoryManager.Instance.HasEnoughItem(ItemType.Madera, 2))
+    private void TryCraftViaProto3System(TipoTrampa tipo)
+    {
+        Prototipo3.TrapSystemPrototipo3.EnsureInstance();
+        if (Prototipo3.TrapSystemPrototipo3.CraftTrap(tipo))
         {
-            InventoryManager.Instance.RemoveItem(ItemType.Madera, 2);
-            
-            InventoryManager.Instance.AddTrampa(TipoTrampa.Madera);
-            Debug.Log("✅ ¡Trampa de Madera crafteada con éxito!");
-            OnTrapCrafted?.Invoke(TipoTrampa.Madera);
-        }
-        else
-        {
-            Debug.Log("❌ Faltan materiales. Necesitas: 2 Madera.");
+            OnTrapCrafted?.Invoke(tipo);
         }
     }
 }

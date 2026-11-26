@@ -39,10 +39,20 @@ namespace Prototipo3
         public Transform movementCamera;
 
         // Estado interno de físicas
+        private const float WalkableGroundMinNormalY = 0.55f;
+#if UNITY_6000_0_OR_NEWER
+        private static PhysicsMaterial sharedZeroFrictionMaterial;
+#else
+        private static PhysicMaterial sharedZeroFrictionMaterial;
+#endif
         private bool isGrounded = true;
         private bool isJumping = false;
         private Vector3 groundNormal = Vector3.up;
         private float nextJumpTime = 0f;
+        private Collider primarySolidCollider;
+        private readonly ContactPoint[] contactBuffer = new ContactPoint[16];
+        private readonly System.Collections.Generic.List<Vector3> activeWallNormals = new System.Collections.Generic.List<Vector3>(8);
+        private readonly System.Collections.Generic.List<Vector3> scratchWallNormals = new System.Collections.Generic.List<Vector3>(8);
         private Transform visualModelTransform;
         private Vector3 visualBaseLocalScale = Vector3.one;
         private bool visualScaleCached = false;
@@ -60,6 +70,10 @@ namespace Prototipo3
         {
             this.enabled = true;
             rb = GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                rb.freezeRotation = true;
+            }
             if (!gameObject.CompareTag("Player"))
             {
                 gameObject.tag = "Player";
@@ -100,8 +114,8 @@ namespace Prototipo3
         }
 
         /// <summary>
-        /// Corrige el BoxCollider automático de [RequireComponent(typeof(BoxCollider))] para que su base quede exactamente en y=0
-        /// (evitando que el hámster flote 0.5m en el aire) y elimina colliders duplicados en la raíz.
+        /// Activa un CapsuleCollider con material sin fricción (desactivando el BoxCollider heredado de HamsterController)
+        /// para evitar trabas contra muros y banquetas al moverse y saltar, y alinea la base visual del hámster.
         /// </summary>
         public void NormalizePlayerCollidersAndVisual()
         {
@@ -109,18 +123,64 @@ namespace Prototipo3
             float sy = Mathf.Max(0.0001f, Mathf.Abs(transform.localScale.y));
             float sz = Mathf.Max(0.0001f, Mathf.Abs(transform.localScale.z));
 
-            // Si el hámster usa escala 1.0 con VisualModel hijo (Prototipo3 y Escuelas), configurar BoxCollider exacto al ras de y=0
+            primarySolidCollider = null;
+
+            // Si el hámster usa escala 1.0 con VisualModel hijo (Prototipo3 y Escuelas), usar CapsuleCollider al ras de y=0
             if (sy > 0.2f)
             {
-                CapsuleCollider extraCap = GetComponent<CapsuleCollider>();
-                if (extraCap != null) extraCap.enabled = false;
+                BoxCollider[] boxes = GetComponents<BoxCollider>();
+                for (int i = 0; i < boxes.Length; i++)
+                {
+                    if (boxes[i] != null && !boxes[i].isTrigger)
+                    {
+                        boxes[i].enabled = false;
+                    }
+                }
 
-                BoxCollider box = GetComponent<BoxCollider>();
-                if (box == null) box = gameObject.AddComponent<BoxCollider>();
-                box.enabled = true;
-                box.isTrigger = false;
-                box.size = new Vector3(0.44f / sx, 0.56f / sy, 0.52f / sz);
-                box.center = new Vector3(0f, 0.28f / sy, 0f);
+                CapsuleCollider cap = GetComponent<CapsuleCollider>();
+                bool needsInit = cap == null || !cap.enabled || cap.height <= 0.01f;
+                if (cap == null) cap = gameObject.AddComponent<CapsuleCollider>();
+                cap.enabled = true;
+                cap.isTrigger = false;
+                if (needsInit)
+                {
+                    cap.direction = 1;
+                    cap.radius = 0.11f / Mathf.Max(sx, sz);
+                    cap.height = Mathf.Max(0.30f / sy, cap.radius * 2f);
+                    cap.center = new Vector3(0f, cap.height * 0.5f, 0f);
+                }
+                primarySolidCollider = cap;
+            }
+            else
+            {
+                CapsuleCollider cap = GetComponent<CapsuleCollider>();
+                if (cap != null && !cap.isTrigger)
+                {
+                    cap.enabled = true;
+                    primarySolidCollider = cap;
+                }
+
+                BoxCollider[] boxes = GetComponents<BoxCollider>();
+                for (int i = 0; i < boxes.Length; i++)
+                {
+                    if (boxes[i] != null && !boxes[i].isTrigger && boxes[i].size.y <= 2f)
+                    {
+                        boxes[i].enabled = false;
+                    }
+                }
+            }
+
+            var zeroFriction = GetOrCreateZeroFrictionMaterial();
+            Collider[] allCols = GetComponents<Collider>();
+            for (int i = 0; i < allCols.Length; i++)
+            {
+                Collider col = allCols[i];
+                if (col == null || col.isTrigger) continue;
+                col.sharedMaterial = zeroFriction;
+                if (primarySolidCollider == null && col.enabled)
+                {
+                    primarySolidCollider = col;
+                }
             }
 
             Transform vis = transform.Find("VisualModel");
@@ -152,6 +212,60 @@ namespace Prototipo3
                     }
                 }
             }
+        }
+
+#if UNITY_6000_0_OR_NEWER
+        private static PhysicsMaterial GetOrCreateZeroFrictionMaterial()
+        {
+            if (sharedZeroFrictionMaterial == null)
+            {
+                sharedZeroFrictionMaterial = new PhysicsMaterial("HamsterZeroFriction_P3")
+                {
+                    dynamicFriction = 0f,
+                    staticFriction = 0f,
+                    bounciness = 0f,
+                    frictionCombine = PhysicsMaterialCombine.Minimum,
+                    bounceCombine = PhysicsMaterialCombine.Minimum
+                };
+            }
+            return sharedZeroFrictionMaterial;
+        }
+#else
+        private static PhysicMaterial GetOrCreateZeroFrictionMaterial()
+        {
+            if (sharedZeroFrictionMaterial == null)
+            {
+                sharedZeroFrictionMaterial = new PhysicMaterial("HamsterZeroFriction_P3")
+                {
+                    dynamicFriction = 0f,
+                    staticFriction = 0f,
+                    bounciness = 0f,
+                    frictionCombine = PhysicMaterialCombine.Minimum,
+                    bounceCombine = PhysicMaterialCombine.Minimum
+                };
+            }
+            return sharedZeroFrictionMaterial;
+        }
+#endif
+
+        private Bounds GetSolidBounds()
+        {
+            if (primarySolidCollider != null && primarySolidCollider.enabled)
+            {
+                return primarySolidCollider.bounds;
+            }
+
+            Collider[] cols = GetComponents<Collider>();
+            for (int i = 0; i < cols.Length; i++)
+            {
+                if (cols[i] != null && cols[i].enabled && !cols[i].isTrigger)
+                {
+                    primarySolidCollider = cols[i];
+                    return cols[i].bounds;
+                }
+            }
+
+            return new Bounds(transform.position + Vector3.up * 0.15f, new Vector3(0.22f, 0.30f, 0.22f));
         }
 
         public void ApplyExternalSlow(float multiplier, float duration)
@@ -257,9 +371,14 @@ namespace Prototipo3
 
         private void FixedUpdate()
         {
-            if (isDead) return;
+            if (isDead)
+            {
+                activeWallNormals.Clear();
+                return;
+            }
 
-            EnforceMinimumFloorSafety();
+            // Comentado para permitir que el hámster baje por debajo de 0y al asfalto de la calle sin quedarse dando saltitos.
+            // EnforceMinimumFloorSafety();
             UpdateGroundStatus();
 
             if (!isDashing)
@@ -269,52 +388,66 @@ namespace Prototipo3
             }
 
             ApplyCustomGravity();
-            EnforceMinimumFloorSafety();
+            // EnforceMinimumFloorSafety();
+            activeWallNormals.Clear();
         }
 
-        private void LateUpdate()
-        {
-            if (!isDead) EnforceMinimumFloorSafety();
-        }
-
-        private void EnforceMinimumFloorSafety()
-        {
-            float minSurfaceY = CityGeneratorPrototipo3.Instance != null ? CityGeneratorPrototipo3.Instance.roadHeightY : 0f;
-            if (transform.position.y < minSurfaceY - 0.04f)
-            {
-                Vector3 safePos = new Vector3(transform.position.x, minSurfaceY + 0.02f, transform.position.z);
-                transform.position = safePos;
-                if (rb != null && !rb.isKinematic)
-                {
-                    rb.position = safePos;
-                    if (rb.linearVelocity.y < 0f)
-                    {
-                        rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
-                    }
-                }
-                isGrounded = true;
-                isJumping = false;
-            }
-        }
+        // private void LateUpdate()
+        // {
+        //     if (!isDead) EnforceMinimumFloorSafety();
+        // }
+        //
+        // private void EnforceMinimumFloorSafety()
+        // {
+        //     float minSurfaceY = CityGeneratorPrototipo3.Instance != null ? CityGeneratorPrototipo3.Instance.roadHeightY : 0f;
+        //     if (transform.position.y < minSurfaceY - 0.04f)
+        //     {
+        //         Vector3 safePos = new Vector3(transform.position.x, minSurfaceY + 0.02f, transform.position.z);
+        //         transform.position = safePos;
+        //         if (rb != null && !rb.isKinematic)
+        //         {
+        //             rb.position = safePos;
+        //             if (rb.linearVelocity.y < 0f)
+        //             {
+        //                 rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+        //             }
+        //         }
+        //         isGrounded = true;
+        //         isJumping = false;
+        //     }
+        // }
 
         private void UpdateGroundStatus()
         {
-            Vector3 origin = transform.position + Vector3.up * 0.02f;
-            float radius = 0.06f;
+            Bounds b = GetSolidBounds();
+            float feetY = b.min.y;
+            float castRadius = Mathf.Clamp(Mathf.Min(b.extents.x, b.extents.z) * 0.72f, 0.035f, 0.095f);
+            Vector3 origin = new Vector3(b.center.x, feetY + castRadius + 0.08f, b.center.z);
+            float maxDist = 0.08f + Mathf.Max(0.06f, groundCheckDistance);
 
-            RaycastHit[] hits = Physics.SphereCastAll(origin, radius, Vector3.down, groundCheckDistance, groundLayers, QueryTriggerInteraction.Ignore);
+            RaycastHit[] hits = Physics.SphereCastAll(origin, castRadius, Vector3.down, maxDist, groundLayers, QueryTriggerInteraction.Ignore);
             bool foundGround = false;
+            float closestDist = float.MaxValue;
+            Vector3 bestNormal = Vector3.up;
 
-            foreach (var hit in hits)
+            for (int i = 0; i < hits.Length; i++)
             {
+                RaycastHit hit = hits[i];
                 if (hit.collider == null) continue;
                 if (hit.collider.transform == transform || hit.collider.transform.IsChildOf(transform)) continue;
                 if (hit.collider.isTrigger) continue;
+                if (hit.distance <= 0.0001f) continue;
+                if (hit.normal.y < WalkableGroundMinNormalY) continue;
 
-                foundGround = true;
-                groundNormal = hit.normal;
-                break;
+                if (hit.distance < closestDist)
+                {
+                    closestDist = hit.distance;
+                    bestNormal = hit.normal;
+                    foundGround = true;
+                }
             }
+
+            groundNormal = foundGround ? bestNormal : Vector3.up;
 
             if (isJumping && rb.linearVelocity.y > 0.1f)
             {
@@ -337,12 +470,58 @@ namespace Prototipo3
                 float extraG = Mathf.Abs(Physics.gravity.y) * (customGravityMultiplier - 1f);
                 rb.AddForce(Vector3.down * extraG, ForceMode.Acceleration);
             }
-            else if (enableGroundSnapping && !isDashing && !isJumping && rb.linearVelocity.y <= 0.1f)
+            else if (enableGroundSnapping && !isDashing && !isJumping && Time.time >= nextJumpTime && rb.linearVelocity.y <= 0.05f)
             {
                 if (moveInput != Vector3.zero)
                 {
                     rb.AddForce(Vector3.down * groundSnapForce, ForceMode.Acceleration);
                 }
+            }
+        }
+
+        private void OnCollisionEnter(Collision collision)
+        {
+            CollectSteepWallContacts(collision);
+        }
+
+        private void OnCollisionStay(Collision collision)
+        {
+            CollectSteepWallContacts(collision);
+        }
+
+        private void CollectSteepWallContacts(Collision collision)
+        {
+            if (collision == null || collision.collider == null || collision.collider.isTrigger) return;
+            if (collision.collider.transform == transform || collision.collider.transform.IsChildOf(transform)) return;
+
+            float minWallContactY = GetSolidBounds().min.y + 0.025f;
+            int count = collision.GetContacts(contactBuffer);
+            for (int i = 0; i < count; i++)
+            {
+                ContactPoint cp = contactBuffer[i];
+                if (cp.normal.y >= WalkableGroundMinNormalY) continue;
+                if (cp.point.y < minWallContactY) continue;
+                AddDistinctHorizontalNormal(activeWallNormals, cp.normal);
+            }
+        }
+
+        private static void AddDistinctHorizontalNormal(System.Collections.Generic.List<Vector3> targetList, Vector3 rawNormal)
+        {
+            Vector3 flat = new Vector3(rawNormal.x, 0f, rawNormal.z);
+            if (flat.sqrMagnitude < 0.0001f) return;
+            flat.Normalize();
+
+            for (int i = 0; i < targetList.Count; i++)
+            {
+                if (Vector3.Dot(targetList[i], flat) > 0.98f)
+                {
+                    return;
+                }
+            }
+
+            if (targetList.Count < 8)
+            {
+                targetList.Add(flat);
             }
         }
 
@@ -425,7 +604,8 @@ namespace Prototipo3
             isJumping = true;
             nextJumpTime = Time.time + 0.25f;
 
-            rb.linearVelocity = new Vector3(rb.linearVelocity.x, jumpForce, rb.linearVelocity.z);
+            Vector3 horiz = ProjectVelocityAgainstWalls(new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z));
+            rb.linearVelocity = new Vector3(horiz.x, jumpForce, horiz.z);
             currentStamina = Mathf.Max(0, currentStamina - jumpStaminaCost);
             if (staminaSlider != null) staminaSlider.value = currentStamina;
         }
@@ -459,7 +639,66 @@ namespace Prototipo3
                 targetVelocity = Vector3.ProjectOnPlane(targetVelocity, groundNormal);
             }
 
-            rb.linearVelocity = new Vector3(targetVelocity.x, rb.linearVelocity.y, targetVelocity.z);
+            Vector3 horiz = ProjectVelocityAgainstWalls(new Vector3(targetVelocity.x, 0f, targetVelocity.z));
+            rb.linearVelocity = new Vector3(horiz.x, rb.linearVelocity.y, horiz.z);
+        }
+
+        private Vector3 ProjectVelocityAgainstWalls(Vector3 horizontalVel)
+        {
+            if (horizontalVel.sqrMagnitude < 0.0001f)
+            {
+                return horizontalVel;
+            }
+
+            scratchWallNormals.Clear();
+            for (int i = 0; i < activeWallNormals.Count; i++)
+            {
+                AddDistinctHorizontalNormal(scratchWallNormals, activeWallNormals[i]);
+            }
+
+            Bounds b = GetSolidBounds();
+            float castRadius = Mathf.Clamp(Mathf.Min(b.extents.x, b.extents.z) * 0.88f, 0.03f, 0.12f);
+            float bottomY = b.min.y + 0.035f + castRadius;
+            float topY = Mathf.Max(bottomY, b.max.y - 0.02f - castRadius);
+            Vector3 p1 = new Vector3(b.center.x, bottomY, b.center.z);
+            Vector3 p2 = new Vector3(b.center.x, topY, b.center.z);
+            Vector3 dir = horizontalVel.normalized;
+
+            RaycastHit[] wallHits = Physics.CapsuleCastAll(p1, p2, castRadius, dir, 0.06f, groundLayers, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < wallHits.Length; i++)
+            {
+                RaycastHit hit = wallHits[i];
+                if (hit.collider == null) continue;
+                if (hit.collider.transform == transform || hit.collider.transform.IsChildOf(transform)) continue;
+                if (hit.collider.isTrigger) continue;
+                if (hit.distance <= 0.0001f) continue;
+                if (hit.normal.y >= WalkableGroundMinNormalY) continue;
+
+                AddDistinctHorizontalNormal(scratchWallNormals, hit.normal);
+            }
+
+            bool hasFirst = false;
+            Vector3 firstNormal = Vector3.zero;
+            for (int i = 0; i < scratchWallNormals.Count; i++)
+            {
+                Vector3 n = scratchWallNormals[i];
+                float intoWall = Vector3.Dot(horizontalVel, n);
+                if (intoWall < 0f)
+                {
+                    if (!hasFirst)
+                    {
+                        firstNormal = n;
+                        hasFirst = true;
+                    }
+                    horizontalVel -= n * intoWall;
+                    if (Vector3.Dot(horizontalVel, firstNormal) < -0.001f)
+                    {
+                        return Vector3.zero;
+                    }
+                }
+            }
+
+            return horizontalVel;
         }
 
         private void RotateProto()
@@ -572,7 +811,7 @@ namespace Prototipo3
                 externalSlowTimer = 0f;
                 isDashing = false;
 
-                Collider myCol = GetComponent<Collider>();
+                Collider myCol = primarySolidCollider != null ? primarySolidCollider : GetComponent<Collider>();
                 Vector3 pushAway = Vector3.zero;
 
                 Collider[] nearby = Physics.OverlapSphere(transform.position, 4.5f, ~0, QueryTriggerInteraction.Collide);
@@ -605,7 +844,7 @@ namespace Prototipo3
 
         private void RestoreEnemyCollisionsAndVisibility()
         {
-            Collider myCol = GetComponent<Collider>();
+            Collider myCol = primarySolidCollider != null ? primarySolidCollider : GetComponent<Collider>();
             if (myCol != null)
             {
                 for (int i = 0; i < ignoredEnemyColliders.Count; i++)

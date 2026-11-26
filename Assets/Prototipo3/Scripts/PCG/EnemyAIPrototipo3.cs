@@ -24,6 +24,7 @@ namespace Prototipo3
 
         private NavMeshAgent protoAgent;
         private Rigidbody protoRb;
+        private readonly NavMeshAgentGroundAligner groundAligner = new NavMeshAgentGroundAligner();
         private float obstacleRedirectCooldown = 0f;
         private float refugeRepelCooldown = 0f;
         private Vector3 lastValidCityPosition;
@@ -120,11 +121,13 @@ namespace Prototipo3
                 minCitySurfaceY = CityGeneratorPrototipo3.Instance.roadHeightY;
                 ConfigureAgentForCity();
                 SnapToCitySurfaceImmediate();
+                groundAligner.Initialize(transform, protoAgent);
                 SetPatrolWaypoints(null);
             }
             else
             {
                 ConfigureAgentForCity();
+                groundAligner.Initialize(transform, protoAgent);
             }
         }
 
@@ -178,7 +181,9 @@ namespace Prototipo3
             if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh && staticParalysisTimer <= 0f)
             {
                 protoAgent.isStopped = false;
-                protoAgent.speed = Mathf.Max(wanderSpeed * 1.2f, chaseSpeed * 0.75f);
+                float decoySpeed = Mathf.Max(wanderSpeed * 1.2f, chaseSpeed * 0.75f);
+                if (spikeSlowTimer > 0f) decoySpeed *= spikeSlowMultiplier;
+                protoAgent.speed = decoySpeed;
                 protoAgent.SetDestination(decoyPos);
             }
         }
@@ -443,6 +448,7 @@ namespace Prototipo3
             }
 
             EnforceCitySurfaceHeight();
+            groundAligner.Tick(transform, protoAgent);
             PreventBuildingPenetration();
         }
 
@@ -535,7 +541,9 @@ namespace Prototipo3
                     if (distToDecoy > 1.35f)
                     {
                         protoAgent.isStopped = false;
-                        protoAgent.speed = Mathf.Max(wanderSpeed * 1.2f, 4.5f);
+                        float decoySpeed = Mathf.Max(wanderSpeed * 1.2f, 4.5f);
+                        if (spikeSlowTimer > 0f) decoySpeed *= spikeSlowMultiplier;
+                        protoAgent.speed = decoySpeed;
                         protoAgent.SetDestination(acousticDecoyPos);
                     }
                     else
@@ -575,6 +583,7 @@ namespace Prototipo3
                 if (NavMesh.SamplePosition(pos, out NavMeshHit hit, 5.0f, NavMesh.AllAreas))
                 {
                     protoAgent.Warp(hit.position);
+                    groundAligner.SnapImmediate(transform, protoAgent);
                     lastValidCityPosition = hit.position;
                 }
             }
@@ -589,13 +598,14 @@ namespace Prototipo3
                     if (NavMesh.SamplePosition(transform.position, out NavMeshHit fallbackHit, 15f, NavMesh.AllAreas))
                     {
                         protoAgent.Warp(fallbackHit.position);
+                        groundAligner.SnapImmediate(transform, protoAgent);
                     }
                 }
                 return;
             }
 
             Vector3 pos = transform.position;
-            if (pos.y < minCitySurfaceY - 0.15f)
+            if (pos.y < minCitySurfaceY - 2.5f)
             {
                 float surfaceY = FindCitySurfaceHeight(pos);
                 pos.y = surfaceY;
@@ -605,6 +615,7 @@ namespace Prototipo3
                     if (NavMesh.SamplePosition(pos, out NavMeshHit hit, 3.0f, NavMesh.AllAreas))
                     {
                         protoAgent.Warp(hit.position);
+                        groundAligner.SnapImmediate(transform, protoAgent);
                         lastValidCityPosition = hit.position;
                     }
                     else
@@ -625,34 +636,44 @@ namespace Prototipo3
 
         private float FindCitySurfaceHeight(Vector3 worldPos)
         {
-            if (NavMesh.SamplePosition(worldPos, out NavMeshHit navHit, 4.0f, NavMesh.AllAreas))
-            {
-                return navHit.position.y;
-            }
-
             Vector3 rayOrigin = new Vector3(worldPos.x, Mathf.Max(worldPos.y, minCitySurfaceY) + 6f, worldPos.z);
             RaycastHit[] hits = Physics.RaycastAll(rayOrigin, Vector3.down, 12f, ~0, QueryTriggerInteraction.Ignore);
 
             float bestY = minCitySurfaceY;
             float closestDist = float.MaxValue;
+            bool foundPhysical = false;
 
             for (int i = 0; i < hits.Length; i++)
             {
                 Collider col = hits[i].collider;
-                if (col == null) continue;
+                if (col == null || !col.enabled || hits[i].normal.y < 0.65f) continue;
                 if (col.transform == transform || col.transform.IsChildOf(transform)) continue;
                 if (col.GetComponentInParent<EnemyAI>() != null) continue;
                 if (col.GetComponentInParent<HamsterController>() != null) continue;
+                if (col.GetComponentInParent<LootContainer>() != null) continue;
+                if (col.GetComponentInParent<BuildingData>() != null || col.GetComponentInParent<CitySocket>() != null)
+                {
+                    string n = col.gameObject.name;
+                    if (!n.Contains("Pavement") && !n.Contains("Floor") && !n.Contains("Ground")) continue;
+                }
 
-                if (hits[i].point.y >= minCitySurfaceY - 0.3f && hits[i].point.y <= minCitySurfaceY + 0.6f)
+                if (hits[i].point.y >= minCitySurfaceY - 0.8f && hits[i].point.y <= minCitySurfaceY + 0.6f)
                 {
                     float d = Mathf.Abs(hits[i].point.y - minCitySurfaceY);
                     if (d < closestDist)
                     {
                         closestDist = d;
                         bestY = hits[i].point.y;
+                        foundPhysical = true;
                     }
                 }
+            }
+
+            if (foundPhysical) return bestY;
+
+            if (NavMesh.SamplePosition(worldPos, out NavMeshHit navHit, 4.0f, NavMesh.AllAreas))
+            {
+                return navHit.position.y;
             }
 
             return bestY;

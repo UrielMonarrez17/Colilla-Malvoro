@@ -62,7 +62,7 @@ public static class TutorialPlayValidation
                 Invoke(m, "IniciarPasoSaquearContenedorControl");
                 GameObject.Find("GarbageCollector").GetComponent<LootContainer>().InteractuarConLoot();
                 Check(!gate.activeSelf, "Loot opens gate");
-                Check(InventoryManager.Instance.HasEnoughItem(ItemType.Madera, 1) && InventoryManager.Instance.HasEnoughItem(ItemType.Metal, 1), "Guaranteed crafting resources");
+                Check(InventoryManager.Instance.HasEnoughItem(ItemType.Madera, 1) && InventoryManager.Instance.HasEnoughItem(ItemType.Metal, 2), "Guaranteed crafting resources (2 Metal + 1 Madera)");
                 Check(m.currentState == TutorialPipelineManager.TutorialState.BuscarLulu, "Loot advances mission");
                 m.NotificarDialogoInicialLulu();
                 for (int i = 1; i <= 3; i++) GameObject.Find("ContenedorCiudad_" + i).GetComponent<LootContainer>().InteractuarConLoot();
@@ -87,8 +87,13 @@ public static class TutorialPlayValidation
                 Check(m.currentState == TutorialPipelineManager.TutorialState.CrearPrimeraTrampa, "Workbench starts recipe step");
                 m.mesaCrafteoRefugio.CraftTrap1();
                 Check(InventoryManager.Instance.HasTrampa(TipoTrampa.Puas), "Recipe creates trap");
-                Check(m.currentState == TutorialPipelineManager.TutorialState.ColocacionTacticaTrampa, "Crafting starts placement step");
-                m.puertaTrampaRefugio.InstalarTrampa(TipoTrampa.Puas);
+                Check(m.currentState == TutorialPipelineManager.TutorialState.ColocacionTacticaTrampa, "Crafting starts active deployment step");
+                var demoEnemy = GameObject.Find("DepredadorDemoTrampa");
+                if (demoEnemy != null)
+                {
+                    m.hamster.RespawnOrHeal(demoEnemy.transform.position + Vector3.forward * 2.5f);
+                }
+                Prototipo3.TrapSystemPrototipo3.EnsureInstance().TryDeployTrap(TipoTrampa.Puas, m.hamster.transform);
                 step++;
             }
             else if (step == 3 && elapsed > 24)

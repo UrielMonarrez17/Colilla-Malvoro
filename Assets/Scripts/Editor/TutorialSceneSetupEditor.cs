@@ -71,8 +71,47 @@ public static class TutorialSceneSetupEditor
             Undo.RecordObject(pObj.transform, "Posicionar Mesh_Hamster");
             pObj.transform.position = TutorialPipelineManager.POS_MADRIGUERA_INICIO;
             pObj.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
-            manager.hamster = pObj.GetComponent<HamsterController>();
+
+            Prototipo2.HamsterControllerPrototipo2 legacyCtrl = pObj.GetComponent<Prototipo2.HamsterControllerPrototipo2>();
+            HamsterControllerTutorial tutCtrl = pObj.GetComponent<HamsterControllerTutorial>();
+            if (legacyCtrl != null)
+            {
+                Slider cachedSlider = legacyCtrl.staminaSlider;
+                Undo.DestroyObjectImmediate(legacyCtrl);
+                if (tutCtrl == null) tutCtrl = Undo.AddComponent<HamsterControllerTutorial>(pObj);
+                if (tutCtrl.staminaSlider == null) tutCtrl.staminaSlider = cachedSlider;
+            }
+            if (tutCtrl == null) tutCtrl = Undo.AddComponent<HamsterControllerTutorial>(pObj);
+            if (Camera.main != null) tutCtrl.movementCamera = Camera.main.transform;
+            EditorUtility.SetDirty(tutCtrl);
+            manager.hamster = tutCtrl;
+
+            Transform oldArrowChild = pObj.transform.Find("Arrow");
+            if (oldArrowChild != null)
+            {
+                Undo.RecordObject(oldArrowChild.gameObject, "Desactivar Arrow Heredada");
+                oldArrowChild.gameObject.SetActive(false);
+            }
         }
+
+        // 2b. Reemplazar PunteroMision heredado por StoryObjectivePointerPrototipo3
+        PunteroMision[] legacyPointers = Object.FindObjectsByType<PunteroMision>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < legacyPointers.Length; i++)
+        {
+            if (legacyPointers[i] == null) continue;
+            Undo.RecordObject(legacyPointers[i].gameObject, "Desactivar PunteroMision");
+            legacyPointers[i].objetivo = null;
+            legacyPointers[i].gameObject.SetActive(false);
+        }
+
+        Prototipo3.StoryObjectivePointerPrototipo3 storyPtr = Object.FindAnyObjectByType<Prototipo3.StoryObjectivePointerPrototipo3>(FindObjectsInactive.Include);
+        if (storyPtr == null)
+        {
+            storyPtr = Undo.AddComponent<Prototipo3.StoryObjectivePointerPrototipo3>(manager.gameObject);
+        }
+        manager.storyObjectivePointer = storyPtr;
+        manager.punteroFlecha = null;
+        EditorUtility.SetDirty(storyPtr);
 
         // 3. Posicionar Main Camera (1) enfocando al Hámster
         Camera mainCam = Camera.main;
@@ -80,14 +119,43 @@ public static class TutorialSceneSetupEditor
         {
             Undo.RecordObject(mainCam.transform, "Posicionar Main Camera");
             CameraFollow cf = mainCam.GetComponent<CameraFollow>();
+            if (cf is Prototipo2.IsometricCameraFollow oldIso)
+            {
+                float yaw = oldIso.yawAngle;
+                float pitch = oldIso.pitchAngle;
+                float dist = oldIso.distance;
+                float fov = oldIso.fieldOfView;
+                Vector3 tOff = oldIso.targetOffset;
+                bool occ = oldIso.enableOcclusionFading;
+                LayerMask occLayers = oldIso.occlusionLayers;
+                float sRad = oldIso.sphereCastRadius;
+                float fAlpha = oldIso.fadedAlpha;
+                float fSpeed = oldIso.fadeSpeed;
+                float smSpeed = oldIso.smoothSpeed;
+                Undo.DestroyObjectImmediate(oldIso);
+                Prototipo3.IsometricCameraFollow newIso = Undo.AddComponent<Prototipo3.IsometricCameraFollow>(mainCam.gameObject);
+                newIso.yawAngle = yaw;
+                newIso.pitchAngle = pitch;
+                newIso.distance = dist;
+                newIso.fieldOfView = fov;
+                newIso.targetOffset = tOff;
+                newIso.enableOcclusionFading = occ;
+                newIso.occlusionLayers = occLayers;
+                newIso.sphereCastRadius = sRad;
+                newIso.fadedAlpha = fAlpha;
+                newIso.fadeSpeed = fSpeed;
+                newIso.smoothSpeed = smSpeed;
+                cf = newIso;
+            }
             if (cf != null && manager.hamster != null) cf.target = manager.hamster.transform;
-            if (cf is Prototipo2.IsometricCameraFollow iso)
+            if (cf is Prototipo3.IsometricCameraFollow iso)
             {
                 mainCam.fieldOfView = iso.fieldOfView;
                 mainCam.transform.rotation = Quaternion.Euler(iso.pitchAngle, iso.yawAngle, 0f);
                 Vector3 targetCenter = TutorialPipelineManager.POS_MADRIGUERA_INICIO + iso.targetOffset;
                 iso.offset = mainCam.transform.rotation * (Vector3.back * iso.distance);
                 mainCam.transform.position = targetCenter + iso.offset;
+                EditorUtility.SetDirty(iso);
             }
             else
             {
@@ -159,11 +227,18 @@ public static class TutorialSceneSetupEditor
                 EditorUtility.SetDirty(urpCam);
             }
         }
-        Prototipo2.DirectionalNightFog nightFog = Object.FindAnyObjectByType<Prototipo2.DirectionalNightFog>();
+        Prototipo2.DirectionalNightFog oldFog = Object.FindAnyObjectByType<Prototipo2.DirectionalNightFog>();
+        Prototipo3.DirectionalNightFog nightFog = Object.FindAnyObjectByType<Prototipo3.DirectionalNightFog>();
+        if (oldFog != null)
+        {
+            GameObject fogGo = oldFog.gameObject;
+            Undo.DestroyObjectImmediate(oldFog);
+            if (nightFog == null) nightFog = Undo.AddComponent<Prototipo3.DirectionalNightFog>(fogGo);
+        }
         if (nightFog != null)
         {
             Undo.RecordObject(nightFog, "Configurar Smog Tutorial");
-            Shader fogSh = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Prototipo2/Shaders/CityDirectionalFog.shader");
+            Shader fogSh = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Prototipo3/Shaders/CityDirectionalFog.shader");
             if (fogSh != null) nightFog.fogShader = fogSh;
             if (mainCam != null) nightFog.targetCamera = mainCam;
             if (manager.hamster != null) nightFog.playerTransform = manager.hamster.transform;
@@ -190,6 +265,13 @@ public static class TutorialSceneSetupEditor
             contBrillo.transform.position = TutorialPipelineManager.POS_CONTENEDOR_BRILLO;
             contBrillo.transform.rotation = Quaternion.identity;
             contBrillo.tag = "Untagged";
+            LootContainer lcBrillo = contBrillo.GetComponent<LootContainer>();
+            if (lcBrillo != null)
+            {
+                Undo.RecordObject(lcBrillo, "Asignar Receta Prototipo3 GarbageCollector");
+                lcBrillo.itemsGarantizados = new System.Collections.Generic.List<ItemType> { ItemType.Madera, ItemType.Metal, ItemType.Metal };
+                EditorUtility.SetDirty(lcBrillo);
+            }
         }
 
         string[] cityLootNames = { "GarbageCollector (4)", "GarbageCollector (5)", "GarbageCollector (8)", "GarbageCollector (2)" };
@@ -211,6 +293,20 @@ public static class TutorialSceneSetupEditor
                 c.transform.rotation = Quaternion.identity;
                 c.tag = "Untagged";
             }
+        }
+
+        var tutorialLootNames = new System.Collections.Generic.HashSet<string>
+        {
+            "GarbageCollector",
+            "GarbageCollector (4)", "GarbageCollector (5)", "GarbageCollector (8)", "GarbageCollector (2)",
+            "ContenedorCiudad_1", "ContenedorCiudad_2", "ContenedorCiudad_3", "ContenedorCiudad_4"
+        };
+        LootContainer[] allSceneLoot = Object.FindObjectsByType<LootContainer>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < allSceneLoot.Length; i++)
+        {
+            LootContainer lc = allSceneLoot[i];
+            if (lc == null || tutorialLootNames.Contains(lc.gameObject.name)) continue;
+            Undo.DestroyObjectImmediate(lc.gameObject);
         }
 
         // 7b. Forzar que el tutorial inicie estrictamente en el primer paso obligatorio

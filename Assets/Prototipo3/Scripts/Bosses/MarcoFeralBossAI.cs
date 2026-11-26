@@ -28,6 +28,7 @@ namespace Prototipo3
         private Animator anim;
         private HamsterController player;
         private LineRenderer chargeTelegraphLine;
+        private readonly NavMeshAgentGroundAligner groundAligner = new NavMeshAgentGroundAligner();
 
         private float activePursuitTimer = 0f;
         private float safeRefugeStayTimer = 0f;
@@ -88,9 +89,26 @@ namespace Prototipo3
             }
         }
 
+        private void Start()
+        {
+            groundAligner.Initialize(transform, agent);
+        }
+
         private void OnEnable()
         {
             TrapSystemPrototipo3.OnProto3TrapDeployed += HandlePlayerDeployedTrap;
+            if (agent != null && agent.isOnNavMesh)
+            {
+                groundAligner.SnapImmediate(transform, agent);
+            }
+        }
+
+        private void LateUpdate()
+        {
+            if (!escapeTriggered)
+            {
+                groundAligner.Tick(transform, agent);
+            }
         }
 
         private void OnDisable()

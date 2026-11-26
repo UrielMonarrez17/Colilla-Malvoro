@@ -24,6 +24,7 @@ namespace Prototipo3.Editor
     public static class Prototipo3StoryAndSchoolBuilder
     {
         private const string BuildStampAssetPath = "Assets/Prototipo3/Resources/StorySchoolBuildStamp_v6.txt";
+        private const string MusicSetupStampAssetPath = "Assets/Prototipo3/Resources/Audio/MusicAndTutorialSetupStamp_v1.txt";
 
         private const string CharModelsDir = "Assets/Prototipo3/Models/Characters";
         private const string WeapModelsDir = "Assets/Prototipo3/Models/Weapons";
@@ -43,8 +44,17 @@ namespace Prototipo3.Editor
             EditorApplication.delayCall += TryAutoBuildOnce;
         }
 
+        private static bool IsAssetImportWorkerOrBatch()
+        {
+            if (Application.isBatchMode) return true;
+            string cmd = Environment.CommandLine ?? string.Empty;
+            return cmd.IndexOf("AssetImportWorker", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   cmd.IndexOf("-importWorker", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
         private static void TryAutoBuildOnce()
         {
+            if (IsAssetImportWorkerOrBatch()) return;
             if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling || EditorApplication.isUpdating)
                 return;
 
@@ -52,6 +62,14 @@ namespace Prototipo3.Editor
                 File.Exists(StoryDirectorPrototipo3.SchoolEscapeScenePath) &&
                 File.Exists(StoryDirectorPrototipo3.SchoolBasketballScenePath))
             {
+                if (!File.Exists(MusicSetupStampAssetPath))
+                {
+                    if (EditorSceneManager.GetActiveScene().isDirty && !string.IsNullOrEmpty(EditorSceneManager.GetActiveScene().path))
+                    {
+                        EditorSceneManager.SaveOpenScenes();
+                    }
+                    ConfigureMusicAndUpdateAllScenes();
+                }
                 return;
             }
 
@@ -1007,6 +1025,8 @@ namespace Prototipo3.Editor
             camFollow.target = playerGo.transform;
             camGo.transform.position = playerSpawnPos + new Vector3(-11f, 15.5f, -11f);
             camGo.transform.LookAt(playerSpawnPos + Vector3.up * 0.4f);
+
+            EnsureMusicManagerInActiveScene(EnsurePrototipo3MusicBankAsset());
             return playerGo;
         }
 
@@ -1494,6 +1514,7 @@ namespace Prototipo3.Editor
             {
                 new GameObject("StoryDirector_Prototipo3").AddComponent<StoryDirectorPrototipo3>();
             }
+            EnsureMusicManagerInActiveScene(EnsurePrototipo3MusicBankAsset());
 
             // Hacer el ciclo de día y noche más ágil por defecto en Prototipo3.unity (~2.2 minutos por ciclo completo)
             TimeManager tm = UnityEngine.Object.FindAnyObjectByType<TimeManager>();
@@ -1583,6 +1604,161 @@ namespace Prototipo3.Editor
             {
                 EditorBuildSettings.scenes = list.ToArray();
             }
+        }
+
+        // ==========================================================================================
+        //  CONFIGURACIÓN MUSICAL Y ACTUALIZACIÓN DE ESCENAS DE PROTOTIPO 3 Y TUTORIAL
+        // ==========================================================================================
+
+        private const string AudioDir = "Assets/Prototipo3/Audio";
+        private const string MusicBankAssetPath = "Assets/Prototipo3/Resources/Audio/Prototipo3MusicBank.asset";
+
+        [MenuItem("Feral/Prototipo 3/Configurar Música y Actualizar Escenas")]
+        public static void ConfigureMusicAndUpdateAllScenes()
+        {
+            if (Application.isPlaying) return;
+
+            string previousScenePath = EditorSceneManager.GetActiveScene().path;
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
+            Prototipo3MusicBank bank = EnsurePrototipo3MusicBankAsset();
+
+            string[] proto3Scenes =
+            {
+                "Assets/Prototipo3/Scenes/MainMenu_Prototipo3.unity",
+                StoryDirectorPrototipo3.CityScenePath,
+                StoryDirectorPrototipo3.SchoolEscapeScenePath,
+                StoryDirectorPrototipo3.SchoolBasketballScenePath
+            };
+
+            foreach (string sp in proto3Scenes)
+            {
+                if (!File.Exists(sp)) continue;
+                var sc = EditorSceneManager.OpenScene(sp, OpenSceneMode.Single);
+                EnsureMusicManagerInActiveScene(bank);
+                EditorSceneManager.MarkSceneDirty(sc);
+                EditorSceneManager.SaveScene(sc, sp);
+            }
+
+            const string tutorialPath = "Assets/Scenes/Tutorial.unity";
+            if (File.Exists(tutorialPath))
+            {
+                var tutScene = EditorSceneManager.OpenScene(tutorialPath, OpenSceneMode.Single);
+                Prototipo3AssetAndSceneBuilder.UpgradeTutorialMissionArrow(null, null);
+
+                // Garantizar que Tutorial.unity mantenga su propio audio procedural sin MusicManager_Prototipo3
+                MusicManagerPrototipo3 strayMusic = UnityEngine.Object.FindAnyObjectByType<MusicManagerPrototipo3>(FindObjectsInactive.Include);
+                if (strayMusic != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(strayMusic.gameObject);
+                }
+
+                LootContainer gc = GameObject.Find("GarbageCollector")?.GetComponent<LootContainer>();
+                if (gc != null)
+                {
+                    gc.itemsGarantizados = new List<ItemType> { ItemType.Madera, ItemType.Metal, ItemType.Metal };
+                    EditorUtility.SetDirty(gc);
+                }
+
+                EditorSceneManager.MarkSceneDirty(tutScene);
+                EditorSceneManager.SaveScene(tutScene, tutorialPath);
+            }
+
+            if (!string.IsNullOrEmpty(previousScenePath) && File.Exists(previousScenePath) &&
+                EditorSceneManager.GetActiveScene().path != previousScenePath)
+            {
+                EditorSceneManager.OpenScene(previousScenePath, OpenSceneMode.Single);
+            }
+
+            EnsureDir("Assets/Prototipo3/Resources/Audio");
+            File.WriteAllText(MusicSetupStampAssetPath, DateTime.UtcNow.ToString("O"));
+            AssetDatabase.ImportAsset(MusicSetupStampAssetPath);
+
+            AssetDatabase.SaveAssets();
+            Debug.Log("[Prototipo3StoryAndSchoolBuilder] Banco de música Prototipo 3 y escenas actualizadas correctamente.");
+        }
+
+        public static Prototipo3MusicBank EnsurePrototipo3MusicBankAsset()
+        {
+            string finalMpeg = $"{AudioDir}/Final.mpeg";
+            string finalMp3 = $"{AudioDir}/Final.mp3";
+            if (File.Exists(finalMpeg) && !File.Exists(finalMp3))
+            {
+                File.Copy(finalMpeg, finalMp3, true);
+                AssetDatabase.ImportAsset(finalMp3, ImportAssetOptions.ForceUpdate);
+            }
+
+            string[] clipPaths =
+            {
+                $"{AudioDir}/principal_en_loop.wav",
+                $"{AudioDir}/gameplay_en_loop.wav",
+                $"{AudioDir}/noche_en_loop.wav",
+                $"{AudioDir}/batalla_final_en_loop.wav",
+                finalMp3
+            };
+
+            foreach (string cp in clipPaths)
+            {
+                if (!File.Exists(cp)) continue;
+                AssetDatabase.ImportAsset(cp, ImportAssetOptions.ForceUpdate);
+                AudioImporter imp = AssetImporter.GetAtPath(cp) as AudioImporter;
+                if (imp != null)
+                {
+                    var sampleSettings = imp.defaultSampleSettings;
+                    bool dirtyImp = false;
+                    if (!sampleSettings.preloadAudioData)
+                    {
+                        sampleSettings.preloadAudioData = true;
+                        imp.defaultSampleSettings = sampleSettings;
+                        dirtyImp = true;
+                    }
+                    if (dirtyImp)
+                    {
+                        imp.SaveAndReimport();
+                    }
+                }
+            }
+
+            EnsureDir("Assets/Prototipo3/Resources/Audio");
+            Prototipo3MusicBank bank = AssetDatabase.LoadAssetAtPath<Prototipo3MusicBank>(MusicBankAssetPath);
+            if (bank == null)
+            {
+                bank = ScriptableObject.CreateInstance<Prototipo3MusicBank>();
+                AssetDatabase.CreateAsset(bank, MusicBankAssetPath);
+            }
+
+            bank.menuLoopClip = AssetDatabase.LoadAssetAtPath<AudioClip>($"{AudioDir}/principal_en_loop.wav");
+            bank.dayGameplayLoopClip = AssetDatabase.LoadAssetAtPath<AudioClip>($"{AudioDir}/gameplay_en_loop.wav");
+            bank.nightAndChaseLoopClip = AssetDatabase.LoadAssetAtPath<AudioClip>($"{AudioDir}/noche_en_loop.wav");
+            bank.finalBossLoopClip = AssetDatabase.LoadAssetAtPath<AudioClip>($"{AudioDir}/batalla_final_en_loop.wav");
+            bank.demoVictoryClip = AssetDatabase.LoadAssetAtPath<AudioClip>(finalMp3);
+
+            EditorUtility.SetDirty(bank);
+            AssetDatabase.SaveAssets();
+            return bank;
+        }
+
+        public static MusicManagerPrototipo3 EnsureMusicManagerInActiveScene(Prototipo3MusicBank bank)
+        {
+            MusicManagerPrototipo3 mgr = UnityEngine.Object.FindAnyObjectByType<MusicManagerPrototipo3>(FindObjectsInactive.Include);
+            if (mgr == null)
+            {
+                GameObject go = new GameObject("MusicManager_Prototipo3");
+                mgr = go.AddComponent<MusicManagerPrototipo3>();
+            }
+
+            if (bank != null)
+            {
+                mgr.musicBank = bank;
+                mgr.menuLoopClip = bank.menuLoopClip;
+                mgr.dayGameplayLoopClip = bank.dayGameplayLoopClip;
+                mgr.nightAndChaseLoopClip = bank.nightAndChaseLoopClip;
+                mgr.finalBossLoopClip = bank.finalBossLoopClip;
+                mgr.demoVictoryClip = bank.demoVictoryClip;
+            }
+
+            EditorUtility.SetDirty(mgr);
+            return mgr;
         }
     }
 }

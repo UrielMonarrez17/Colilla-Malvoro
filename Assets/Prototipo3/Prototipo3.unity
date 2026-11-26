@@ -260,10 +260,10 @@ BoxCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0
-  m_Enabled: 0
+  m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.44, y: 0.56, z: 0.52}
-  m_Center: {x: 0, y: 0.28, z: 0}
+  m_Size: {x: 0.15484619, y: 0.16755591, z: 0.52}
+  m_Center: {x: -0.002746582, y: 0.08641458, z: 0}
 --- !u!54 &167244409
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -580,6 +580,7 @@ GameObject:
   - component: {fileID: 885262684}
   - component: {fileID: 885262683}
   - component: {fileID: 885262682}
+  - component: {fileID: 885262686}
   m_Layer: 0
   m_Name: CityManager_Prototipo3
   m_TagString: Untagged
@@ -686,11 +687,11 @@ MonoBehaviour:
     probability: 0.72
     yOffset: 0
     alignToBuilding: 1
-  roadForward: {fileID: 7879980762663222706, guid: c7ffce7dcdae5a7438c3893dbca2fd71, type: 3}
-  roadAngle: {fileID: 4452075131187004771, guid: 2bf2427616673684e9f50f4b3919a72b, type: 3}
-  roadT: {fileID: 9107833680919219300, guid: 95cb5357500daf7468dfd574662825eb, type: 3}
-  roadX: {fileID: 3399503055853382886, guid: e250a47485e7f0a4390b8873d8c3ed9b, type: 3}
-  roadDeadEnd: {fileID: 7879980762663222706, guid: c7ffce7dcdae5a7438c3893dbca2fd71, type: 3}
+  roadForward: {fileID: 8083584196405900003, guid: 76df77a34d2396940b7fb2aac4d407e2, type: 3}
+  roadAngle: {fileID: 4255457021289456939, guid: cccb18658d26f9c4bbe443af59a5cebe, type: 3}
+  roadT: {fileID: 7583611333810342022, guid: 6a28c7c5ff2e412409c00fa6e4c46899, type: 3}
+  roadX: {fileID: 4076334107656080171, guid: 61b8d186cc7da474fbe0f5777b214536, type: 3}
+  roadDeadEnd: {fileID: 8083584196405900003, guid: 76df77a34d2396940b7fb2aac4d407e2, type: 3}
   pedestrianPavement: {fileID: 1629306100895237221, guid: d734acbc0b770544e82fd18766968145, type: 3}
   roadHeightY: 0
   settings:
@@ -725,6 +726,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &885262686
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 885262681}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b7e3c91a4f6248d09e15a2c8d4f07b31, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Prototipo3.DailyLootResetterPrototipo3
 --- !u!1 &889495861
 GameObject:
   m_ObjectHideFlags: 0
@@ -1094,6 +1107,58 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &2012873294
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2012873296}
+  - component: {fileID: 2012873295}
+  m_Layer: 0
+  m_Name: MusicManager_Prototipo3
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2012873295
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2012873294}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 177256e3062b6614798d0795e84ad230, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Prototipo3.MusicManagerPrototipo3
+  musicBank: {fileID: 11400000, guid: 3a40e6ef6f365f547a0a0af01e61a457, type: 2}
+  menuLoopClip: {fileID: 8300000, guid: 8c2610ec01fdc204eab0a5c0558c4e87, type: 3}
+  dayGameplayLoopClip: {fileID: 8300000, guid: de381cd54c79f144fb656a16f29916ec, type: 3}
+  nightAndChaseLoopClip: {fileID: 8300000, guid: 422c72e0d1e7d9044b0f756af17bf643, type: 3}
+  finalBossLoopClip: {fileID: 8300000, guid: 0e9811c7b95c56745be86e72b15c2f09, type: 3}
+  demoVictoryClip: {fileID: 8300000, guid: e232f6cf171aa5c4c8b0dc71f35db6af, type: 3}
+  musicVolume: 0.55
+  crossfadeDuration: 0.7
+--- !u!4 &2012873296
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2012873294}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -1108,3 +1173,4 @@ SceneRoots:
   - {fileID: 167244406}
   - {fileID: 885262685}
   - {fileID: 87349749}
+  - {fileID: 2012873296}

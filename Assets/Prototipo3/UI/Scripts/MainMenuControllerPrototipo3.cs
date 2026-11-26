@@ -90,7 +90,7 @@ namespace Prototipo3.UI
             BindButton("Play", OpenPlayModeSelector);
             BindButton("SavedGames", () => ShowPage(1));
             BindButton("AudioSettings", () => ShowPage(2));
-            BindButton("Help", () => ShowPage(3));
+            BindButton("Help", () => SceneManager.LoadScene("Tutorial"));
             BindButton("Quit", () => ShowPage(4));
 
             BindButton("NewGame", OpenPlayModeSelector);

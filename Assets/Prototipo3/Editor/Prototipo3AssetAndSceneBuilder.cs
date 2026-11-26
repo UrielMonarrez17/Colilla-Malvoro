@@ -856,9 +856,15 @@ namespace Prototipo3.Editor
                     visual.transform.localScale = Vector3.one;
                     ApplyUrpMaterialsRecursively(visual, mats);
                 }
+
+                if (string.Equals(go.name, "GarbageCollector", StringComparison.OrdinalIgnoreCase))
+                {
+                    lc.itemsGarantizados = new List<ItemType> { ItemType.Madera, ItemType.Metal, ItemType.Metal };
+                    EditorUtility.SetDirty(lc);
+                }
             }
 
-            // 3. Reemplazar flecha indicadora de misiones (PunteroMision / Arrow) por modelo grande estilizado de Blender
+            // 3. Reemplazar flecha heredada de Mesh_Hamster/Arrow por StoryObjectivePointerPrototipo3
             UpgradeTutorialMissionArrow(fbxArrow, mats);
 
             // 4. Construir recorrido guiado + cerrar todo el perímetro del tutorial + hornear NavMesh primero
@@ -956,83 +962,46 @@ namespace Prototipo3.Editor
             }
         }
 
-        private static void UpgradeTutorialMissionArrow(GameObject fbxArrow, Dictionary<string, Material> mats)
+        public static void UpgradeTutorialMissionArrow(GameObject fbxArrow, Dictionary<string, Material> mats)
         {
-            PunteroMision arrow = UnityEngine.Object.FindAnyObjectByType<PunteroMision>(FindObjectsInactive.Include);
-            if (arrow == null || fbxArrow == null)
+            PunteroMision[] legacyPointers = UnityEngine.Object.FindObjectsByType<PunteroMision>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            for (int i = 0; i < legacyPointers.Length; i++)
             {
-                Debug.LogWarning("[Prototipo3AssetAndSceneBuilder] No se encontró PunteroMision o SM_MissionArrow.fbx en Tutorial.unity.");
-                return;
+                PunteroMision pm = legacyPointers[i];
+                if (pm == null) continue;
+                Undo.RecordObject(pm.gameObject, "Desactivar Arrow Heredada de Mesh_Hamster");
+                pm.objetivo = null;
+                pm.gameObject.SetActive(false);
+                EditorUtility.SetDirty(pm);
+                EditorUtility.SetDirty(pm.gameObject);
             }
 
-            float parentScale = arrow.transform.parent != null ? Mathf.Max(0.0001f, arrow.transform.parent.lossyScale.x) : 1f;
-
-            for (int i = arrow.transform.childCount - 1; i >= 0; i--)
+            HamsterController hc = UnityEngine.Object.FindAnyObjectByType<HamsterController>(FindObjectsInactive.Include);
+            if (hc != null)
             {
-                UnityEngine.Object.DestroyImmediate(arrow.transform.GetChild(i).gameObject);
-            }
-
-            MeshFilter rootMf = arrow.GetComponent<MeshFilter>();
-            if (rootMf != null) UnityEngine.Object.DestroyImmediate(rootMf);
-            MeshRenderer rootMr = arrow.GetComponent<MeshRenderer>();
-            if (rootMr != null) UnityEngine.Object.DestroyImmediate(rootMr);
-
-            arrow.transform.localPosition = new Vector3(0f, 1.35f / parentScale, 0f);
-            arrow.transform.localRotation = Quaternion.identity;
-            arrow.transform.localScale = Vector3.one * (1.25f / parentScale);
-
-            arrow.flotar = true;
-            arrow.velocidadFlotacion = 3.2f;
-            arrow.amplitudFlotacion = 0.10f / parentScale;
-
-            GameObject visual = PrefabUtility.InstantiatePrefab(fbxArrow) as GameObject ?? UnityEngine.Object.Instantiate(fbxArrow);
-            visual.name = "VisualModel";
-            visual.transform.SetParent(arrow.transform, false);
-            visual.transform.localPosition = Vector3.zero;
-            visual.transform.localRotation = Quaternion.identity;
-            visual.transform.localScale = Vector3.one;
-
-            Collider[] cols = visual.GetComponentsInChildren<Collider>(true);
-            for (int c = cols.Length - 1; c >= 0; c--)
-            {
-                if (cols[c] != null) UnityEngine.Object.DestroyImmediate(cols[c]);
-            }
-
-            MeshRenderer[] mrs = visual.GetComponentsInChildren<MeshRenderer>(true);
-            for (int r = 0; r < mrs.Length; r++)
-            {
-                mrs[r].shadowCastingMode = ShadowCastingMode.Off;
-            }
-
-            ApplyUrpMaterialsRecursively(visual, mats);
-
-            // Verificar geométricamente que la punta de la flecha (+alas anchas) apunte hacia +Z en arrow.transform
-            MeshFilter[] mfs = visual.GetComponentsInChildren<MeshFilter>(true);
-            float weightedZSum = 0f;
-            float weightTotal = 0f;
-            for (int f = 0; f < mfs.Length; f++)
-            {
-                Mesh mesh = mfs[f].sharedMesh;
-                if (mesh == null) continue;
-                Vector3[] verts = mesh.vertices;
-                for (int v = 0; v < verts.Length; v++)
+                Transform arrowChild = hc.transform.Find("Arrow");
+                if (arrowChild != null)
                 {
-                    Vector3 worldP = mfs[f].transform.TransformPoint(verts[v]);
-                    Vector3 localP = arrow.transform.InverseTransformPoint(worldP);
-                    float absX = Mathf.Abs(localP.x);
-                    if (absX > 0.25f)
-                    {
-                        weightedZSum += localP.z * absX;
-                        weightTotal += absX;
-                    }
+                    Undo.RecordObject(arrowChild.gameObject, "Desactivar Arrow Hija de Mesh_Hamster");
+                    arrowChild.gameObject.SetActive(false);
+                    EditorUtility.SetDirty(arrowChild.gameObject);
                 }
             }
-            if (weightTotal > 0f && (weightedZSum / weightTotal) < 0f)
-            {
-                visual.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-            }
 
-            EditorUtility.SetDirty(arrow);
+            TutorialPipelineManager mgr = UnityEngine.Object.FindAnyObjectByType<TutorialPipelineManager>(FindObjectsInactive.Include);
+            if (mgr != null)
+            {
+                Undo.RecordObject(mgr, "Vincular StoryObjectivePointerPrototipo3 en Tutorial");
+                StoryObjectivePointerPrototipo3 ptr = UnityEngine.Object.FindAnyObjectByType<StoryObjectivePointerPrototipo3>(FindObjectsInactive.Include);
+                if (ptr == null)
+                {
+                    ptr = Undo.AddComponent<StoryObjectivePointerPrototipo3>(mgr.gameObject);
+                }
+                mgr.storyObjectivePointer = ptr;
+                mgr.punteroFlecha = null;
+                EditorUtility.SetDirty(ptr);
+                EditorUtility.SetDirty(mgr);
+            }
         }
 
         private static void RelocateOverlappingTutorialLoots()

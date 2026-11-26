@@ -105,11 +105,13 @@ namespace Prototipo3
                 slabGo.transform.SetParent(transform, false);
                 slabGo.transform.localPosition = Vector3.zero;
                 slabGo.transform.localRotation = Quaternion.identity;
-                BoxCollider floorBox = slabGo.AddComponent<BoxCollider>();
-                floorBox.isTrigger = false;
-                floorBox.center = new Vector3(0f, -0.23f, 0.05f);
-                floorBox.size = new Vector3(8.8f, 0.50f, 8.9f);
+                solidSlab = slabGo.transform;
             }
+            BoxCollider floorBox = solidSlab.GetComponent<BoxCollider>();
+            if (floorBox == null) floorBox = solidSlab.gameObject.AddComponent<BoxCollider>();
+            floorBox.isTrigger = false;
+            floorBox.center = new Vector3(0f, -0.23f, 0.05f);
+            floorBox.size = new Vector3(10.05f, 0.50f, 10.05f);
 
             Transform frontWalls = transform.Find("FrontFacadeWalls");
             if (frontWalls != null) frontWalls.localPosition = Vector3.zero;

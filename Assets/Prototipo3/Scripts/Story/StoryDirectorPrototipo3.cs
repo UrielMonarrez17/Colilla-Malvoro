@@ -189,6 +189,12 @@ namespace Prototipo3
             }
 
             CurrentPhase = enableStory ? StoryPhase.TalkToMarcoFirst : StoryPhase.SandboxDisabled;
+
+            if (MusicManagerPrototipo3.Instance != null)
+            {
+                MusicManagerPrototipo3.Instance.ClearVictoryOverride();
+                MusicManagerPrototipo3.Instance.RefreshMusicImmediate();
+            }
         }
 
         private void OnEnable()
@@ -214,6 +220,12 @@ namespace Prototipo3
             // Esperar un frame a que CityGeneratorPrototipo3 o los objetos de la Escuela inicialicen su Awake/Start
             yield return null;
             yield return null;
+
+            if (CurrentPhase != StoryPhase.DemoCompleted && MusicManagerPrototipo3.Instance != null)
+            {
+                MusicManagerPrototipo3.Instance.ClearVictoryOverride();
+            }
+            MusicManagerPrototipo3.EnsureInstance().RefreshMusicImmediate();
 
             if (!storyModeEnabled)
             {
@@ -953,6 +965,7 @@ namespace Prototipo3
             }
 
             SpawnMarcoFeralBossAt(marcoSpawnPos);
+            MusicManagerPrototipo3.EnsureInstance().RefreshMusicImmediate();
 
             PortraitDialogueUIPrototipo3.EnsureInstance().PlaySequence(new[]
             {
@@ -1007,6 +1020,7 @@ namespace Prototipo3
             {
                 TimeManager.Instance.ForceDawnSunrise();
             }
+            MusicManagerPrototipo3.EnsureInstance().RefreshMusicImmediate();
 
             EnsureExtraCraftingLootAroundRefuge();
 
@@ -1246,6 +1260,7 @@ namespace Prototipo3
             }
 
             BossHudPrototipo3.EnsureInstance().TriggerFlash(new Color(0.95f, 0.22f, 0.08f), 0.42f);
+            MusicManagerPrototipo3.EnsureInstance().RefreshMusicImmediate();
 
             PortraitDialogueUIPrototipo3.EnsureInstance().PlaySequence(new[]
             {
@@ -1300,6 +1315,7 @@ namespace Prototipo3
         private void HandleFinalOwlBossDefeated()
         {
             CurrentPhase = StoryPhase.DemoCompleted;
+            MusicManagerPrototipo3.EnsureInstance().PlayDemoVictoryMusicImmediate();
             BossHudPrototipo3.EnsureInstance().TriggerFlash(new Color(0.25f, 0.95f, 1f), 0.55f);
 
             PortraitDialogueUIPrototipo3.EnsureInstance().PlaySequence(new[]

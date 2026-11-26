@@ -287,6 +287,7 @@ namespace Prototipo3
                     e.ApplyWoodBarricadeRepath(spawnPos, 10f);
                 }
             }
+            NotifyBaseEnemiesInRadius(spawnPos, 14f, TipoTrampa.Madera);
 
             // Destruir la barricada tras 10 segundos
             Destroy(barricade, 10f);
@@ -309,6 +310,7 @@ namespace Prototipo3
                     Debug.Log($"[TrapSystemPrototipo3] ¡TRAMPA DE RED inmovilizó a {e.name} por 5 segundos y anuló su proximidad extrema!");
                 }
             }
+            NotifyBaseEnemiesInRadius(center, radius, TipoTrampa.Red);
 
             // 2. Activar la nube de polen protectora de 15s para Kilo
             DeployPollenBomb(playerTransform);
@@ -330,9 +332,24 @@ namespace Prototipo3
                     Debug.Log($"[TrapSystemPrototipo3] ¡TRAMPA DE PÚAS ralentizó a {e.name} al 50% por 6 s con chispas eléctricas!");
                 }
             }
+            NotifyBaseEnemiesInRadius(center, radius, TipoTrampa.Puas);
 
             // 2. Emitir el señuelo acústico de distracción por compatibilidad
             DeployAcousticDecoy(playerTransform);
+        }
+
+        private static void NotifyBaseEnemiesInRadius(Vector3 origin, float radius, TipoTrampa tipo)
+        {
+            EnemyAI[] genericEnemies = FindObjectsByType<EnemyAI>(FindObjectsSortMode.None);
+            for (int i = 0; i < genericEnemies.Length; i++)
+            {
+                EnemyAI e = genericEnemies[i];
+                if (e == null || !e.isActiveAndEnabled || e is EnemyAIPrototipo3) continue;
+                if (Vector3.Distance(origin, e.transform.position) <= radius)
+                {
+                    e.RecibirTrampa(tipo, origin);
+                }
+            }
         }
 
         private void DeployAcousticDecoy(Transform playerTransform)

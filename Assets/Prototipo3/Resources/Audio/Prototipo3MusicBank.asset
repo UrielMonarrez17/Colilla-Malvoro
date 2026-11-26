@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43b4e2fa06fa5ce469db0379d0f5ec83, type: 3}
+  m_Name: Prototipo3MusicBank
+  m_EditorClassIdentifier: Assembly-CSharp::Prototipo3.Prototipo3MusicBank
+  menuLoopClip: {fileID: 8300000, guid: 8c2610ec01fdc204eab0a5c0558c4e87, type: 3}
+  dayGameplayLoopClip: {fileID: 8300000, guid: de381cd54c79f144fb656a16f29916ec, type: 3}
+  nightAndChaseLoopClip: {fileID: 8300000, guid: 422c72e0d1e7d9044b0f756af17bf643, type: 3}
+  finalBossLoopClip: {fileID: 8300000, guid: 0e9811c7b95c56745be86e72b15c2f09, type: 3}
+  demoVictoryClip: {fileID: 8300000, guid: e232f6cf171aa5c4c8b0dc71f35db6af, type: 3}

@@ -65,10 +65,21 @@ public class LuluNPC : MonoBehaviour
     private IEnumerator MostrarDialogo(string mensaje)
     {
         hablando = true;
+        string formattedMsg = mensaje.Replace("Lulú: ", "").Replace("[Presiona ESPACIO o F para continuar]", "").Trim();
+        if (FeralGameUITutorial.Instance != null)
+        {
+            var ui = FeralGameUITutorial.Instance;
+            ui.ShowDialogue("Lulú", formattedMsg);
+            yield return null;
+            while (ui != null && ui.DialogueOpen) yield return null;
+            nextInteractUnscaledTime = Time.unscaledTime + 0.45f;
+            hablando = false;
+            yield break;
+        }
         if (Prototipo2.UI.FeralGameUI.Instance != null)
         {
             var ui = Prototipo2.UI.FeralGameUI.Instance;
-            ui.ShowDialogue("Lulú", mensaje.Replace("Lulú: ", "").Replace("[Presiona ESPACIO o F para continuar]", "").Trim());
+            ui.ShowDialogue("Lulú", formattedMsg);
             yield return null;
             while (ui != null && ui.DialogueOpen) yield return null;
             nextInteractUnscaledTime = Time.unscaledTime + 0.45f;

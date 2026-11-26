@@ -1,12 +1,11 @@
 {
     "schema_version": 2,
-    "commit": "b73183fbf13b218d2fc687dd050f7ff15b00e339",
-    "indexed_at": "2026-11-05T00:10:03Z",
-    "project": "C-Users-CIAC-Documents-Colilla-Malvoro",
-    "nodes": 3983,
-    "edges": 15430,
-    "original_size": 87097344,
-    "compressed_size": 2929239,
-    "compression_level": 9,
-    "reconcile_basis": "git-clean-head"
+    "commit": "7f0ee29c039f9f20735e997229d5055487deb5eb",
+    "indexed_at": "2026-11-26T11:09:08Z",
+    "project": "D-Uni-Gramaticas-Colilla-Malvoro",
+    "nodes": 5674,
+    "edges": 13239,
+    "original_size": 15728640,
+    "compressed_size": 2835833,
+    "compression_level": 3
 }

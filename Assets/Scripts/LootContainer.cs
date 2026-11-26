@@ -49,21 +49,28 @@ public class LootContainer : MonoBehaviour
         return string.Join(", ", parts);
     }
 
+    private static readonly HashSet<LootContainer> ActiveContainers = new HashSet<LootContainer>();
+
     private Renderer[] renderers;
     private readonly List<Material> cachedMaterials = new List<Material>();
+    private readonly List<Color> originalMaterialColors = new List<Color>();
+    private bool materialsCached = false;
     private Light glowLight;
-    private Color colorBaseOriginal = new Color(0.85f, 0.68f, 0.15f);
     private static AudioClip cachedPickupClip;
+
+    private void OnEnable()
+    {
+        ActiveContainers.Add(this);
+    }
+
+    private void OnDisable()
+    {
+        ActiveContainers.Remove(this);
+    }
 
     void Start()
     {
         CacheRenderMaterials();
-        if (cachedMaterials.Count > 0 && cachedMaterials[0] != null)
-        {
-            colorBaseOriginal = cachedMaterials[0].HasProperty("_BaseColor")
-                ? cachedMaterials[0].GetColor("_BaseColor")
-                : cachedMaterials[0].color;
-        }
 
         if (esContenedorResplandeciente && !yaFueSaqueado)
         {
@@ -73,7 +80,11 @@ public class LootContainer : MonoBehaviour
 
     private void CacheRenderMaterials()
     {
+        if (materialsCached) return;
+        materialsCached = true;
+
         cachedMaterials.Clear();
+        originalMaterialColors.Clear();
         renderers = GetComponentsInChildren<Renderer>();
         if (renderers == null) return;
         for (int i = 0; i < renderers.Length; i++)
@@ -85,7 +96,11 @@ public class LootContainer : MonoBehaviour
             if (mats == null) continue;
             for (int j = 0; j < mats.Length; j++)
             {
-                if (mats[j] != null) cachedMaterials.Add(mats[j]);
+                Material m = mats[j];
+                if (m == null) continue;
+                cachedMaterials.Add(m);
+                Color origCol = m.HasProperty("_BaseColor") ? m.GetColor("_BaseColor") : m.color;
+                originalMaterialColors.Add(origCol);
             }
         }
     }
@@ -99,6 +114,60 @@ public class LootContainer : MonoBehaviour
             m.color = col;
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", col);
             if (m.HasProperty("_Color")) m.SetColor("_Color", col);
+        }
+    }
+
+    private void RestoreOriginalMaterialColors()
+    {
+        for (int i = 0; i < cachedMaterials.Count; i++)
+        {
+            Material m = cachedMaterials[i];
+            if (m == null) continue;
+            Color col = i < originalMaterialColors.Count ? originalMaterialColors[i] : Color.white;
+            m.color = col;
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", col);
+            if (m.HasProperty("_Color")) m.SetColor("_Color", col);
+        }
+    }
+
+    /// <summary>
+    /// Restaura este contenedor al iniciar un nuevo día en su misma ubicación, con sus colores y resplandor originales.
+    /// </summary>
+    public void ResetForNewDay()
+    {
+        if (!yaFueSaqueado) return;
+        yaFueSaqueado = false;
+
+        if (!materialsCached)
+        {
+            CacheRenderMaterials();
+        }
+        RestoreOriginalMaterialColors();
+
+        if (esContenedorResplandeciente)
+        {
+            if (glowLight != null) glowLight.enabled = true;
+            else ConfigurarEfectoResplandor();
+        }
+    }
+
+    /// <summary>
+    /// Reinicia silenciosamente todos los contenedores activos al comenzar un nuevo día (excluyendo el Tutorial).
+    /// </summary>
+    public static void ResetAllForNewDay()
+    {
+        if (TutorialPipelineManager.Instance != null ||
+            UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "Tutorial")
+        {
+            return;
+        }
+
+        foreach (LootContainer container in ActiveContainers)
+        {
+            if (container != null)
+            {
+                container.ResetForNewDay();
+            }
         }
     }
 
@@ -175,7 +244,7 @@ public class LootContainer : MonoBehaviour
         }
 
         // Cambiamos el color a gris para dar retroalimentación visual de que ya fue saqueado
-        if (cachedMaterials.Count == 0)
+        if (!materialsCached)
         {
             CacheRenderMaterials();
         }
@@ -196,6 +265,7 @@ public class LootContainer : MonoBehaviour
             {
                 puertaDesbloqueable.SetActive(false);
             }
+            puertaDesbloqueable = null;
         }
 
         if (!string.IsNullOrEmpty(injectedNoteText))
@@ -205,6 +275,8 @@ public class LootContainer : MonoBehaviour
             {
                 Prototipo3.UI.FeralGameUI.Instance.ShowDialogue("Nota Encontrada", injectedNoteText);
             }
+            injectedNoteText = "";
+            injectedNoteId = "";
         }
 
         OnContainerLooted?.Invoke(this, obtenidos);

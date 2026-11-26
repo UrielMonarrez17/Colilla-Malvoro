@@ -35,6 +35,10 @@ namespace Prototipo3.UI.Editor
             if (ctrl == null) return;
             ui = ctrl.transform;
             FeralTheme.ApplyMenu(ui);
+
+            var bank = Prototipo3.Editor.Prototipo3StoryAndSchoolBuilder.EnsurePrototipo3MusicBankAsset();
+            Prototipo3.Editor.Prototipo3StoryAndSchoolBuilder.EnsureMusicManagerInActiveScene(bank);
+
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.SaveAssets();
             Debug.Log("[MainMenuSceneBuilderPrototipo3] Menú Principal de Prototipo 3 actualizado.");

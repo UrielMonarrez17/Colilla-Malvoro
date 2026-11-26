@@ -48,7 +48,11 @@ public class TutorialPipelineManager : MonoBehaviour
     [Header("UI Referencias (Existentes en Escena)")]
     public GameObject panelControlesWASD;
     public TextMeshProUGUI textoMisionUI;
+    [HideInInspector]
     public PunteroMision punteroFlecha;
+
+    [Header("Puntero Prototipo 3 (StoryObjectivePointerPrototipo3)")]
+    public Prototipo3.StoryObjectivePointerPrototipo3 storyObjectivePointer;
 
     [Header("Cinemática Inicial (MP4)")]
     [Tooltip("Video de introducción inicial del tutorial (ej. TestInitialVideo.mp4).")]
@@ -86,6 +90,8 @@ public class TutorialPipelineManager : MonoBehaviour
     // --- Actores del Tutorial ---
     private EnemyAI enemigoFeralPrincipal;
     private EnemyAI enemigoPatrullaSigilo;
+    private GameObject demoEnemyObj;
+    private Prototipo3.EnemyAIPrototipo3 demoEnemyPrototipo3;
     private List<GameObject> ciudadanosPacificos = new List<GameObject>();
     private List<LootContainer> contenedoresCiudad = new List<LootContainer>();
 
@@ -185,6 +191,8 @@ public class TutorialPipelineManager : MonoBehaviour
         LootContainer.OnContainerLooted += HandleContainerLooted;
         CraftingTable.OnMenuToggled += HandleCraftingMenuToggled;
         CraftingTable.OnTrapCrafted += HandleTrapCrafted;
+        Prototipo3.TrapSystemPrototipo3.OnProto3TrapCrafted += HandleTrapCrafted;
+        Prototipo3.TrapSystemPrototipo3.OnProto3TrapDeployed += HandleProto3TrapDeployed;
         PuertaTrampa.OnTrapInstalledOnDoor += HandleTrapInstalledOnDoor;
     }
 
@@ -193,7 +201,16 @@ public class TutorialPipelineManager : MonoBehaviour
         LootContainer.OnContainerLooted -= HandleContainerLooted;
         CraftingTable.OnMenuToggled -= HandleCraftingMenuToggled;
         CraftingTable.OnTrapCrafted -= HandleTrapCrafted;
+        Prototipo3.TrapSystemPrototipo3.OnProto3TrapCrafted -= HandleTrapCrafted;
+        Prototipo3.TrapSystemPrototipo3.OnProto3TrapDeployed -= HandleProto3TrapDeployed;
         PuertaTrampa.OnTrapInstalledOnDoor -= HandleTrapInstalledOnDoor;
+
+        if (demoEnemyObj != null)
+        {
+            Destroy(demoEnemyObj);
+            demoEnemyObj = null;
+            demoEnemyPrototipo3 = null;
+        }
 
         if (hamster != null)
         {
@@ -311,11 +328,12 @@ public class TutorialPipelineManager : MonoBehaviour
             }
         }
 
-        // 2. Asegurar InventoryManager
+        // 2. Asegurar InventoryManager y TrapSystemPrototipo3
         if (InventoryManager.Instance == null)
         {
             new GameObject("InventoryManager_Tutorial").AddComponent<InventoryManager>();
         }
+        Prototipo3.TrapSystemPrototipo3.EnsureInstance();
 
         // 3. Desactivar generador procedural lejano si interfiere o consume recursos innecesarios
         CityGeneratorMathVersion pcg = FindAnyObjectByType<CityGeneratorMathVersion>();
@@ -392,8 +410,8 @@ public class TutorialPipelineManager : MonoBehaviour
         {
             Transform rootDoor = puertaTrampaRefugio.transform.root;
 
-            puertaTrampaRefugio.gameObject.tag = "Door";
-            // Asegurarnos de que empiece SIN trampa instalada para que el jugador la coloque en la Fase 3
+            puertaTrampaRefugio.gameObject.tag = "Untagged";
+            // Asegurarnos de que empiece SIN trampa instalada
             puertaTrampaRefugio.LimpiarTrampa();
         }
 
@@ -422,6 +440,47 @@ public class TutorialPipelineManager : MonoBehaviour
                 {
                     vpRef.clip = videoCinematicaInicial;
                 }
+            }
+        }
+
+        // 11. Reemplazar flecha heredada de Mesh_Hamster/Arrow por StoryObjectivePointerPrototipo3
+        DisableLegacyMissionArrows();
+        if (storyObjectivePointer == null)
+            storyObjectivePointer = FindAnyObjectByType<Prototipo3.StoryObjectivePointerPrototipo3>();
+        if (storyObjectivePointer == null)
+            storyObjectivePointer = gameObject.AddComponent<Prototipo3.StoryObjectivePointerPrototipo3>();
+        storyObjectivePointer.ClearTarget();
+    }
+
+    private void DisableLegacyMissionArrows()
+    {
+        if (punteroFlecha != null)
+        {
+            punteroFlecha.objetivo = null;
+            punteroFlecha.gameObject.SetActive(false);
+        }
+        if (hamster != null)
+        {
+            Transform legacyArrow = hamster.transform.Find("Arrow");
+            if (legacyArrow != null) legacyArrow.gameObject.SetActive(false);
+
+            PunteroMision[] childArrows = hamster.GetComponentsInChildren<PunteroMision>(true);
+            for (int i = 0; i < childArrows.Length; i++)
+            {
+                if (childArrows[i] != null)
+                {
+                    childArrows[i].objetivo = null;
+                    childArrows[i].gameObject.SetActive(false);
+                }
+            }
+        }
+        PunteroMision[] allArrows = FindObjectsByType<PunteroMision>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < allArrows.Length; i++)
+        {
+            if (allArrows[i] != null)
+            {
+                allArrows[i].objetivo = null;
+                allArrows[i].gameObject.SetActive(false);
             }
         }
     }
@@ -580,40 +639,47 @@ public class TutorialPipelineManager : MonoBehaviour
         obs.size = new Vector3(0.8f, 2.5f, 9.5f);
         obs.carving = true;
 
-        // 2. Contenedor Resplandeciente al lado de la puerta de control (reutiliza "GarbageCollector" de la escena si existe)
-        GameObject existingCont = GameObject.Find("GarbageCollector");
-        if (existingCont != null && existingCont.GetComponent<LootContainer>() != null)
+        // 2. Contenedor Resplandeciente al lado de la puerta de control (reutiliza únicamente "GarbageCollector" de la escena)
+        LootContainer existingCont = FindSceneLootContainerByName("GarbageCollector");
+        if (existingCont != null)
         {
+            existingCont.gameObject.SetActive(true);
             existingCont.transform.position = POS_CONTENEDOR_BRILLO;
             existingCont.transform.rotation = Quaternion.identity;
-            existingCont.tag = "Interactable";
-            contenedorControlBrillante = existingCont.GetComponent<LootContainer>();
-        }
-        else if (prefabContenedorLoot != null)
-        {
-            GameObject contObj = Instantiate(prefabContenedorLoot, POS_CONTENEDOR_BRILLO, Quaternion.identity);
-            contObj.name = "ContenedorResplandeciente_Tutorial";
-            contObj.tag = "Interactable";
-            contObj.transform.localScale = new Vector3(0.65f, 0.65f, 0.65f);
-            contenedorControlBrillante = contObj.GetComponent<LootContainer>();
-        }
-        else
-        {
-            GameObject contObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            contObj.name = "ContenedorResplandeciente_Tutorial";
-            contObj.tag = "Interactable";
-            contObj.transform.position = POS_CONTENEDOR_BRILLO;
-            contObj.transform.localScale = new Vector3(0.85f, 0.85f, 0.85f);
-            BoxCollider bc = contObj.GetComponent<BoxCollider>();
-            bc.isTrigger = true;
-            bc.size = new Vector3(4f, 4f, 4f);
-            contenedorControlBrillante = contObj.AddComponent<LootContainer>();
-        }
+            existingCont.gameObject.tag = "Interactable";
+            contenedorControlBrillante = existingCont;
 
-        // Configurar para que otorgue Madera y Metal garantizados, brille y desbloquee la puerta al saquearse
-        contenedorControlBrillante.itemsGarantizados = new List<ItemType> { ItemType.Madera, ItemType.Metal };
-        contenedorControlBrillante.puertaDesbloqueable = puertaControlCallejon;
-        contenedorControlBrillante.ConfigurarEfectoResplandor();
+            // Configurar para que otorgue 2 Metal y 1 Madera garantizados (receta Prototipo 3), brille y desbloquee la puerta al saquearse
+            contenedorControlBrillante.itemsGarantizados = new List<ItemType> { ItemType.Madera, ItemType.Metal, ItemType.Metal };
+            contenedorControlBrillante.puertaDesbloqueable = puertaControlCallejon;
+            contenedorControlBrillante.ConfigurarEfectoResplandor();
+        }
+    }
+
+    private static LootContainer FindSceneLootContainerByName(string exactName)
+    {
+        LootContainer[] allContainers = FindObjectsByType<LootContainer>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < allContainers.Length; i++)
+        {
+            LootContainer lc = allContainers[i];
+            if (lc != null && lc.gameObject.name == exactName)
+            {
+                return lc;
+            }
+        }
+        return null;
+    }
+
+    private void DesactivarContenedoresExtraNoTutorial()
+    {
+        LootContainer[] allContainers = FindObjectsByType<LootContainer>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < allContainers.Length; i++)
+        {
+            LootContainer lc = allContainers[i];
+            if (lc == null) continue;
+            if (lc == contenedorControlBrillante || contenedoresCiudad.Contains(lc)) continue;
+            lc.gameObject.SetActive(false);
+        }
     }
 
     private void CrearContenedoresYCiudadanosDia1()
@@ -637,30 +703,16 @@ public class TutorialPipelineManager : MonoBehaviour
 
         for (int i = 0; i < posicionesLootCiudad.Length; i++)
         {
-            GameObject cObj = GameObject.Find(nombresExistentes[i]);
-            if (cObj != null && cObj.GetComponent<LootContainer>() != null)
-            {
-                cObj.transform.position = posicionesLootCiudad[i];
-                cObj.transform.rotation = Quaternion.identity;
-            }
-            else if (prefabContenedorLoot != null)
-            {
-                cObj = Instantiate(prefabContenedorLoot, posicionesLootCiudad[i], Quaternion.identity);
-            }
-            else
-            {
-                cObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                cObj.transform.position = posicionesLootCiudad[i];
-                cObj.transform.localScale = new Vector3(0.6f, 0.6f, 0.6f);
-                BoxCollider bc = cObj.GetComponent<BoxCollider>();
-                bc.isTrigger = true;
-                bc.size = new Vector3(4f, 4f, 4f);
-                cObj.AddComponent<LootContainer>();
-            }
+            LootContainer lc = FindSceneLootContainerByName(nombresExistentes[i])
+                ?? FindSceneLootContainerByName($"ContenedorCiudad_{i + 1}");
+            if (lc == null) continue;
 
+            GameObject cObj = lc.gameObject;
+            cObj.SetActive(true);
+            cObj.transform.position = posicionesLootCiudad[i];
+            cObj.transform.rotation = Quaternion.identity;
             cObj.name = $"ContenedorCiudad_{i + 1}";
             cObj.tag = "Interactable";
-            LootContainer lc = cObj.GetComponent<LootContainer>();
             if (i < 3)
             {
                 lc.itemsGarantizados = new List<ItemType> { ItemType.Desperdicios };
@@ -671,6 +723,8 @@ public class TutorialPipelineManager : MonoBehaviour
             }
             contenedoresCiudad.Add(lc);
         }
+
+        DesactivarContenedoresExtraNoTutorial();
 
         // Ciudadanos pacíficos en la ciudad que pasean de día y se retiran/transforman al anochecer
         Vector3[] posCiudadanos = new Vector3[]
@@ -876,7 +930,8 @@ public class TutorialPipelineManager : MonoBehaviour
         checkpointPosicion = POS_MADRIGUERA_INICIO;
 
         if (panelControlesWASD != null) panelControlesWASD.SetActive(true);
-        if (punteroFlecha != null) punteroFlecha.gameObject.SetActive(false);
+        DisableLegacyMissionArrows();
+        if (storyObjectivePointer != null) storyObjectivePointer.ClearTarget();
 
         ReproducirAmbiente(clipAmbienteDia);
 
@@ -891,7 +946,7 @@ public class TutorialPipelineManager : MonoBehaviour
 
     void Update()
     {
-        if (Prototipo2.UI.FeralGameUI.BlocksGameplay) return;
+        if (FeralGameUITutorial.BlocksGameplay) return;
         // Rescate físico de emergencia ante caídas accidentales fuera del escenario
         if (hamster != null && hamster.transform.position.y < -0.6f)
         {
@@ -1049,7 +1104,7 @@ public class TutorialPipelineManager : MonoBehaviour
             ConfigurarTextosEstado(
                 TutorialState.BuscarLulu,
                 "FASE 1: DÍA 1 — EXPLORACIÓN EN LA CIUDAD",
-                "Misión: Puerta desbloqueada (+1 Madera, +1 Metal). Ve a hablar con Lulú [F]",
+                "Misión: Puerta desbloqueada (+1 Madera, +2 Metal). Ve a hablar con Lulú [F]",
                 "El contenedor cambió a gris indicando que ya fue saqueado. Aprovecha la luz del día para hablar con los ciudadanos pacíficos.",
                 objetivoLulu
             );
@@ -1096,8 +1151,8 @@ public class TutorialPipelineManager : MonoBehaviour
 
         ActualizarTextoMision($"Misión: Recolecta 3 Desperdicios con [F] ({desperdiciosMostrados}/3)");
 
-        // Actualizar la flecha al contenedor no saqueado más cercano
-        if (punteroFlecha != null && desperdiciosActuales < 3)
+        // Actualizar el indicador al contenedor no saqueado más cercano
+        if (storyObjectivePointer != null && desperdiciosActuales < 3)
         {
             Transform masCercano = null;
             float minDist = float.MaxValue;
@@ -1113,7 +1168,7 @@ public class TutorialPipelineManager : MonoBehaviour
                     }
                 }
             }
-            if (masCercano != null) punteroFlecha.objetivo = masCercano;
+            if (masCercano != null) storyObjectivePointer.SetTarget(masCercano);
         }
 
         if (desperdiciosActuales >= 3)
@@ -1183,8 +1238,11 @@ public class TutorialPipelineManager : MonoBehaviour
         if (panelControlesWASD != null)
             panelControlesWASD.SetActive(mostrarUI && (currentState == TutorialState.AprenderControles || currentState == TutorialState.AprenderEstamina));
 
-        if (punteroFlecha != null && enCursoCinematica)
+        if (punteroFlecha != null)
             punteroFlecha.gameObject.SetActive(false);
+
+        if (storyObjectivePointer != null && enCursoCinematica)
+            storyObjectivePointer.ClearTarget();
     }
 
     private IEnumerator SecuenciaAnuncioAnochecer()
@@ -1691,12 +1749,12 @@ public class TutorialPipelineManager : MonoBehaviour
     {
         checkpointPosicion = POS_MADRIGUERA_INICIO;
 
-        // Asegurar que el jugador tenga al menos 1 Madera y 1 Metal recolectados en el Día 1
+        // Asegurar que el jugador tenga al menos 1 Madera y 2 Metal para fabricar la Trampa de Púas (receta Prototipo 3)
         if (InventoryManager.Instance != null)
         {
-            if (!InventoryManager.Instance.HasEnoughItem(ItemType.Madera, 1))
+            while (!InventoryManager.Instance.HasEnoughItem(ItemType.Madera, 1))
                 InventoryManager.Instance.AddItem(ItemType.Madera, 1);
-            if (!InventoryManager.Instance.HasEnoughItem(ItemType.Metal, 1))
+            while (!InventoryManager.Instance.HasEnoughItem(ItemType.Metal, 2))
                 InventoryManager.Instance.AddItem(ItemType.Metal, 1);
         }
 
@@ -1706,7 +1764,7 @@ public class TutorialPipelineManager : MonoBehaviour
             TutorialState.UsarMesaFabricacion,
             "FASE 3: DÍA 2 — USO DE LA MESA DE FABRICACIÓN",
             "Misión: Acércate a la Mesa de Trabajo del refugio y presiona [F] (Interactuar)",
-            "Utiliza la mesa de trabajo de tu base para abrir la interfaz de preparación antes de la siguiente noche.",
+            "Utiliza la mesa de trabajo de tu base para fabricar tu Trampa de Púas antes de probar el nuevo sistema táctico.",
             targetMesa
         );
     }
@@ -1730,7 +1788,7 @@ public class TutorialPipelineManager : MonoBehaviour
             if (!yaCrafteoPuas && table != null && hamster != null && Vector3.Distance(hamster.transform.position, table.transform.position) < 4.0f)
             {
                 // Mantener el flujo en la creación obligatoria de la primera trampa
-                textoSubtituloGuia.text = "Debes fabricar la 'Trampa 1 (Púas)' antes de continuar. Presiona [F] en la mesa y haz clic en el botón.";
+                textoSubtituloGuia.text = "Debes fabricar la 'Trampa de Púas' (2 Metal + 1 Madera) antes de continuar. Presiona [F] en la mesa.";
             }
         }
     }
@@ -1740,8 +1798,8 @@ public class TutorialPipelineManager : MonoBehaviour
         ConfigurarTextosEstado(
             TutorialState.CrearPrimeraTrampa,
             "FASE 3: DÍA 2 — CREACIÓN DE LA PRIMERA TRAMPA",
-            "Misión: Haz clic en 'Trampa 1 (Púas)' usando 1 Madera y 1 Metal recolectados en el Día 1",
-            "La Trampa de Púas cuesta 1 Madera + 1 Metal y reduce un 45% la velocidad de cualquier enemigo que cruce la entrada.",
+            "Misión: Fabrica 'Trampa de Púas' (2 Metal + 1 Madera) en la Mesa de Fabricación",
+            "En Prototipo 3 cuesta 2 Metal + 1 Madera. Al desplegarla con [1] ralentiza un 50% al enemigo cercano con chispas eléctricas y emite un señuelo acústico.",
             mesaCrafteoRefugio != null ? mesaCrafteoRefugio.transform : null
         );
     }
@@ -1749,6 +1807,8 @@ public class TutorialPipelineManager : MonoBehaviour
     private void HandleTrapCrafted(TipoTrampa tipo)
     {
         if (tipo != TipoTrampa.Puas) return;
+        if (currentState != TutorialState.CrearPrimeraTrampa && currentState != TutorialState.UsarMesaFabricacion) return;
+
         ReproducirSfx(clipSfxCrafteo);
 
         if (mesaCrafteoRefugio != null)
@@ -1756,47 +1816,167 @@ public class TutorialPipelineManager : MonoBehaviour
             mesaCrafteoRefugio.CloseMenu();
         }
 
-        if (currentState == TutorialState.CrearPrimeraTrampa || currentState == TutorialState.UsarMesaFabricacion)
-        {
-            IniciarPasoColocacionTactica();
-        }
+        IniciarPasoColocacionTactica();
+    }
+
+    public bool PuedeDesplegarTrampaActiva(TipoTrampa tipo)
+    {
+        return currentState == TutorialState.ColocacionTacticaTrampa || currentState == TutorialState.FinTutorial;
     }
 
     private void IniciarPasoColocacionTactica()
     {
+        trampaInstaladaEnRefugio = false;
         if (puertaTrampaRefugio != null)
         {
             puertaTrampaRefugio.LimpiarTrampa();
         }
 
-        Transform targetPuerta = puertaTrampaRefugio != null ? puertaTrampaRefugio.transform : null;
+        Prototipo3.TrapSystemPrototipo3.EnsureInstance();
+        if (InventoryManager.Instance != null && !InventoryManager.Instance.HasTrampa(TipoTrampa.Puas))
+        {
+            InventoryManager.Instance.AddTrampa(TipoTrampa.Puas);
+        }
+
+        SpawnearDepredadorDemoPrototipo3();
+
+        Transform targetDemo = demoEnemyObj != null ? demoEnemyObj.transform : puntoSalidaCallejon;
 
         ConfigurarTextosEstado(
             TutorialState.ColocacionTacticaTrampa,
-            "FASE 3: DÍA 2 — COLOCACIÓN TÁCTICA EN EL REFUGIO",
-            "Misión: Presiona [1] para equipar la Trampa de Púas, acércate a la puerta del pasillo y presiona [F]",
-            "Coloca la trampa en el punto de entrada estrecho del refugio para preparar el entorno antes de la siguiente noche.",
-            targetPuerta
+            "FASE 3: DÍA 2 — DESPLIEGUE TÁCTICO [1] (PROTOTIPO 3)",
+            "Misión: Sal al callejón, acércate al depredador (≤ 8 m) y presiona [1] para activar la Trampa de Púas",
+            "Acércate al depredador siguiendo el puntero dorado y pulsa la tecla [1] para lanzar las Púas con chispas eléctricas y el Señuelo Acústico.",
+            targetDemo
         );
+    }
+
+    private void SpawnearDepredadorDemoPrototipo3()
+    {
+        if (demoEnemyObj != null)
+        {
+            Destroy(demoEnemyObj);
+            demoEnemyObj = null;
+            demoEnemyPrototipo3 = null;
+        }
+
+        Vector3 spawnPos = EncontrarSpawnDespejadoDemoTrampa(
+            new Vector3(225.0f, 0.15f, 227.0f),
+            new Vector3(233.0f, 0.15f, 235.0f));
+        Vector3 alleyEntry = AjustarANavMesh(POS_SALIDA_CALLEJON);
+        Vector3 patrolEnd = AjustarANavMesh(new Vector3(225.0f, 0.15f, 239.5f));
+        Vector3 lookDir = alleyEntry - spawnPos;
+        lookDir.y = 0f;
+        if (lookDir.sqrMagnitude < 0.01f) lookDir = Vector3.forward;
+
+        GameObject prefabDemo = prefabEnemigoTigre != null ? prefabEnemigoTigre : prefabEnemigoPerro;
+        if (prefabDemo == null) return;
+
+        demoEnemyObj = Instantiate(prefabDemo, spawnPos, Quaternion.LookRotation(lookDir.normalized));
+        demoEnemyObj.name = "DepredadorDemoTrampa";
+        demoEnemyObj.tag = "Enemy";
+
+        EnemyOnCollision colDmg = demoEnemyObj.GetComponent<EnemyOnCollision>();
+        if (colDmg != null) colDmg.enabled = false;
+
+        Rigidbody rb = demoEnemyObj.GetComponent<Rigidbody>();
+        if (rb == null) rb = demoEnemyObj.AddComponent<Rigidbody>();
+        rb.isKinematic = true;
+        rb.useGravity = false;
+
+        // Reemplazar EnemyAI base por EnemyAIPrototipo3 para responder a TrapSystemPrototipo3 y AcousticDecoyObject
+        EnemyAI[] oldAis = demoEnemyObj.GetComponents<EnemyAI>();
+        for (int i = 0; i < oldAis.Length; i++)
+        {
+            if (oldAis[i] != null && !(oldAis[i] is Prototipo3.EnemyAIPrototipo3))
+            {
+                DestroyImmediate(oldAis[i]);
+            }
+        }
+
+        demoEnemyPrototipo3 = demoEnemyObj.GetComponent<Prototipo3.EnemyAIPrototipo3>();
+        if (demoEnemyPrototipo3 == null)
+        {
+            demoEnemyPrototipo3 = demoEnemyObj.AddComponent<Prototipo3.EnemyAIPrototipo3>();
+        }
+
+        demoEnemyPrototipo3.player = null;
+        demoEnemyPrototipo3.showVisionCone = true;
+        demoEnemyPrototipo3.wanderSpeed = 3.8f;
+        demoEnemyPrototipo3.chaseSpeed = 4.2f;
+        demoEnemyPrototipo3.SetPatrolWaypoints(new[] { alleyEntry, patrolEnd });
+
+        NavMeshAgent demoAgent = demoEnemyObj.GetComponent<NavMeshAgent>();
+        if (demoAgent != null && demoAgent.enabled)
+        {
+            demoAgent.Warp(spawnPos);
+            demoAgent.speed = 3.8f;
+            demoAgent.SetDestination(alleyEntry);
+        }
     }
 
     private void ActualizarPasoColocacionTrampa()
     {
-        if (puertaTrampaRefugio != null && puertaTrampaRefugio.trampaActual != TipoTrampa.Ninguna)
+        if (trampaInstaladaEnRefugio || hamster == null || demoEnemyObj == null) return;
+
+        float dist = Vector3.Distance(hamster.transform.position, demoEnemyObj.transform.position);
+        string indicador = dist <= 8.0f
+            ? $"<color=#55FF55>({dist:0.0} m — ¡Presiona [1] ahora!)</color>"
+            : $"(Distancia: {dist:0.0} m / 8.0 m)";
+
+        ActualizarTextoMision($"Misión: Acércate al depredador y presiona [1] para activar la Trampa de Púas {indicador}");
+
+        if (demoEnemyPrototipo3 != null && demoEnemyPrototipo3.IsSpikeSlowed)
         {
-            HandleTrapInstalledOnDoor(puertaTrampaRefugio, puertaTrampaRefugio.trampaActual);
+            TriggerDemoTrapConfirmed();
         }
     }
 
     private void HandleTrapInstalledOnDoor(PuertaTrampa puerta, TipoTrampa tipo)
     {
-        if (currentState != TutorialState.ColocacionTacticaTrampa ||
-            puerta != puertaTrampaRefugio || tipo != TipoTrampa.Puas) return;
+        // En el sistema unificado de Prototipo 3, las trampas se activan en campo con [1/2/3].
+    }
+
+    private void HandleProto3TrapDeployed(TipoTrampa tipo)
+    {
+        if (currentState != TutorialState.ColocacionTacticaTrampa || tipo != TipoTrampa.Puas || trampaInstaladaEnRefugio)
+            return;
+
+        if (hamster != null && demoEnemyObj != null)
+        {
+            float dist = Vector3.Distance(hamster.transform.position, demoEnemyObj.transform.position);
+            bool enemySlowed = demoEnemyPrototipo3 != null && demoEnemyPrototipo3.IsSpikeSlowed;
+            if (dist > 8.5f && !enemySlowed)
+            {
+                // Anti-softlock: devolver la trampa si la activó demasiado lejos dentro del refugio
+                if (InventoryManager.Instance != null)
+                {
+                    InventoryManager.Instance.AddTrampa(TipoTrampa.Puas);
+                }
+                string warn = $"¡Estabas a {dist:0.0} m! Te devolvimos la trampa: acércate a ≤ 8 m del depredador en el callejón y presiona [1].";
+                if (textoSubtituloGuia != null) textoSubtituloGuia.text = warn;
+                if (FeralGameUITutorial.Instance != null)
+                {
+                    FeralGameUITutorial.Instance.ShowLootFeedback("¡Muy lejos! Acércate a ≤ 8 m y pulsa [1].", 3.0f);
+                }
+                return;
+            }
+        }
+
+        if (demoEnemyPrototipo3 != null && !demoEnemyPrototipo3.IsSpikeSlowed)
+        {
+            demoEnemyPrototipo3.ApplySpikeSlowAndSparks(0.5f, 6f);
+        }
+
+        TriggerDemoTrapConfirmed();
+    }
+
+    private void TriggerDemoTrapConfirmed()
+    {
         if (trampaInstaladaEnRefugio) return;
         trampaInstaladaEnRefugio = true;
         ReproducirSfx(clipSfxCrafteo);
-
-        StartCoroutine(SecuenciaDemostracionTrampaYFinal(puerta, tipo));
+        StartCoroutine(SecuenciaDemostracionTrampaYFinal());
     }
 
     private Vector3 EncontrarSpawnDespejadoDemoTrampa(Vector3 candidatoPrincipal, Vector3 candidatoRespaldo)
@@ -1822,138 +2002,30 @@ public class TutorialPipelineManager : MonoBehaviour
         return AjustarANavMesh(candidatoPrincipal);
     }
 
-    private IEnumerator SecuenciaDemostracionTrampaYFinal(PuertaTrampa puerta, TipoTrampa tipo)
+    private IEnumerator SecuenciaDemostracionTrampaYFinal()
     {
         ConfigurarTextosEstado(
             TutorialState.DemostracionTrampaActiva,
-            "FASE 3: ¡TRAMPA EN ACCIÓN!",
-            $"Has instalado la trampa de {tipo}. Un depredador se aproxima por el pasillo del refugio...",
-            "Observa cómo la trampa de púas frena al depredador un 45% en cuanto cruza la entrada.",
-            puerta != null ? puerta.transform : null
+            "FASE 3: ¡TRAMPA DE PÚAS ACTIVADA!",
+            "¡Efecto confirmado! Redujiste al 50% la velocidad del enemigo con chispas eléctricas y Señuelo Acústico.",
+            "En Prototipo 3 activa tus trampas al instante con [1] Púas, [2] Red/Polen y [3] Barricada de Madera.",
+            demoEnemyObj != null ? demoEnemyObj.transform : null
         );
 
-        GameObject demoEnemyObj = null;
-        bool trapTriggered = false;
-        PuertaTrampa triggeredDoor = null;
+        yield return new WaitForSeconds(3.8f);
 
-        void OnDoorTrapHit(PuertaTrampa p, TipoTrampa t, EnemyAI e)
+        if (demoEnemyObj != null)
         {
-            if (p == puerta || puerta == null)
-            {
-                trapTriggered = true;
-                triggeredDoor = p;
-            }
-        }
-
-        PuertaTrampa.OnTrapTriggeredByEnemy += OnDoorTrapHit;
-        try
-        {
-            if (puerta != null)
-            {
-                Vector3 doorPos = puerta.transform.position;
-                Vector3 spawnPos = EncontrarSpawnDespejadoDemoTrampa(
-                    new Vector3(225.0f, 0.15f, 227.0f),
-                    new Vector3(233.0f, 0.15f, 235.0f));
-                Vector3 alleyEntry = AjustarANavMesh(POS_SALIDA_CALLEJON);
-                Vector3 destPastDoor = AjustarANavMesh(new Vector3(225.0f, 0.15f, 241.5f));
-                Vector3 lookDir = (alleyEntry - spawnPos);
-                lookDir.y = 0f;
-                if (lookDir.sqrMagnitude < 0.01f) lookDir = Vector3.forward;
-
-                GameObject prefabDemo = prefabEnemigoTigre != null ? prefabEnemigoTigre : prefabEnemigoPerro;
-                if (prefabDemo != null)
-                {
-                    demoEnemyObj = Instantiate(prefabDemo, spawnPos, Quaternion.LookRotation(lookDir.normalized));
-                    demoEnemyObj.name = "DepredadorDemoTrampa";
-                    demoEnemyObj.tag = "Enemy";
-
-                    EnemyOnCollision colDmg = demoEnemyObj.GetComponent<EnemyOnCollision>();
-                    if (colDmg != null) colDmg.enabled = false;
-
-                    Rigidbody rb = demoEnemyObj.GetComponent<Rigidbody>();
-                    if (rb == null) rb = demoEnemyObj.AddComponent<Rigidbody>();
-                    rb.isKinematic = true;
-                    rb.useGravity = false;
-
-                    EnemyAI demoAi = demoEnemyObj.GetComponent<EnemyAI>();
-                    if (demoAi == null) demoAi = demoEnemyObj.AddComponent<EnemyAI>();
-                    demoAi.player = null;
-                    demoAi.showVisionCone = false;
-                    demoAi.wanderSpeed = 4.8f;
-                    demoAi.chaseSpeed = 4.8f;
-                    demoAi.SetPatrolWaypoints(new[] { alleyEntry, doorPos, destPastDoor });
-
-                    NavMeshAgent demoAgent = demoEnemyObj.GetComponent<NavMeshAgent>();
-                    if (demoAgent != null && demoAgent.enabled)
-                    {
-                        demoAgent.Warp(spawnPos);
-                        demoAgent.speed = 4.8f;
-                        demoAgent.SetDestination(alleyEntry);
-                    }
-
-                    bool passedAlleyEntry = Vector3.Distance(
-                        new Vector3(spawnPos.x, 0f, spawnPos.z),
-                        new Vector3(alleyEntry.x, 0f, alleyEntry.z)) < 2.2f;
-                    float waitTimer = 0f;
-                    while (!trapTriggered && waitTimer < 8.5f && demoEnemyObj != null)
-                    {
-                        Vector3 enemyXZ = new Vector3(demoEnemyObj.transform.position.x, 0f, demoEnemyObj.transform.position.z);
-                        if (!passedAlleyEntry && Vector3.Distance(enemyXZ, new Vector3(alleyEntry.x, 0f, alleyEntry.z)) <= 1.8f)
-                        {
-                            passedAlleyEntry = true;
-                        }
-
-                        float distToDoor = Vector3.Distance(enemyXZ, new Vector3(doorPos.x, 0f, doorPos.z));
-                        if (distToDoor <= 1.25f)
-                        {
-                            demoAi.RecibirTrampa(tipo, doorPos);
-                            trapTriggered = true;
-                            break;
-                        }
-                        if (demoAgent != null && demoAgent.enabled && demoAgent.isOnNavMesh)
-                        {
-                            demoAgent.SetDestination(passedAlleyEntry ? destPastDoor : alleyEntry);
-                        }
-                        waitTimer += Time.deltaTime;
-                        yield return null;
-                    }
-
-                    if (!trapTriggered && demoEnemyObj != null)
-                    {
-                        demoAi.RecibirTrampa(tipo, doorPos);
-                    }
-                }
-                else
-                {
-                    yield return new WaitForSeconds(1.5f);
-                }
-            }
-            else
-            {
-                yield return new WaitForSeconds(1.5f);
-            }
-
-            ConfigurarTextosEstado(
-                TutorialState.DemostracionTrampaActiva,
-                "FASE 3: ¡TRAMPA ACTIVADA!",
-                "¡Efecto confirmado! La trampa de Púas redujo un 45% la velocidad del enemigo.",
-                "Usa las trampas en accesos clave y puntos de estrangulamiento durante la noche.",
-                puerta != null ? puerta.transform : null
-            );
-
-            yield return new WaitForSeconds(3.5f);
-        }
-        finally
-        {
-            PuertaTrampa.OnTrapTriggeredByEnemy -= OnDoorTrapHit;
-            if (demoEnemyObj != null) Destroy(demoEnemyObj);
+            Destroy(demoEnemyObj);
+            demoEnemyObj = null;
+            demoEnemyPrototipo3 = null;
         }
 
         ReproducirSfx(clipSfxAmanecer);
         ConfigurarTextosEstado(
             TutorialState.FinTutorial,
             "¡TUTORIAL COMPLETADO!",
-            "Has dominado el sigilo, recolección, crafteo y trampas tácticas.",
+            "Has dominado el sigilo, recolección, crafteo y el despliegue táctico de trampas de Prototipo 3.",
             "Elige ahora cómo quieres generar tu ciudad en Prototipo 3.",
             null
         );
@@ -2316,7 +2388,7 @@ public class TutorialPipelineManager : MonoBehaviour
 
         if (puertaTrampaRefugio != null)
         {
-            bool habilitarPuertaTrampa = (estado == TutorialState.ColocacionTacticaTrampa || estado == TutorialState.FinTutorial);
+            bool habilitarPuertaTrampa = (estado == TutorialState.FinTutorial);
             puertaTrampaRefugio.gameObject.tag = habilitarPuertaTrampa ? "Door" : "Untagged";
         }
     }
@@ -2375,14 +2447,18 @@ public class TutorialPipelineManager : MonoBehaviour
 
         if (punteroFlecha != null)
         {
+            punteroFlecha.gameObject.SetActive(false);
+        }
+
+        if (storyObjectivePointer != null)
+        {
             if (nuevoObjetivo != null && !enCinematica)
             {
-                punteroFlecha.objetivo = nuevoObjetivo;
-                punteroFlecha.gameObject.SetActive(true);
+                storyObjectivePointer.SetTarget(nuevoObjetivo);
             }
             else
             {
-                punteroFlecha.gameObject.SetActive(false);
+                storyObjectivePointer.ClearTarget();
             }
         }
 

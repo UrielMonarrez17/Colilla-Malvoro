@@ -234,7 +234,12 @@ namespace Prototipo3
                 dest = fallbackWorldPoint.Value;
             }
 
-            if (!dest.HasValue || PortraitDialogueUIPrototipo3.IsConversationActive || UI.FeralGameUI.BlocksGameplay || StoryDirectorPrototipo3.IsDemoVictoryOpen)
+            bool tutorialHidden = (TutorialPipelineManager.Instance != null &&
+                (TutorialPipelineManager.Instance.enCinematica ||
+                 TutorialPipelineManager.Instance.currentState == TutorialPipelineManager.TutorialState.FinTutorial)) ||
+                FeralGameUITutorial.BlocksGameplay;
+
+            if (!dest.HasValue || PortraitDialogueUIPrototipo3.IsConversationActive || UI.FeralGameUI.BlocksGameplay || StoryDirectorPrototipo3.IsDemoVictoryOpen || tutorialHidden)
             {
                 if (playerCompassArrow != null) playerCompassArrow.SetActive(false);
                 if (targetBeaconPillar != null) targetBeaconPillar.SetActive(false);
@@ -242,7 +247,7 @@ namespace Prototipo3
                 return;
             }
 
-            if (trackedPlayer == null)
+            if (trackedPlayer == null || !trackedPlayer.gameObject.activeInHierarchy)
             {
                 trackedPlayer = FindAnyObjectByType<HamsterControllerPrototipo3>() ?? FindAnyObjectByType<HamsterController>();
                 if (trackedPlayer == null) return;

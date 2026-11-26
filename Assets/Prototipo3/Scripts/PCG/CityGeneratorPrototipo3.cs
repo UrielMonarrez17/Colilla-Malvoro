@@ -224,8 +224,9 @@ namespace Prototipo3
             lastNetwork = network;
             LastNetwork = network;
 
-            // 5. Losa continua anti-caídas bajo toda la ciudad, colliders sólidos en edificios, NavMesh y posicionamiento
-            EnsureContinuousCityGroundSlab(grid);
+            // 5. Limpiar cualquier losa previa heredada, añadir perímetro invisible, colliders de edificios, NavMesh y posicionamiento
+            RemoveLegacySafetySlabIfPresent();
+            EnsureCityPerimeterBoundaries(grid);
             ConfigureCityCollidersAndBakeNavMesh();
             AnalyzeRoadTopology(grid, network);
             PlacePlayerAndCraftTable(grid, hasRefuge);
@@ -311,6 +312,13 @@ namespace Prototipo3
             // La entrada del InteriorBuilding está en su cara local -Z, así que transform.forward apunta opuesto a bestRoadDir
             Vector3 worldRoadDir = new Vector3(bestRoadDir.x, 0f, bestRoadDir.y).normalized;
             Quaternion refugeRot = Quaternion.LookRotation(-worldRoadDir, Vector3.up);
+
+            if (pedestrianPavement != null)
+            {
+                Vector3 lotPavementPos = new Vector3(worldPos.x, roadHeightY - 0.03f, worldPos.z);
+                GameObject lotPavement = Instantiate(pedestrianPavement, lotPavementPos, Quaternion.identity, transform);
+                lotPavement.name = "RefugioSeguro_LotPavement";
+            }
 
             safeRefugeInstance = Instantiate(safeRefugePrefab, worldPos, refugeRot, transform);
             safeRefugeInstance.name = "RefugioSeguro_Base";
@@ -420,7 +428,7 @@ namespace Prototipo3
             }
         }
 
-        private void EnsureContinuousCityGroundSlab(CityGrid grid)
+        private void RemoveLegacySafetySlabIfPresent()
         {
             Transform oldSlab = transform.Find("CityGroundSafetySlab");
             if (oldSlab != null)
@@ -428,35 +436,42 @@ namespace Prototipo3
                 if (Application.isPlaying) Destroy(oldSlab.gameObject);
                 else DestroyImmediate(oldSlab.gameObject);
             }
+        }
 
-            float totalW = (grid.Width + 8) * cellSize;
-            float totalL = (grid.Length + 8) * cellSize;
-            Vector3 center = new Vector3(grid.Width * cellSize * 0.5f, roadHeightY - 0.51f, grid.Length * cellSize * 0.5f);
-
-            GameObject slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            slab.name = "CityGroundSafetySlab";
-            slab.transform.SetParent(transform, false);
-            slab.transform.position = center;
-            slab.transform.localScale = new Vector3(totalW, 1.0f, totalL);
-
-            Renderer r = slab.GetComponent<Renderer>();
-            if (r != null)
+        private void EnsureCityPerimeterBoundaries(CityGrid grid)
+        {
+            Transform oldBounds = transform.Find("CityPerimeterBounds");
+            if (oldBounds != null)
             {
-                Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-                Material m = new Material(sh);
-                Color asphalt = new Color(0.19f, 0.20f, 0.22f, 1f);
-                m.color = asphalt;
-                if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", asphalt);
-                m.SetFloat("_Smoothness", 0.15f);
-                r.sharedMaterial = m;
+                if (Application.isPlaying) Destroy(oldBounds.gameObject);
+                else DestroyImmediate(oldBounds.gameObject);
             }
 
-            BoxCollider bc = slab.GetComponent<BoxCollider>();
-            if (bc != null)
-            {
-                bc.enabled = true;
-                bc.isTrigger = false;
-            }
+            float totalW = grid.Width * cellSize;
+            float totalL = grid.Length * cellSize;
+            const float thickness = 1.0f;
+            const float height = 8.0f;
+            float wallY = roadHeightY + 3.5f;
+
+            GameObject boundsRoot = new GameObject("CityPerimeterBounds");
+            boundsRoot.transform.SetParent(transform, false);
+            NavMeshModifier navMod = boundsRoot.AddComponent<NavMeshModifier>();
+            navMod.ignoreFromBuild = true;
+
+            CreatePerimeterWall(boundsRoot.transform, "Border_South", new Vector3(totalW * 0.5f, wallY, -thickness * 0.5f), new Vector3(totalW + thickness * 2f, height, thickness));
+            CreatePerimeterWall(boundsRoot.transform, "Border_North", new Vector3(totalW * 0.5f, wallY, totalL + thickness * 0.5f), new Vector3(totalW + thickness * 2f, height, thickness));
+            CreatePerimeterWall(boundsRoot.transform, "Border_West", new Vector3(-thickness * 0.5f, wallY, totalL * 0.5f), new Vector3(thickness, height, totalL));
+            CreatePerimeterWall(boundsRoot.transform, "Border_East", new Vector3(totalW + thickness * 0.5f, wallY, totalL * 0.5f), new Vector3(thickness, height, totalL));
+        }
+
+        private static void CreatePerimeterWall(Transform parent, string wallName, Vector3 worldPos, Vector3 size)
+        {
+            GameObject wall = new GameObject(wallName);
+            wall.transform.SetParent(parent, false);
+            wall.transform.position = worldPos;
+            BoxCollider bc = wall.AddComponent<BoxCollider>();
+            bc.isTrigger = false;
+            bc.size = size;
         }
 
         private void SpawnAbundantStreetAndAlleyLoot(CityRandom rng, CityGrid grid, List<Bounds> buildingBounds)
@@ -691,15 +706,26 @@ namespace Prototipo3
                 obstacle.carvingTimeToStationary = 0.1f;
             }
 
-            // Desactivar temporalmente MeshColliders cuyas mallas no tengan Read/Write activado (Pavement/Road) durante BuildNavMesh:
-            // CityGroundSafetySlab + BoxColliders de edificios cubren toda la geometría caminable y esto elimina +500 stacktraces al arrancar!
+            // Si alguna malla sigue sin Read/Write habilitado, crear un BoxCollider temporal solo durante BuildNavMesh()
+            // para evitar errores de lectura; las mallas con isReadable=1 se hornean directamente desde sus MeshColliders.
             MeshCollider[] allMeshCols = GetComponentsInChildren<MeshCollider>(false);
             var tempDisabled = new List<MeshCollider>(allMeshCols.Length);
+            var tempFallbacks = new List<GameObject>();
             for (int i = 0; i < allMeshCols.Length; i++)
             {
                 MeshCollider mc = allMeshCols[i];
                 if (mc != null && mc.enabled && mc.sharedMesh != null && !mc.sharedMesh.isReadable)
                 {
+                    Bounds b = mc.bounds;
+                    if (b.size.sqrMagnitude > 0.0001f)
+                    {
+                        GameObject tempGo = new GameObject("TempNavMeshFloorFallback");
+                        tempGo.transform.SetParent(transform, false);
+                        tempGo.transform.position = b.center;
+                        BoxCollider tempBox = tempGo.AddComponent<BoxCollider>();
+                        tempBox.size = b.size;
+                        tempFallbacks.Add(tempGo);
+                    }
                     mc.enabled = false;
                     tempDisabled.Add(mc);
                 }
@@ -713,6 +739,14 @@ namespace Prototipo3
             navSurface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
             navSurface.BuildNavMesh();
 
+            for (int i = 0; i < tempFallbacks.Count; i++)
+            {
+                if (tempFallbacks[i] != null)
+                {
+                    if (Application.isPlaying) Destroy(tempFallbacks[i]);
+                    else DestroyImmediate(tempFallbacks[i]);
+                }
+            }
             for (int i = 0; i < tempDisabled.Count; i++)
             {
                 if (tempDisabled[i] != null) tempDisabled[i].enabled = true;
