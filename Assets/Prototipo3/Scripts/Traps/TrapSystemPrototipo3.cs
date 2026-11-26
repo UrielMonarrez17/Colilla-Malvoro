@@ -20,6 +20,15 @@ namespace Prototipo3
         public GameObject pollenCloudPrefab;
         public GameObject staticDischargePrefab;
 
+        [Header("Modelos 3D de Trampas (Blender)")]
+        public GameObject spikesTrapPrefab;
+        public GameObject netTrapPrefab;
+        public GameObject mouseTrapPrefab;
+
+        private const string SpikesResourcePath = "Traps/SM_Trap_Spikes";
+        private const string NetResourcePath = "Traps/SM_Trap_Net";
+        private const string MouseTrapResourcePath = "Traps/SM_Trap_MouseTrap";
+
         [Header("Estado de Buffs Activos")]
         [SerializeField] private float pollenTimeRemaining = 0f;
         public static bool IsPollenCloudActive => Instance != null && Instance.pollenTimeRemaining > 0f;
@@ -243,39 +252,161 @@ namespace Prototipo3
         //  LÓGICA FÍSICA Y EFECTOS TÁCTICOS DE LAS 3 TRAMPAS
         // ===================================================================================
 
-        public void DeployWoodBarricade(Transform playerTransform)
+        private static GameObject ResolveTrapModel(GameObject assigned, string resPath)
         {
-            Vector3 spawnPos = playerTransform.position + playerTransform.forward * 1.5f;
-            if (CityGeneratorPrototipo3.Instance != null)
-            {
-                spawnPos.y = CityGeneratorPrototipo3.Instance.roadHeightY + 0.5f;
-            }
+            return assigned != null ? assigned : Resources.Load<GameObject>(resPath);
+        }
 
-            GameObject barricade = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            barricade.name = "Barricada_Madera_Activa_10s";
-            barricade.transform.position = spawnPos;
-            barricade.transform.rotation = playerTransform.rotation;
-            barricade.transform.localScale = new Vector3(2.4f, 1.2f, 0.45f);
+        private static Vector3 GetGroundPoint(Vector3 around, Transform ignoreRoot)
+        {
+            RaycastHit[] hits = Physics.RaycastAll(around + Vector3.up * 1.6f, Vector3.down, 5f, ~0, QueryTriggerInteraction.Ignore);
+            bool found = false;
+            float bestDist = float.MaxValue;
+            Vector3 bestPoint = Vector3.zero;
 
-            Renderer r = barricade.GetComponent<Renderer>();
-            if (r != null)
+            for (int i = 0; i < hits.Length; i++)
             {
-                Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Universal Render Pipeline/Unlit");
-                if (sh != null)
+                RaycastHit hit = hits[i];
+                if (hit.collider == null || hit.collider.isTrigger) continue;
+                if (ignoreRoot != null && (hit.collider.transform == ignoreRoot || hit.collider.transform.IsChildOf(ignoreRoot))) continue;
+                if (hit.collider.GetComponentInParent<EnemyAI>() != null) continue;
+                if (hit.normal.y < 0.55f) continue;
+
+                if (hit.distance < bestDist)
                 {
-                    Material m = new Material(sh);
-                    Color c = new Color(0.48f, 0.28f, 0.12f, 1f);
-                    m.color = c;
-                    if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
-                    r.material = m;
+                    bestDist = hit.distance;
+                    bestPoint = hit.point;
+                    found = true;
                 }
             }
 
-            NavMeshObstacle obstacle = barricade.AddComponent<NavMeshObstacle>();
-            obstacle.shape = NavMeshObstacleShape.Box;
-            obstacle.size = new Vector3(2.4f, 1.2f, 0.45f);
-            obstacle.carving = true;
-            obstacle.carveOnlyStationary = false;
+            if (found) return bestPoint;
+
+            float fallbackY = CityGeneratorPrototipo3.Instance != null ? CityGeneratorPrototipo3.Instance.roadHeightY : around.y;
+            return new Vector3(around.x, fallbackY, around.z);
+        }
+
+        private static GameObject SpawnTrapVisual(GameObject src, Vector3 groundPos, Quaternion worldYaw, string rootName)
+        {
+            GameObject root = new GameObject(rootName);
+            root.transform.position = groundPos;
+            root.transform.rotation = worldYaw;
+
+            GameObject vis = Instantiate(src);
+            vis.name = "Model";
+            vis.transform.SetParent(root.transform, false);
+            vis.transform.localPosition = Vector3.zero;
+
+            Collider[] embeddedCols = vis.GetComponentsInChildren<Collider>(true);
+            for (int i = 0; i < embeddedCols.Length; i++)
+            {
+                if (embeddedCols[i] != null) Destroy(embeddedCols[i]);
+            }
+
+            Renderer[] rens = vis.GetComponentsInChildren<Renderer>(true);
+            EnsureUrpLitMaterials(rens);
+
+            if (rens.Length > 0)
+            {
+                Bounds combined = rens[0].bounds;
+                for (int i = 1; i < rens.Length; i++)
+                {
+                    if (rens[i] != null) combined.Encapsulate(rens[i].bounds);
+                }
+                float deltaY = (root.transform.position.y + 0.01f) - combined.min.y;
+                vis.transform.position += new Vector3(0f, deltaY, 0f);
+            }
+
+            return root;
+        }
+
+        private static void EnsureUrpLitMaterials(Renderer[] renderers)
+        {
+            if (renderers == null || renderers.Length == 0) return;
+            Shader urpLit = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Universal Render Pipeline/Simple Lit");
+            if (urpLit == null) return;
+
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                Renderer r = renderers[i];
+                if (r == null) continue;
+                Material[] mats = r.sharedMaterials;
+                bool changed = false;
+                for (int m = 0; m < mats.Length; m++)
+                {
+                    Material mat = mats[m];
+                    if (mat == null || mat.shader == null || mat.shader.name == "Hidden/InternalErrorShader" || mat.shader.name == "Standard")
+                    {
+                        Color col = (mat != null && mat.HasProperty("_Color")) ? mat.color : Color.gray;
+                        Material replacement = new Material(urpLit);
+                        replacement.color = col;
+                        if (replacement.HasProperty("_BaseColor")) replacement.SetColor("_BaseColor", col);
+                        mats[m] = replacement;
+                        changed = true;
+                    }
+                }
+                if (changed) r.sharedMaterials = mats;
+            }
+        }
+
+        public void DeployWoodBarricade(Transform playerTransform)
+        {
+            Vector3 approxPos = playerTransform.position + playerTransform.forward * 1.5f;
+            Quaternion yaw = Quaternion.Euler(0f, playerTransform.eulerAngles.y, 0f);
+            GameObject mouseModel = ResolveTrapModel(mouseTrapPrefab, MouseTrapResourcePath);
+            Vector3 spawnPos;
+            GameObject barricade;
+
+            if (mouseModel != null)
+            {
+                spawnPos = GetGroundPoint(approxPos, playerTransform);
+                barricade = SpawnTrapVisual(mouseModel, spawnPos, yaw, "Barricada_Madera_Activa_10s");
+
+                BoxCollider bc = barricade.AddComponent<BoxCollider>();
+                bc.size = new Vector3(2.4f, 1.0f, 1.3f);
+                bc.center = new Vector3(0f, 0.5f, 0f);
+
+                NavMeshObstacle obstacle = barricade.AddComponent<NavMeshObstacle>();
+                obstacle.shape = NavMeshObstacleShape.Box;
+                obstacle.size = new Vector3(2.4f, 1.0f, 1.3f);
+                obstacle.center = new Vector3(0f, 0.5f, 0f);
+                obstacle.carving = true;
+                obstacle.carveOnlyStationary = false;
+            }
+            else
+            {
+                spawnPos = approxPos;
+                if (CityGeneratorPrototipo3.Instance != null)
+                {
+                    spawnPos.y = CityGeneratorPrototipo3.Instance.roadHeightY + 0.5f;
+                }
+
+                barricade = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                barricade.name = "Barricada_Madera_Activa_10s";
+                barricade.transform.position = spawnPos;
+                barricade.transform.rotation = playerTransform.rotation;
+                barricade.transform.localScale = new Vector3(2.4f, 1.2f, 0.45f);
+
+                Renderer r = barricade.GetComponent<Renderer>();
+                if (r != null)
+                {
+                    Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Universal Render Pipeline/Unlit");
+                    if (sh != null)
+                    {
+                        Material m = new Material(sh);
+                        Color c = new Color(0.48f, 0.28f, 0.12f, 1f);
+                        m.color = c;
+                        if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+                        r.material = m;
+                    }
+                }
+
+                NavMeshObstacle obstacle = barricade.AddComponent<NavMeshObstacle>();
+                obstacle.shape = NavMeshObstacleShape.Box;
+                obstacle.size = new Vector3(2.4f, 1.2f, 0.45f);
+                obstacle.carving = true;
+                obstacle.carveOnlyStationary = false;
+            }
 
             // Recalcular ruta de todos los enemigos cercanos (radio 14m)
             EnemyAIPrototipo3[] enemies = FindObjectsByType<EnemyAIPrototipo3>(FindObjectsSortMode.None);
@@ -311,6 +442,16 @@ namespace Prototipo3
                 }
             }
             NotifyBaseEnemiesInRadius(center, radius, TipoTrampa.Red);
+
+            // 1b. Desplegar el modelo 3D de la red en el suelo durante los 5 s de inmovilización
+            GameObject netModel = ResolveTrapModel(netTrapPrefab, NetResourcePath);
+            if (netModel != null)
+            {
+                Quaternion yaw = Quaternion.Euler(0f, playerTransform.eulerAngles.y, 0f);
+                Vector3 groundPos = GetGroundPoint(center, playerTransform);
+                GameObject netVis = SpawnTrapVisual(netModel, groundPos, yaw, "Trampa2_Red_Activa_5s");
+                Destroy(netVis, 5f);
+            }
 
             // 2. Activar la nube de polen protectora de 15s para Kilo
             DeployPollenBomb(playerTransform);
@@ -354,19 +495,26 @@ namespace Prototipo3
 
         private void DeployAcousticDecoy(Transform playerTransform)
         {
-            Vector3 spawnPos = playerTransform.position + playerTransform.forward * 1.2f;
-            if (CityGeneratorPrototipo3.Instance != null)
-            {
-                spawnPos.y = CityGeneratorPrototipo3.Instance.roadHeightY;
-            }
-
+            Vector3 approxPos = playerTransform.position + playerTransform.forward * 1.2f;
+            Quaternion yaw = Quaternion.Euler(0f, playerTransform.eulerAngles.y, 0f);
+            GameObject spikesModel = ResolveTrapModel(spikesTrapPrefab, SpikesResourcePath);
             GameObject decoyObj;
-            if (acousticDecoyPrefab != null)
+
+            if (spikesModel != null)
             {
+                Vector3 groundPos = GetGroundPoint(approxPos, playerTransform);
+                decoyObj = SpawnTrapVisual(spikesModel, groundPos, yaw, "Trampa1_Puas_Activa");
+            }
+            else if (acousticDecoyPrefab != null)
+            {
+                Vector3 spawnPos = approxPos;
+                if (CityGeneratorPrototipo3.Instance != null) spawnPos.y = CityGeneratorPrototipo3.Instance.roadHeightY;
                 decoyObj = Instantiate(acousticDecoyPrefab, spawnPos, Quaternion.identity);
             }
             else
             {
+                Vector3 spawnPos = approxPos;
+                if (CityGeneratorPrototipo3.Instance != null) spawnPos.y = CityGeneratorPrototipo3.Instance.roadHeightY;
                 decoyObj = new GameObject("Trampa1_SenueloAcustico_Active");
                 decoyObj.transform.position = spawnPos;
             }

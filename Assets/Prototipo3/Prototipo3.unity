@@ -367,6 +367,9 @@ MonoBehaviour:
   acousticDecoyPrefab: {fileID: 0}
   pollenCloudPrefab: {fileID: 0}
   staticDischargePrefab: {fileID: 0}
+  spikesTrapPrefab: {fileID: 919132149155446097, guid: c1a7e4b29d3f4e6a8b5c0d1e2f3a4b51, type: 3}
+  netTrapPrefab: {fileID: 919132149155446097, guid: d2b8f5c3ae404f7b9c6d1e2f3a4b5c62, type: 3}
+  mouseTrapPrefab: {fileID: 919132149155446097, guid: e3c9a6d4bf515a8cad7e2f3a4b5c6d73, type: 3}
   pollenTimeRemaining: 0
 --- !u!4 &545683772
 Transform:

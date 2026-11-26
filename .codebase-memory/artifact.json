@@ -1,11 +1,11 @@
 {
     "schema_version": 2,
-    "commit": "7f0ee29c039f9f20735e997229d5055487deb5eb",
-    "indexed_at": "2026-11-26T11:09:08Z",
+    "commit": "9f3f351bcd80736dbd84ef293952840020810407",
+    "indexed_at": "2026-11-26T12:22:07Z",
     "project": "D-Uni-Gramaticas-Colilla-Malvoro",
-    "nodes": 5674,
-    "edges": 13239,
+    "nodes": 5692,
+    "edges": 13221,
     "original_size": 15728640,
-    "compressed_size": 2835833,
+    "compressed_size": 2841690,
     "compression_level": 3
 }
