@@ -43,7 +43,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.cinemachine": {
-      "version": "3.1.7",
+      "version": "3.1.8",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -53,7 +53,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.cloud.gltfast": {
-      "version": "6.20.0",
+      "version": "6.21.0",
       "depth": 0,
       "source": "registry",
       "dependencies": {

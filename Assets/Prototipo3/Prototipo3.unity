@@ -417,6 +417,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f9cf58e26df063b4cad13f35be3da460, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DayNightCycle
+  daySunColor: {r: 1, g: 0.96, b: 0.88, a: 1}
+  daySunIntensity: 1.85
+  dayAmbientColor: {r: 0.55, g: 0.58, b: 0.65, a: 1}
+  duskStartColor: {r: 1, g: 0.72, b: 0.38, a: 1}
+  duskEndColor: {r: 0.85, g: 0.32, b: 0.22, a: 1}
+  duskStartIntensity: 1.4
+  duskEndIntensity: 0.5
+  duskAmbientColor: {r: 0.38, g: 0.25, b: 0.28, a: 1}
+  nightBrightnessMultiplier: 1
+  nightMoonColor: {r: 0.22, g: 0.28, b: 0.48, a: 1}
+  nightMoonIntensity: 0.22
+  nightAmbientColor: {r: 0.11, g: 0.13, b: 0.22, a: 1}
+  keepOverheadMoonAngleAtNight: 1
+  nightMoonPitchAngle: 48
+  sunYawAngle: -30
 --- !u!108 &643322120
 Light:
   m_ObjectHideFlags: 0
@@ -642,7 +657,7 @@ MonoBehaviour:
   - {fileID: 1827269421861606370, guid: d86baaa6f7317ee4cb7d74abec0fc883, type: 3}
   - {fileID: 8220037716195360440, guid: b8ce7161d333df84296f98eaa54b3fb8, type: 3}
   - {fileID: 3582715488508131053, guid: 7e2f109d45a26c74e8d79e61c17819c7, type: 3}
-  maxEnemiesToSpawn: 35
+  maxEnemiesToSpawn: 55
   minEnemyDistanceFromSpawn: 26
   minSpacingBetweenEnemies: 12
 --- !u!114 &885262684
@@ -840,18 +855,36 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Prototipo3.DirectionalNightFog
   playerTransform: {fileID: 167244406}
   targetCamera: {fileID: 1410621283}
-  fogShader: {fileID: 4800000, guid: 358fc326837799c429a5f6c7e657f01d, type: 3}
-  dayFogColor: {r: 0.7, g: 0.76, b: 0.82, a: 0.24}
-  nightFogColor: {r: 0.06, g: 0.09, b: 0.14, a: 0.82}
-  fogDensity: 0.022
-  directionalForwardBoost: 1.25
-  nearDistance: 11.5
-  farDistance: 32
-  noiseScale: 0.065
+  fogShader: {fileID: 4800000, guid: e7a2c4f89b134d6285c0e1f4a3b79d52, type: 3}
+  dayFogColor: {r: 0.62, g: 0.59, b: 0.5, a: 0.3}
+  duskFogColor: {r: 0.78, g: 0.45, b: 0.25, a: 0.4}
+  nightFogColor: {r: 0.08, g: 0.12, b: 0.18, a: 0.54}
+  dayWispsTint: {r: 0.78, g: 0.74, b: 0.64, a: 1}
+  duskWispsTint: {r: 0.94, g: 0.6, b: 0.36, a: 1}
+  nightWispsTint: {r: 0.16, g: 0.24, b: 0.32, a: 1}
+  fogDensity: 0.032
+  directionalForwardBoost: 1.15
+  nearDistance: 4.5
+  farDistance: 16.5
+  noiseScale: 0.14
   noiseSpeed: 0.35
-  maxSmogAlpha: 0.8
+  maxSmogAlpha: 0.65
   fogTransitionSpeed: 1.8
+  maxCloudParticles: 220
+  dayEmissionRate: 26
+  nightEmissionRate: 38
+  cloudSizeRange: {x: 6.5, y: 12.5}
+  cloudLifetimeRange: {x: 8, y: 12.5}
+  emitterBoxSize: {x: 46, y: 2.6, z: 46}
+  windDriftVelocity: {x: 0.72, y: 0, z: 0.42}
+  softParticlesFade: 1.6
+  streetFogHeight: 3.4
+  heightFalloff: 0.26
+  lampWarmColor: {r: 1, g: 0.78, b: 0.4, a: 1}
+  lampClearStrength: 0.3
+  lampGlowStrength: 0.85
   controlGlobalFog: 0
+  smogProfileVersion: 3
 --- !u!114 &1410621280
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -877,8 +910,10 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   sphereCastRadius: 0.5
+  occlusionEdgeMargin: 0.28
   fadedAlpha: 0.2
   fadeSpeed: 7
+  occlusionFadeShader: {fileID: 0}
 --- !u!114 &1410621281
 MonoBehaviour:
   m_ObjectHideFlags: 0

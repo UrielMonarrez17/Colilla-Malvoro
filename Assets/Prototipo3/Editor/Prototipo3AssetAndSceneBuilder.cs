@@ -939,26 +939,56 @@ namespace Prototipo3.Editor
                 }
             }
 
-            Prototipo2.DirectionalNightFog nightFog = UnityEngine.Object.FindAnyObjectByType<Prototipo2.DirectionalNightFog>(FindObjectsInactive.Include);
-            if (nightFog != null)
+            Prototipo2.DirectionalNightFog legacyFog = UnityEngine.Object.FindAnyObjectByType<Prototipo2.DirectionalNightFog>(FindObjectsInactive.Include);
+            if (legacyFog != null)
             {
                 Shader fogSh = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Prototipo2/Shaders/CityDirectionalFog.shader");
-                if (fogSh != null) nightFog.fogShader = fogSh;
-                if (mainCam != null) nightFog.targetCamera = mainCam;
+                if (fogSh != null) legacyFog.fogShader = fogSh;
+                if (mainCam != null) legacyFog.targetCamera = mainCam;
                 HamsterController hc = UnityEngine.Object.FindAnyObjectByType<HamsterController>();
-                if (hc != null) nightFog.playerTransform = hc.transform;
-                nightFog.dayFogColor = new Color(0.70f, 0.76f, 0.82f, 0.24f);
-                nightFog.nightFogColor = new Color(0.06f, 0.09f, 0.14f, 0.82f);
-                nightFog.fogDensity = 0.022f;
-                nightFog.directionalForwardBoost = 1.25f;
-                nightFog.nearDistance = 11.5f;
-                nightFog.farDistance = 32f;
-                nightFog.noiseScale = 0.065f;
-                nightFog.noiseSpeed = 0.35f;
-                nightFog.maxSmogAlpha = 0.8f;
-                nightFog.fogTransitionSpeed = 1.8f;
-                nightFog.controlGlobalFog = false;
-                EditorUtility.SetDirty(nightFog);
+                if (hc != null) legacyFog.playerTransform = hc.transform;
+                legacyFog.dayFogColor = new Color(0.62f, 0.59f, 0.50f, 0.50f);
+                legacyFog.nightFogColor = new Color(0.07f, 0.11f, 0.16f, 0.86f);
+                legacyFog.fogDensity = 0.032f;
+                legacyFog.directionalForwardBoost = 1.15f;
+                legacyFog.nearDistance = 5.8f;
+                legacyFog.farDistance = 16.5f;
+                legacyFog.noiseScale = 0.085f;
+                legacyFog.noiseSpeed = 0.42f;
+                legacyFog.maxSmogAlpha = 0.84f;
+                legacyFog.fogTransitionSpeed = 1.8f;
+                legacyFog.controlGlobalFog = false;
+                EditorUtility.SetDirty(legacyFog);
+            }
+
+            DirectionalNightFog proto3Fog = UnityEngine.Object.FindAnyObjectByType<DirectionalNightFog>(FindObjectsInactive.Include);
+            if (proto3Fog != null)
+            {
+                Shader fogSh3 = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Prototipo3/Shaders/VolumetricSmogParticle.shader");
+                if (fogSh3 != null) proto3Fog.fogShader = fogSh3;
+                if (mainCam != null) proto3Fog.targetCamera = mainCam;
+                HamsterController hc = UnityEngine.Object.FindAnyObjectByType<HamsterController>();
+                if (hc != null) proto3Fog.playerTransform = hc.transform;
+                proto3Fog.dayFogColor = new Color(0.62f, 0.59f, 0.50f, 0.30f);
+                proto3Fog.duskFogColor = new Color(0.78f, 0.45f, 0.25f, 0.40f);
+                proto3Fog.nightFogColor = new Color(0.08f, 0.12f, 0.18f, 0.54f);
+                proto3Fog.dayWispsTint = new Color(0.78f, 0.74f, 0.64f, 1.0f);
+                proto3Fog.duskWispsTint = new Color(0.94f, 0.60f, 0.36f, 1.0f);
+                proto3Fog.nightWispsTint = new Color(0.16f, 0.24f, 0.32f, 1.0f);
+                proto3Fog.fogDensity = 0.032f;
+                proto3Fog.directionalForwardBoost = 1.15f;
+                proto3Fog.nearDistance = 4.5f;
+                proto3Fog.farDistance = 16.5f;
+                proto3Fog.noiseScale = 0.14f;
+                proto3Fog.noiseSpeed = 0.35f;
+                proto3Fog.maxSmogAlpha = 0.65f;
+                proto3Fog.fogTransitionSpeed = 1.8f;
+                proto3Fog.streetFogHeight = 3.4f;
+                proto3Fog.heightFalloff = 0.26f;
+                proto3Fog.lampClearStrength = 0.30f;
+                proto3Fog.lampGlowStrength = 0.85f;
+                proto3Fog.controlGlobalFog = false;
+                EditorUtility.SetDirty(proto3Fog);
             }
         }
 
@@ -1182,12 +1212,24 @@ namespace Prototipo3.Editor
 
             DirectionalNightFog nightFog = camGo.AddComponent<DirectionalNightFog>();
             nightFog.targetCamera = cam;
-            nightFog.fogShader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Prototipo3/Shaders/CityDirectionalFog.shader");
-            nightFog.dayFogColor = new Color(0.70f, 0.76f, 0.82f, 0.24f);
-            nightFog.nightFogColor = new Color(0.06f, 0.09f, 0.14f, 0.82f);
-            nightFog.directionalForwardBoost = 1.25f;
-            nightFog.nearDistance = 11.5f;
-            nightFog.farDistance = 32f;
+            nightFog.fogShader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Prototipo3/Shaders/VolumetricSmogParticle.shader");
+            nightFog.dayFogColor = new Color(0.62f, 0.59f, 0.50f, 0.30f);
+            nightFog.duskFogColor = new Color(0.78f, 0.45f, 0.25f, 0.40f);
+            nightFog.nightFogColor = new Color(0.08f, 0.12f, 0.18f, 0.54f);
+            nightFog.dayWispsTint = new Color(0.78f, 0.74f, 0.64f, 1.0f);
+            nightFog.duskWispsTint = new Color(0.94f, 0.60f, 0.36f, 1.0f);
+            nightFog.nightWispsTint = new Color(0.16f, 0.24f, 0.32f, 1.0f);
+            nightFog.fogDensity = 0.032f;
+            nightFog.directionalForwardBoost = 1.15f;
+            nightFog.nearDistance = 4.5f;
+            nightFog.farDistance = 16.5f;
+            nightFog.noiseScale = 0.14f;
+            nightFog.noiseSpeed = 0.35f;
+            nightFog.maxSmogAlpha = 0.65f;
+            nightFog.streetFogHeight = 3.4f;
+            nightFog.heightFalloff = 0.26f;
+            nightFog.lampClearStrength = 0.30f;
+            nightFog.lampGlowStrength = 0.85f;
             nightFog.controlGlobalFog = false;
 
             // 5. Hamster_Player (VisualModel orientado a +Z = 0 grados para que camine de frente)

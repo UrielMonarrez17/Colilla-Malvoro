@@ -38,6 +38,7 @@ namespace Prototipo3
             public float flickerDuration;
             public byte flickerPattern;      // 0: doble parpadeo rápido, 1: chisporroteo, 2: micro-apagón
             public byte lastMatState;        // 0: apagado, 1: tenue, 2: encendido brillante
+            public float currentFlicker;     // Factor instantáneo [0..1] cuando el farol está encendido
         }
 
         private readonly List<LampNode> lamps = new List<LampNode>(256);
@@ -139,7 +140,8 @@ namespace Prototipo3
                     flickerStartTime = -10f,
                     flickerDuration = 0f,
                     flickerPattern = (byte)(hash % 3),
-                    lastMatState = 255
+                    lastMatState = 255,
+                    currentFlicker = 0f
                 };
 
                 spot.enabled = false;
@@ -260,6 +262,7 @@ namespace Prototipo3
                 if (!shouldBeLit)
                 {
                     if (node.spotLight.enabled) node.spotLight.enabled = false;
+                    node.currentFlicker = 0f;
                     if (node.lastMatState != 0 || forceImmediateRefresh)
                     {
                         if (originalDayBulbMat != null) node.bulbRenderer.sharedMaterial = originalDayBulbMat;
@@ -339,14 +342,82 @@ namespace Prototipo3
                 {
                     if (!node.spotLight.enabled) node.spotLight.enabled = true;
                     node.spotLight.intensity = baseSpotIntensity * flickerMul;
+                    node.currentFlicker = flickerMul;
                 }
                 else
                 {
                     if (node.spotLight.enabled) node.spotLight.enabled = false;
+                    node.currentFlicker = 0f;
                 }
 
                 lamps[i] = node;
             }
+        }
+
+        /// <summary>
+        /// Rellena outLamps con hasta maxCount faroles encendidos más cercanos a focusPos
+        /// en formato (worldX, groundY, worldZ, intensidadNormalizada), sin generar basura en heap.
+        /// </summary>
+        public int GetClosestActiveLamps(Vector3 focusPos, float groundY, Vector4[] outLamps, int maxCount = 8)
+        {
+            if (outLamps == null || outLamps.Length == 0 || lamps.Count == 0) return 0;
+
+            int limit = Mathf.Min(maxCount, outLamps.Length, 8);
+            if (limit <= 0) return 0;
+
+            Span<float> bestDistSq = stackalloc float[8];
+            Span<int> bestIndices = stackalloc int[8];
+            int count = 0;
+            const float maxRangeSq = 40f * 40f;
+
+            for (int i = 0; i < lamps.Count; i++)
+            {
+                LampNode node = lamps[i];
+                if (node.spotLight == null || !node.spotLight.enabled || node.currentFlicker <= 0.03f) continue;
+
+                float dx = node.worldHeadPos.x - focusPos.x;
+                float dz = node.worldHeadPos.z - focusPos.z;
+                float distSq = dx * dx + dz * dz;
+                if (distSq > maxRangeSq) continue;
+
+                if (count < limit)
+                {
+                    int insertAt = count;
+                    while (insertAt > 0 && bestDistSq[insertAt - 1] > distSq)
+                    {
+                        bestDistSq[insertAt] = bestDistSq[insertAt - 1];
+                        bestIndices[insertAt] = bestIndices[insertAt - 1];
+                        insertAt--;
+                    }
+                    bestDistSq[insertAt] = distSq;
+                    bestIndices[insertAt] = i;
+                    count++;
+                }
+                else if (distSq < bestDistSq[limit - 1])
+                {
+                    int insertAt = limit - 1;
+                    while (insertAt > 0 && bestDistSq[insertAt - 1] > distSq)
+                    {
+                        bestDistSq[insertAt] = bestDistSq[insertAt - 1];
+                        bestIndices[insertAt] = bestIndices[insertAt - 1];
+                        insertAt--;
+                    }
+                    bestDistSq[insertAt] = distSq;
+                    bestIndices[insertAt] = i;
+                }
+            }
+
+            for (int k = 0; k < count; k++)
+            {
+                LampNode chosen = lamps[bestIndices[k]];
+                outLamps[k] = new Vector4(chosen.worldHeadPos.x, groundY, chosen.worldHeadPos.z, Mathf.Clamp01(chosen.currentFlicker));
+            }
+            for (int k = count; k < outLamps.Length; k++)
+            {
+                outLamps[k] = Vector4.zero;
+            }
+
+            return count;
         }
     }
 }

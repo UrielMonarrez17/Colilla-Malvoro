@@ -2,15 +2,23 @@ Shader "Prototipo3/CityDirectionalFog"
 {
     Properties
     {
-        _FogColor ("Fog Color", Color) = (0.06, 0.09, 0.14, 0.82)
-        _FogDensity ("Fog Density", Range(0.001, 0.1)) = 0.022
-        _DirectionalIntensity ("Directional Forward Boost", Range(0.0, 3.0)) = 1.25
+        _FogColor ("Smog Core Color", Color) = (0.62, 0.59, 0.50, 0.52)
+        _HorizonTint ("Smog Wisps Tint", Color) = (0.76, 0.72, 0.62, 1.0)
+        _FogDensity ("Smog Density", Range(0.001, 0.12)) = 0.032
+        _DirectionalIntensity ("Directional Forward Boost", Range(0.0, 3.0)) = 1.15
         _NightIntensity ("Night Intensity", Range(0.0, 1.0)) = 0.0
-        _NearDistance ("Clear Radius", Float) = 11.5
-        _FarDistance ("Far Distance", Float) = 32.0
-        _NoiseScale ("Smog Noise Scale", Float) = 0.065
-        _NoiseSpeed ("Smog Drift Speed", Float) = 0.35
-        _MaxAlpha ("Max Smog Alpha", Range(0.1, 0.95)) = 0.80
+        _NearDistance ("Clear Bubble Radius", Float) = 5.8
+        _FarDistance ("Full Smog Radius", Float) = 16.5
+        _NoiseScale ("Smog Noise Scale", Float) = 0.085
+        _NoiseSpeed ("Smog Drift Speed", Float) = 0.42
+        _MaxAlpha ("Max Smog Alpha", Range(0.05, 0.95)) = 0.84
+        _GroundLevelY ("Ground Y", Float) = 0.0
+        _StreetFogHeight ("Street Pooling Height", Float) = 3.4
+        _HeightFalloff ("Rooftop Height Falloff", Float) = 0.26
+        _IndoorFade ("Indoor Attenuation", Range(0.0, 1.0)) = 1.0
+        _LampWarmColor ("Streetlamp Halo Color", Color) = (1.0, 0.78, 0.40, 1.0)
+        _LampClearStrength ("Streetlamp Clear Strength", Range(0.0, 0.8)) = 0.38
+        _LampGlowStrength ("Streetlamp Glow Strength", Range(0.0, 1.5)) = 0.65
     }
     SubShader
     {
@@ -19,6 +27,7 @@ Shader "Prototipo3/CityDirectionalFog"
             "RenderType" = "Transparent"
             "Queue" = "Transparent+400"
             "RenderPipeline" = "UniversalPipeline"
+            "IgnoreProjector" = "True"
         }
 
         Pass
@@ -30,6 +39,7 @@ Shader "Prototipo3/CityDirectionalFog"
             Blend SrcAlpha OneMinusSrcAlpha
 
             HLSLPROGRAM
+            #pragma target 2.0
             #pragma vertex Vert
             #pragma fragment Frag
 
@@ -46,10 +56,12 @@ Shader "Prototipo3/CityDirectionalFog"
             {
                 float4 positionCS : SV_POSITION;
                 float2 uv : TEXCOORD0;
+                float3 positionWS : TEXCOORD1;
             };
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _FogColor;
+                float4 _HorizonTint;
                 float _FogDensity;
                 float _DirectionalIntensity;
                 float _NightIntensity;
@@ -58,10 +70,19 @@ Shader "Prototipo3/CityDirectionalFog"
                 float _NoiseScale;
                 float _NoiseSpeed;
                 float _MaxAlpha;
+                float _GroundLevelY;
+                float _StreetFogHeight;
+                float _HeightFalloff;
+                float _IndoorFade;
+                float4 _LampWarmColor;
+                float _LampClearStrength;
+                float _LampGlowStrength;
             CBUFFER_END
 
             float4 _PlayerPosition;
             float4 _PlayerForward;
+            int _ActiveLampCount;
+            float4 _ActiveLamps[8];
 
             float Hash21(float2 p)
             {
@@ -97,61 +118,110 @@ Shader "Prototipo3/CityDirectionalFog"
             Varyings Vert(Attributes input)
             {
                 Varyings output;
-                output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
+                output.positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                output.positionCS = TransformWorldToHClip(output.positionWS);
                 output.uv = input.uv;
                 return output;
             }
 
             float4 Frag(Varyings input) : SV_Target
             {
-                float2 screenUV = input.positionCS.xy / _ScaledScreenParams.xy;
+                float2 screenUV = GetNormalizedScreenSpaceUV(input.positionCS);
                 float rawDepth = SampleSceneDepth(screenUV);
 
                 #if UNITY_REVERSED_Z
-                    bool isSky = (rawDepth <= 0.00001);
+                    bool isSkyOrEmpty = (rawDepth <= 0.00001) || (rawDepth >= 0.99999);
                 #else
-                    bool isSky = (rawDepth >= 0.99999);
+                    bool isSkyOrEmpty = (rawDepth >= 0.99999) || (rawDepth <= 0.00001);
                 #endif
 
-                float3 worldPos = ComputeWorldSpacePosition(screenUV, rawDepth, UNITY_MATRIX_I_VP);
+                float3 camPos = GetCameraPositionWS();
+                float3 rayDir = normalize(input.positionWS - camPos);
+                float3 camForward = GetViewForwardDir();
+
+                // Plano analítico de respaldo si el depth buffer apunta al cielo o un driver móvil devuelve profundidad vacía
+                float groundDenom = min(-0.015, rayDir.y);
+                float groundT = (_GroundLevelY - camPos.y) / groundDenom;
+                float3 groundWorldPos = camPos + rayDir * clamp(groundT, 0.0, 110.0);
+
+                float3 worldPos = groundWorldPos;
+                if (!isSkyOrEmpty)
+                {
+                    float eyeDepth = LinearEyeDepth(rawDepth, _ZBufferParams);
+                    float rayDist = eyeDepth / max(0.001, dot(rayDir, camForward));
+                    worldPos = camPos + rayDir * rayDist;
+                }
 
                 float2 toPixelXZ = worldPos.xz - _PlayerPosition.xz;
                 float distFromPlayer = length(toPixelXZ);
                 float2 dirFromPlayer = toPixelXZ / max(0.001, distFromPlayer);
                 float2 pForward = normalize(_PlayerForward.xz + float2(0.0001, 0.0001));
 
-                // Manto animado de smog en espacio mundial
-                float smogNoise = FbmSmog(isSky ? (_WorldSpaceCameraPos.xz + dirFromPlayer * 35.0) : worldPos.xz);
-                float noisePerturb = (smogNoise - 0.5) * 3.8;
+                // Manto animado de smog urbano en espacio mundial
+                float smogNoise = FbmSmog(worldPos.xz);
+                float swirlDetail = ValueNoise(worldPos.xz * (_NoiseScale * 1.45) + float2(-_Time.y * _NoiseSpeed * 0.42, _Time.y * _NoiseSpeed * 0.61));
+                float combinedNoise = saturate(smogNoise * 0.72 + swirlDetail * 0.28);
+                float noisePerturb = (combinedNoise - 0.5) * 2.2;
 
-                // Bolsillo despejado alrededor del hámster (~11.5 m)
-                float effectiveNear = max(5.0, _NearDistance + noisePerturb * 0.65);
-                float effectiveSpan = max(4.0, _FarDistance - _NearDistance);
-                float radialFactor = smoothstep(effectiveNear, effectiveNear + effectiveSpan, distFromPlayer);
+                // Burbuja orgánica despejada alrededor de Kilo (~5.8m) calibrada al encuadre isométrico
+                float effectiveNear = max(3.6, _NearDistance + noisePerturb);
+                float effectiveFar = max(effectiveNear + 3.5, _FarDistance);
+                float radialFactor = smoothstep(effectiveNear, effectiveFar, distFromPlayer);
 
                 float forwardDot = saturate(dot(dirFromPlayer, pForward));
                 float directionalBoost = 1.0 + forwardDot * _DirectionalIntensity * _NightIntensity;
 
-                // Niebla suave de día + smog denso y móvil de noche
-                float dayVsNightDensity = lerp(0.32, 1.0, _NightIntensity);
-                float camDist = isSky ? 90.0 : length(worldPos - _WorldSpaceCameraPos);
-                float depthHaze = 1.0 - exp(-max(0.0, camDist - 12.0) * (_FogDensity * dayVsNightDensity));
+                // Estratificación vertical: smog denso estancado en calles/callejones (0..3.4m) y más tenue sobre azoteas
+                float heightAboveGround = max(0.0, worldPos.y - _GroundLevelY);
+                float streetPool = isSkyOrEmpty
+                    ? 0.85
+                    : lerp(0.32, 1.0, exp(-max(0.0, heightAboveGround - _StreetFogHeight * 0.35) * _HeightFalloff));
 
-                float smogWisps = lerp(0.76, 1.24, smogNoise);
-                float rawFog = max(radialFactor * directionalBoost, depthHaze) * smogWisps;
+                // Bruma atmosférica sutil por distancia de cámara + niebla densa de noche
+                float dayVsNightDensity = lerp(0.45, 1.0, _NightIntensity);
+                float camDist = isSkyOrEmpty ? 65.0 : length(worldPos - camPos);
+                float depthHaze = 1.0 - exp(-max(0.0, camDist - 13.0) * (_FogDensity * dayVsNightDensity));
 
-                // Mantener despejada el área cercana al personaje incluso con profundidad de cámara
-                rawFog *= smoothstep(effectiveNear * 0.72, effectiveNear + 3.5, distFromPlayer);
+                float smogWisps = lerp(0.72, 1.28, combinedNoise);
+                float rawFog = max(radialFactor * directionalBoost, depthHaze * 0.85) * smogWisps * streetPool;
+
+                // Mantener nítido el círculo inmediato alrededor del hámster
+                rawFog *= smoothstep(effectiveNear * 0.74, effectiveNear + 2.4, distFromPlayer);
+
+                // Halos cálidos de vapor de sodio bajo hasta 8 faroles encendidos cercanos (solo 1 pase)
+                float lampGlowTotal = 0.0;
+                float lampClearTotal = 0.0;
+                if (_NightIntensity > 0.01 && _ActiveLampCount > 0)
+                {
+                    [loop]
+                    for (int l = 0; l < 8; l++)
+                    {
+                        if (l >= _ActiveLampCount) break;
+                        float4 lamp = _ActiveLamps[l];
+                        float2 dXZ = worldPos.xz - lamp.xz;
+                        float distSq = dot(dXZ, dXZ);
+                        // Halo ~7.5m de radio sobre la calle (56.25 = 7.5^2)
+                        float atten = saturate(1.0 - distSq / 56.25);
+                        atten *= atten * lamp.w;
+                        float hMask = saturate(1.0 - max(0.0, heightAboveGround - 1.5) * 0.22);
+                        lampGlowTotal += atten * hMask;
+                        lampClearTotal = max(lampClearTotal, atten * hMask);
+                    }
+                }
+
+                rawFog *= (1.0 - saturate(lampClearTotal * _LampClearStrength));
 
                 float finalAlpha = saturate(rawFog * _FogColor.a);
-                finalAlpha = min(finalAlpha, _MaxAlpha);
+                finalAlpha = min(finalAlpha, _MaxAlpha) * _IndoorFade;
 
                 if (finalAlpha <= 0.004)
                 {
                     discard;
                 }
 
-                float3 finalRgb = _FogColor.rgb * lerp(0.92, 1.12, smogNoise);
+                float3 finalRgb = lerp(_FogColor.rgb, _HorizonTint.rgb, combinedNoise * 0.45) * lerp(0.90, 1.12, combinedNoise);
+                finalRgb = lerp(finalRgb, _LampWarmColor.rgb, saturate(lampGlowTotal * _LampGlowStrength * _NightIntensity));
+
                 return float4(finalRgb, finalAlpha);
             }
             ENDHLSL
