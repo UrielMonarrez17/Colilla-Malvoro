@@ -625,8 +625,20 @@ namespace Prototipo3
             }
         }
 
+        private bool gravityBeforeDeath;
+
+        protected override void Die()
+        {
+            if (isDead) return;
+            gravityBeforeDeath = rb.useGravity;
+            rb.useGravity = false;
+            rb.angularVelocity = Vector3.zero;
+            base.Die();
+        }
+
         public override void RespawnOrHeal(Vector3? newPosition = null)
         {
+            if (isDead) rb.useGravity = gravityBeforeDeath;
             postHitInvulnTimer = 0f;
             RestoreEnemyCollisionsAndVisibility();
             base.RespawnOrHeal(newPosition);

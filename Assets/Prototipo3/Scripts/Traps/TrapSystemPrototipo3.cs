@@ -412,6 +412,8 @@ namespace Prototipo3
                 }
             }
 
+            Destroy(activePollenVisual, 1f);
+
             Debug.Log("[TrapSystemPrototipo3] ¡Aura de Polen activada! Olfato desactivado y visión enemiga al 50% por 15 s.");
         }
 
