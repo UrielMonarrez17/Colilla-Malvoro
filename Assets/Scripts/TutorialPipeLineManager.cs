@@ -51,7 +51,7 @@ public class TutorialPipelineManager : MonoBehaviour
     [HideInInspector]
     public PunteroMision punteroFlecha;
 
-    [Header("Puntero Prototipo 3 (StoryObjectivePointerPrototipo3)")]
+    [Header("Puntero (StoryObjectivePointerPrototipo3)")]
     public Prototipo3.StoryObjectivePointerPrototipo3 storyObjectivePointer;
 
     [Header("Cinemática Inicial (MP4)")]
@@ -137,6 +137,11 @@ public class TutorialPipelineManager : MonoBehaviour
     // --- Checkpoints para Respawn Seguro ---
     private Vector3 checkpointPosicion = new Vector3(225.0f, 0.85f, 246.0f);
 
+    // --- Control de Cámara e Iluminación en Tutorial ---
+    private CameraClearFlags originalCamClearFlags = CameraClearFlags.Skybox;
+    private Color originalCamBgColor = new Color(0.19f, 0.30f, 0.47f, 0f);
+    private bool camSettingsCached = false;
+
     // --- UI Dinámica de Apoyo (HUD, Prompts, Resaltados, Banner de Fase) ---
     private Canvas tutorialHudCanvas;
     private TextMeshProUGUI textoFaseBanner;
@@ -169,7 +174,7 @@ public class TutorialPipelineManager : MonoBehaviour
     public static readonly Vector3 POS_PUERTA_CONTROL = new Vector3(251.0f, 0.10f, 235.0f);
     public static readonly Vector3 POS_CONTENEDOR_BRILLO = new Vector3(246.34f, 0.35f, 237.60f);
     public static readonly Vector3 POS_LULU_CIUDAD = new Vector3(265.0f, 0.15f, 248.0f);
-    public static readonly Vector3 POS_VIA_FERAL_SPAWN = new Vector3(255.0f, 0.15f, 242.0f);
+    public static readonly Vector3 POS_VIA_FERAL_SPAWN = new Vector3(255.5f, 0.15f, 245.0f);
     public static readonly Vector3 POS_ESQUINA_SIGILO = new Vector3(275.0f, 0.35f, 226.0f);
     public static readonly Vector3 POS_PATRULLA_SIGILO = new Vector3(262.0f, 0.15f, 226.5f);
 
@@ -321,12 +326,14 @@ public class TutorialPipelineManager : MonoBehaviour
         Light dirLight = FindDirectionalLight();
         if (dirLight != null)
         {
+            dirLight.useColorTemperature = false;
             dayNightCycle = dirLight.GetComponent<DayNightCycle>();
             if (dayNightCycle == null)
             {
                 dayNightCycle = dirLight.gameObject.AddComponent<DayNightCycle>();
             }
         }
+        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
 
         // 2. Asegurar InventoryManager y TrapSystemPrototipo3
         if (InventoryManager.Instance == null)
@@ -385,10 +392,14 @@ public class TutorialPipelineManager : MonoBehaviour
         mainCam = Camera.main;
         if (mainCam != null)
         {
+            originalCamClearFlags = mainCam.clearFlags;
+            originalCamBgColor = mainCam.backgroundColor;
+            camSettingsCached = true;
+
             cameraFollow = mainCam.GetComponent<CameraFollow>();
-            Vector3 offsetCam = cameraFollow != null ? cameraFollow.offset : new Vector3(0f, 11f, -9f);
-            mainCam.transform.position = POS_MADRIGUERA_INICIO + offsetCam;
+            PosicionarCamaraSobreObjetivo(POS_MADRIGUERA_INICIO);
         }
+        SincronizarIluminacionTutorial(true);
 
         // 5. Construir la Madriguera / Zona Segura (Refugio del Hámster) y el Callejón Inicial dentro de la ciudad
         ConstruirArquitecturaRefugioYCallejon();
@@ -487,12 +498,99 @@ public class TutorialPipelineManager : MonoBehaviour
 
     private Light FindDirectionalLight()
     {
-        Light[] lights = FindObjectsByType<Light>(FindObjectsSortMode.None);
+        Light[] lights = FindObjectsByType<Light>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        Light primary = null;
         for (int i = 0; i < lights.Length; i++)
         {
-            if (lights[i].type == LightType.Directional) return lights[i];
+            if (lights[i] == null || lights[i].type != LightType.Directional) continue;
+            if (primary == null)
+            {
+                primary = lights[i];
+                if (!primary.gameObject.activeSelf) primary.gameObject.SetActive(true);
+            }
+            else if (lights[i].gameObject.activeSelf)
+            {
+                lights[i].enabled = false;
+            }
         }
-        return null;
+        return primary;
+    }
+
+    private void PosicionarCamaraSobreObjetivo(Vector3 worldPos)
+    {
+        if (mainCam == null) return;
+        if (cameraFollow == null) cameraFollow = mainCam.GetComponent<CameraFollow>();
+
+        Vector3 offsetCam = cameraFollow != null ? cameraFollow.offset : new Vector3(0f, 11f, -9f);
+        if (cameraFollow is Prototipo3.IsometricCameraFollow isoCam)
+        {
+            mainCam.transform.position = worldPos + isoCam.targetOffset + isoCam.offset;
+        }
+        else
+        {
+            mainCam.transform.position = worldPos + offsetCam;
+        }
+    }
+
+    private void SincronizarIluminacionTutorial(bool instantaneo)
+    {
+        if (RenderSettings.ambientMode != UnityEngine.Rendering.AmbientMode.Flat)
+        {
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+        }
+
+        if (TimeManager.Instance == null) return;
+
+        float hour = TimeManager.Instance.CurrentHourFloat;
+        float targetReflection;
+        Color targetBg;
+        bool useSolidNightSky;
+
+        if (hour >= 6.0f && hour < 16.5f)
+        {
+            targetReflection = 1.0f;
+            targetBg = originalCamBgColor;
+            useSolidNightSky = hour < 6.3f || hour >= 16.3f;
+        }
+        else if (hour >= 16.5f && hour < 18.0f)
+        {
+            float t = (hour - 16.5f) / 1.5f;
+            targetReflection = Mathf.Lerp(1.0f, 0.18f, t);
+            targetBg = Color.Lerp(new Color(0.32f, 0.15f, 0.16f, 1f), new Color(0.03f, 0.04f, 0.08f, 1f), t);
+            useSolidNightSky = true;
+        }
+        else
+        {
+            targetReflection = 0.10f;
+            targetBg = new Color(0.03f, 0.04f, 0.08f, 1f);
+            useSolidNightSky = true;
+        }
+
+        if (instantaneo)
+        {
+            RenderSettings.reflectionIntensity = targetReflection;
+            if (dayNightCycle != null) dayNightCycle.SnapToCurrentTimeImmediate();
+        }
+        else
+        {
+            RenderSettings.reflectionIntensity = Mathf.Lerp(RenderSettings.reflectionIntensity, targetReflection, Time.deltaTime * 3f);
+        }
+
+        if (mainCam != null && camSettingsCached)
+        {
+            if (useSolidNightSky)
+            {
+                mainCam.clearFlags = CameraClearFlags.SolidColor;
+                mainCam.backgroundColor = instantaneo
+                    ? targetBg
+                    : Color.Lerp(mainCam.backgroundColor, targetBg, Time.deltaTime * 3f);
+            }
+            else
+            {
+                mainCam.clearFlags = originalCamClearFlags;
+                mainCam.backgroundColor = originalCamBgColor;
+            }
+        }
     }
 
     public void ConstruirArquitecturaRefugioYCallejon()
@@ -689,18 +787,15 @@ public class TutorialPipelineManager : MonoBehaviour
         {
             new Vector3(255.0f, 0.35f, 235.0f),
             new Vector3(265.0f, 0.35f, 222.2f),
-            new Vector3(275.0f, 0.35f, 235.0f),
-            new Vector3(272.5f, 0.35f, 245.0f)
+            new Vector3(275.0f, 0.35f, 235.0f)
         };
 
         string[] nombresExistentes = new string[]
         {
             "GarbageCollector (4)",
             "GarbageCollector (5)",
-            "GarbageCollector (8)",
-            "GarbageCollector (2)"
+            "GarbageCollector (8)"
         };
-
         for (int i = 0; i < posicionesLootCiudad.Length; i++)
         {
             LootContainer lc = FindSceneLootContainerByName(nombresExistentes[i])
@@ -956,6 +1051,7 @@ public class TutorialPipelineManager : MonoBehaviour
         AplicarRestriccionesSecuencialesEstrictas();
         ActualizarHudGDD();
         ActualizarPromptContextual();
+        SincronizarIluminacionTutorial(false);
 
         if (enCinematica) return;
 
@@ -1311,19 +1407,29 @@ public class TutorialPipelineManager : MonoBehaviour
     private IEnumerator SecuenciaFase2CinematicaNoche()
     {
         enCinematica = true;
-        EstablecerVisibilidadUIEnCinematica(true);
 
         if (TimeManager.Instance != null)
         {
+            TimeManager.Instance.pauseAutoAdvance = true;
             TimeManager.Instance.SetExactHour(21.0f); // Noche cerrada (decaimiento drástico de iluminación)
         }
 
+        ConfigurarTextosEstado(
+            TutorialState.CinematicaAparicionFeral,
+            "FASE 2: NOCHE 1 — APARICIÓN FERAL",
+            "¡Cae la noche cerrada! Un depredador feral bloquea tu regreso...",
+            "Al llegar las 18:00 la ciudad queda a oscuras y los animales se vuelven hostiles.",
+            null
+        );
+        EstablecerVisibilidadUIEnCinematica(true);
+        SincronizarIluminacionTutorial(true);
+
         ReproducirAmbiente(clipAmbienteNoche);
 
-        // Colocar al jugador en la vía norte
+        // Colocar al jugador en la vía norte despejada sobre Z=245
         if (hamster != null)
         {
-            Vector3 posJugadorNoche = new Vector3(268.0f, 0.85f, 245.0f);
+            Vector3 posJugadorNoche = new Vector3(266.5f, 0.85f, 245.0f);
             hamster.RespawnOrHeal(posJugadorNoche);
             hamster.transform.rotation = Quaternion.Euler(0f, -90f, 0f);
             checkpointPosicion = posJugadorNoche;
@@ -1362,16 +1468,30 @@ public class TutorialPipelineManager : MonoBehaviour
             if (overlayPantalla != null) overlayPantalla.color = Color.clear;
         }
 
-        // Reubicar la cámara detrás del hámster para arrancar la persecución
-        if (mainCam != null && hamster != null)
+        if (TimeManager.Instance != null)
         {
-            mainCam.transform.position = hamster.transform.position + (cameraFollow != null ? cameraFollow.offset : new Vector3(0f, 11f, -9f));
+            TimeManager.Instance.SetExactHour(21.0f);
+        }
+        SincronizarIluminacionTutorial(true);
+
+        // Reubicar la cámara detrás del hámster para arrancar la persecución
+        if (hamster != null)
+        {
+            PosicionarCamaraSobreObjetivo(hamster.transform.position);
             if (cameraFollow != null) cameraFollow.enabled = true;
         }
 
-        if (enemigoFeralPrincipal != null) enemigoFeralPrincipal.enabled = true;
-        if (agFeral != null && agFeral.enabled && agFeral.isOnNavMesh) agFeral.isStopped = false;
-        yield return null; // Dejar que EnemyAI.Start() (que fija Wander) se ejecute antes de ForceChasePlayer
+        if (enemigoFeralPrincipal != null)
+        {
+            enemigoFeralPrincipal.gameObject.SetActive(true);
+            enemigoFeralPrincipal.enabled = true;
+            if (agFeral != null && agFeral.enabled)
+            {
+                if (!agFeral.isOnNavMesh) agFeral.Warp(AjustarANavMesh(POS_VIA_FERAL_SPAWN));
+                agFeral.isStopped = false;
+            }
+        }
+        yield return null; // Dejar que EnemyAI.Start() se ejecute con el componente ya habilitado antes de ForceChasePlayer
 
         if (hamster != null) hamster.enabled = true;
         enCinematica = false;
@@ -1420,7 +1540,6 @@ public class TutorialPipelineManager : MonoBehaviour
         Destroy(host);
         if (tutorialHudCanvas != null) tutorialHudCanvas.enabled = true;
         if (enemigoFeralPrincipal != null) enemigoFeralPrincipal.gameObject.SetActive(true);
-        // Allow EnemyAI.Start to initialize before ForceChasePlayer.
         yield return null;
         onDone(played && !error);
     }
@@ -1452,6 +1571,8 @@ public class TutorialPipelineManager : MonoBehaviour
         vp.errorReceived += (_, msg) => { Debug.LogWarning($"[Tutorial] Video tigre: {msg}"); error = true; };
 
         vp.Prepare();
+        if (tutorialHudCanvas != null) tutorialHudCanvas.enabled = false;
+        if (enemigoFeralPrincipal != null) enemigoFeralPrincipal.gameObject.SetActive(false);
         float espera = 5f;
         while (!vp.isPrepared && !error && espera > 0f)
         {
@@ -1462,6 +1583,8 @@ public class TutorialPipelineManager : MonoBehaviour
         if (!vp.isPrepared || error)
         {
             Destroy(vpObj);
+            if (tutorialHudCanvas != null) tutorialHudCanvas.enabled = true;
+            if (enemigoFeralPrincipal != null) enemigoFeralPrincipal.gameObject.SetActive(true);
             onDone(false);
             yield break;
         }
@@ -1483,6 +1606,8 @@ public class TutorialPipelineManager : MonoBehaviour
         vp.Stop();
         vp.targetCamera = null;
         Destroy(vpObj);
+        if (tutorialHudCanvas != null) tutorialHudCanvas.enabled = true;
+        if (enemigoFeralPrincipal != null) enemigoFeralPrincipal.gameObject.SetActive(true);
         onDone(!error);
     }
 
@@ -1509,12 +1634,20 @@ public class TutorialPipelineManager : MonoBehaviour
             enemigoFeralPrincipal = feralObj.GetComponent<EnemyAI>();
             if (enemigoFeralPrincipal == null) enemigoFeralPrincipal = feralObj.AddComponent<EnemyAI>();
 
+            NavMeshAgent ag = feralObj.GetComponent<NavMeshAgent>();
+            if (ag != null && ag.enabled)
+            {
+                ag.Warp(spawnPos);
+            }
+
             enemigoFeralPrincipal.player = hamster != null ? hamster.transform : null;
-            enemigoFeralPrincipal.visionRadiusNormal = 22f;
+            enemigoFeralPrincipal.chaseMemoryDuration = 3.5f;
+            enemigoFeralPrincipal.visionRadiusNormal = 24f;
             enemigoFeralPrincipal.visionRadiusCrouched = 6.5f;
-            enemigoFeralPrincipal.visionAngle = 105f;
-            enemigoFeralPrincipal.wanderSpeed = 3.5f;
-            enemigoFeralPrincipal.chaseSpeed = 7.2f;
+            enemigoFeralPrincipal.visionAngle = 120f;
+            enemigoFeralPrincipal.wanderSpeed = 3.8f;
+            enemigoFeralPrincipal.chaseSpeed = 7.5f;
+            enemigoFeralPrincipal.attackRange = 2.25f;
             enemigoFeralPrincipal.showVisionCone = true;
 
             // Luz roja amenazante sobre el depredador feral
@@ -1734,6 +1867,12 @@ public class TutorialPipelineManager : MonoBehaviour
             yield return null;
         }
 
+        if (TimeManager.Instance != null)
+        {
+            TimeManager.Instance.SetExactHour(7.5f);
+        }
+        SincronizarIluminacionTutorial(true);
+
         if (overlayPantalla != null) overlayPantalla.color = Color.clear;
         enCinematica = false;
         EstablecerVisibilidadUIEnCinematica(false);
@@ -1799,7 +1938,7 @@ public class TutorialPipelineManager : MonoBehaviour
             TutorialState.CrearPrimeraTrampa,
             "FASE 3: DÍA 2 — CREACIÓN DE LA PRIMERA TRAMPA",
             "Misión: Fabrica 'Trampa de Púas' (2 Metal + 1 Madera) en la Mesa de Fabricación",
-            "En Prototipo 3 cuesta 2 Metal + 1 Madera. Al desplegarla con [1] ralentiza un 50% al enemigo cercano con chispas eléctricas y emite un señuelo acústico.",
+            "Cuesta 2 Metal + 1 Madera. Al desplegarla con [1] ralentiza un 50% al enemigo cercano con chispas eléctricas y emite un señuelo acústico.",
             mesaCrafteoRefugio != null ? mesaCrafteoRefugio.transform : null
         );
     }
@@ -1844,7 +1983,7 @@ public class TutorialPipelineManager : MonoBehaviour
 
         ConfigurarTextosEstado(
             TutorialState.ColocacionTacticaTrampa,
-            "FASE 3: DÍA 2 — DESPLIEGUE TÁCTICO [1] (PROTOTIPO 3)",
+            "FASE 3: DÍA 2 — DESPLIEGUE TÁCTICO [1]",
             "Misión: Sal al callejón, acércate al depredador (≤ 8 m) y presiona [1] para activar la Trampa de Púas",
             "Acércate al depredador siguiendo el puntero dorado y pulsa la tecla [1] para lanzar las Púas con chispas eléctricas y el Señuelo Acústico.",
             targetDemo
@@ -2008,7 +2147,7 @@ public class TutorialPipelineManager : MonoBehaviour
             TutorialState.DemostracionTrampaActiva,
             "FASE 3: ¡TRAMPA DE PÚAS ACTIVADA!",
             "¡Efecto confirmado! Redujiste al 50% la velocidad del enemigo con chispas eléctricas y Señuelo Acústico.",
-            "En Prototipo 3 activa tus trampas al instante con [1] Púas, [2] Red/Polen y [3] Barricada de Madera.",
+            "Activa tus trampas al instante con [1] Púas, [2] Red/Polen y [3] Barricada de Madera.",
             demoEnemyObj != null ? demoEnemyObj.transform : null
         );
 
@@ -2025,8 +2164,8 @@ public class TutorialPipelineManager : MonoBehaviour
         ConfigurarTextosEstado(
             TutorialState.FinTutorial,
             "¡TUTORIAL COMPLETADO!",
-            "Has dominado el sigilo, recolección, crafteo y el despliegue táctico de trampas de Prototipo 3.",
-            "Elige ahora cómo quieres generar tu ciudad en Prototipo 3.",
+            "Has dominado el sigilo, recolección, crafteo y el despliegue táctico de trampas.",
+            "Elige ahora cómo quieres generar tu ciudad.",
             null
         );
 
@@ -2066,7 +2205,7 @@ public class TutorialPipelineManager : MonoBehaviour
         CreateUiText("Title", card.transform, font, "¡TUTORIAL COMPLETADO! ELIGE TU CIUDAD", 28, FontStyle.Bold, new Color(0.95f, 0.78f, 0.35f), new Vector2(0f, 225f), new Vector2(700f, 44f));
         CreateUiText("Sub", card.transform, font, "Genera una ciudad procedural al azar o define tu propia semilla y tamaño.", 18, FontStyle.Normal, new Color(0.82f, 0.78f, 0.72f), new Vector2(0f, 180f), new Vector2(680f, 34f));
 
-        Button btnRandom = CreateUiButton("BtnRandomCity", card.transform, font, "Ciudad Aleatoria (Prototipo 3)", new Color(0.66f, 0.23f, 0.14f), new Vector2(0f, 110f), new Vector2(640f, 62f));
+        Button btnRandom = CreateUiButton("BtnRandomCity", card.transform, font, "Ciudad Aleatoria", new Color(0.66f, 0.23f, 0.14f), new Vector2(0f, 110f), new Vector2(640f, 62f));
 
         GameObject customBox = CreateUiRect("CustomBox", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -75f), new Vector2(640f, 250f));
         customBox.AddComponent<Image>().color = new Color(0.15f, 0.13f, 0.11f, 1f);
@@ -2082,7 +2221,7 @@ public class TutorialPipelineManager : MonoBehaviour
         CreateUiText("XLbl", customBox.transform, font, "x", 18, FontStyle.Bold, Color.white, new Vector2(30f, -18f), new Vector2(28f, 32f));
         InputField lField = CreateUiInputField("LengthInput", customBox.transform, font, "30", new Vector2(95f, -18f), new Vector2(100f, 38f));
 
-        Button btnCustom = CreateUiButton("BtnCustomCity", customBox.transform, font, "Generar Ciudad y Entrar a Prototipo 3", new Color(0.20f, 0.52f, 0.30f), new Vector2(0f, -84f), new Vector2(580f, 54f));
+        Button btnCustom = CreateUiButton("BtnCustomCity", customBox.transform, font, "Generar Ciudad", new Color(0.20f, 0.52f, 0.30f), new Vector2(0f, -84f), new Vector2(580f, 54f));
 
         btnRandom.onClick.AddListener(() =>
         {

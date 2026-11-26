@@ -20774,6 +20774,7 @@ MonoBehaviour:
   wanderWaitTime: 3
   wanderSpeed: 4
   chaseSpeed: 8
+  chaseMemoryDuration: 3.5
   attackRange: 2
   attackCooldown: 1.5
 --- !u!195 &47232931
@@ -147644,6 +147645,7 @@ MonoBehaviour:
   wanderWaitTime: 3
   wanderSpeed: 4
   chaseSpeed: 8
+  chaseMemoryDuration: 3.5
   attackRange: 2
   attackCooldown: 1.5
 --- !u!195 &341639115
@@ -484784,8 +484786,10 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   sphereCastRadius: 0.5
+  occlusionEdgeMargin: 0.28
   fadedAlpha: 0.2
   fadeSpeed: 7
+  occlusionFadeShader: {fileID: 0}
 --- !u!114 &1095112123
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -484919,17 +484923,35 @@ MonoBehaviour:
   playerTransform: {fileID: 1162808865}
   targetCamera: {fileID: 1095112125}
   fogShader: {fileID: 4800000, guid: 358fc326837799c429a5f6c7e657f01d, type: 3}
-  dayFogColor: {r: 0.7, g: 0.76, b: 0.82, a: 0.24}
-  nightFogColor: {r: 0.06, g: 0.09, b: 0.14, a: 0.82}
-  fogDensity: 0.022
-  directionalForwardBoost: 1.25
-  nearDistance: 11.5
-  farDistance: 32
-  noiseScale: 0.065
+  dayFogColor: {r: 0.62, g: 0.59, b: 0.5, a: 0.3}
+  duskFogColor: {r: 0.78, g: 0.45, b: 0.25, a: 0.4}
+  nightFogColor: {r: 0.08, g: 0.12, b: 0.18, a: 0.54}
+  dayWispsTint: {r: 0.78, g: 0.74, b: 0.64, a: 1}
+  duskWispsTint: {r: 0.94, g: 0.6, b: 0.36, a: 1}
+  nightWispsTint: {r: 0.16, g: 0.24, b: 0.32, a: 1}
+  fogDensity: 0.032
+  directionalForwardBoost: 1.15
+  nearDistance: 4.5
+  farDistance: 16.5
+  noiseScale: 0.14
   noiseSpeed: 0.35
-  maxSmogAlpha: 0.8
+  maxSmogAlpha: 0.65
   fogTransitionSpeed: 1.8
+  maxCloudParticles: 220
+  dayEmissionRate: 26
+  nightEmissionRate: 38
+  cloudSizeRange: {x: 6.5, y: 12.5}
+  cloudLifetimeRange: {x: 8, y: 12.5}
+  emitterBoxSize: {x: 46, y: 2.6, z: 46}
+  windDriftVelocity: {x: 0.72, y: 0, z: 0.42}
+  softParticlesFade: 1.6
+  streetFogHeight: 3.4
+  heightFalloff: 0.26
+  lampWarmColor: {r: 1, g: 0.78, b: 0.4, a: 1}
+  lampClearStrength: 0.3
+  lampGlowStrength: 0.85
   controlGlobalFog: 0
+  smogProfileVersion: 3
 --- !u!1 &1095173592
 GameObject:
   m_ObjectHideFlags: 0
@@ -561681,6 +561703,7 @@ MonoBehaviour:
   wanderWaitTime: 3
   wanderSpeed: 4
   chaseSpeed: 8
+  chaseMemoryDuration: 3.5
   attackRange: 2
   attackCooldown: 1.5
 --- !u!195 &1274895685
@@ -746808,6 +746831,7 @@ MonoBehaviour:
   wanderWaitTime: 3
   wanderSpeed: 4
   chaseSpeed: 8
+  chaseMemoryDuration: 3.5
   attackRange: 2
   attackCooldown: 1.5
 --- !u!195 &1685734718
@@ -890460,6 +890484,7 @@ MonoBehaviour:
   wanderWaitTime: 3
   wanderSpeed: 4
   chaseSpeed: 8
+  chaseMemoryDuration: 3.5
   attackRange: 2
   attackCooldown: 1.5
 --- !u!195 &2008581384

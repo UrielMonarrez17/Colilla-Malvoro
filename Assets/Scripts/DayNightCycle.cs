@@ -36,6 +36,20 @@ public class DayNightCycle : MonoBehaviour
 
     private void Update()
     {
+        ApplyAtmosphereForCurrentHour(false);
+    }
+
+    /// <summary>
+    /// Aplica instantáneamente la iluminación y orientación solar/lunar correspondiente a la hora actual.
+    /// </summary>
+    public void SnapToCurrentTimeImmediate()
+    {
+        if (sunLight == null) sunLight = GetComponent<Light>();
+        ApplyAtmosphereForCurrentHour(true);
+    }
+
+    private void ApplyAtmosphereForCurrentHour(bool instant)
+    {
         if (TimeManager.Instance == null) return;
 
         float hour = TimeManager.Instance.CurrentHourFloat;
@@ -54,37 +68,58 @@ public class DayNightCycle : MonoBehaviour
             targetRotation = Quaternion.Euler(nightMoonPitchAngle, sunYawAngle + 180f, 0f);
         }
 
-        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 4f);
+        transform.rotation = instant
+            ? targetRotation
+            : Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 4f);
 
         if (sunLight == null) return;
 
         // Transición atmosférica entre Amanecer (6h), Día (12h), Atardecer (16:30-18h) y Noche (18h-6h)
+        Color targetSunColor;
+        float targetIntensity;
+        Color targetAmbientColor;
+        float lerpSpeed;
+
         if (hour >= 6f && hour < 16.5f)
         {
-            sunLight.color = Color.Lerp(sunLight.color, daySunColor, Time.deltaTime * 2f);
-            sunLight.intensity = Mathf.Lerp(sunLight.intensity, daySunIntensity, Time.deltaTime * 2f);
-            RenderSettings.ambientLight = Color.Lerp(RenderSettings.ambientLight, dayAmbientColor, Time.deltaTime * 2f);
+            targetSunColor = daySunColor;
+            targetIntensity = daySunIntensity;
+            targetAmbientColor = dayAmbientColor;
+            lerpSpeed = 2f;
         }
         else if (hour >= 16.5f && hour < 18f)
         {
             float t = (hour - 16.5f) / 1.5f;
-            Color duskColor = Color.Lerp(duskStartColor, duskEndColor, t);
-            sunLight.color = Color.Lerp(sunLight.color, duskColor, Time.deltaTime * 3f);
-            sunLight.intensity = Mathf.Lerp(sunLight.intensity, Mathf.Lerp(duskStartIntensity, duskEndIntensity, t), Time.deltaTime * 3f);
-            RenderSettings.ambientLight = Color.Lerp(RenderSettings.ambientLight, duskAmbientColor, Time.deltaTime * 3f);
+            targetSunColor = Color.Lerp(duskStartColor, duskEndColor, t);
+            targetIntensity = Mathf.Lerp(duskStartIntensity, duskEndIntensity, t);
+            targetAmbientColor = duskAmbientColor;
+            lerpSpeed = 3f;
         }
         else
         {
             float mult = Mathf.Max(0.05f, nightBrightnessMultiplier);
-            Color scaledAmbient = new Color(
+            targetSunColor = nightMoonColor;
+            targetIntensity = nightMoonIntensity * mult;
+            targetAmbientColor = new Color(
                 Mathf.Clamp01(nightAmbientColor.r * mult),
                 Mathf.Clamp01(nightAmbientColor.g * mult),
                 Mathf.Clamp01(nightAmbientColor.b * mult),
                 1f);
+            lerpSpeed = 3f;
+        }
 
-            sunLight.color = Color.Lerp(sunLight.color, nightMoonColor, Time.deltaTime * 3f);
-            sunLight.intensity = Mathf.Lerp(sunLight.intensity, nightMoonIntensity * mult, Time.deltaTime * 3f);
-            RenderSettings.ambientLight = Color.Lerp(RenderSettings.ambientLight, scaledAmbient, Time.deltaTime * 3f);
+        if (instant)
+        {
+            sunLight.color = targetSunColor;
+            sunLight.intensity = targetIntensity;
+            RenderSettings.ambientLight = targetAmbientColor;
+        }
+        else
+        {
+            float step = Time.deltaTime * lerpSpeed;
+            sunLight.color = Color.Lerp(sunLight.color, targetSunColor, step);
+            sunLight.intensity = Mathf.Lerp(sunLight.intensity, targetIntensity, step);
+            RenderSettings.ambientLight = Color.Lerp(RenderSettings.ambientLight, targetAmbientColor, step);
         }
     }
 }

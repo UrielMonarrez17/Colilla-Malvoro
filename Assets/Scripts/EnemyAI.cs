@@ -52,6 +52,8 @@ public class EnemyAI : MonoBehaviour
 
     [Header("Configuración de Persecución (Chase)")]
     public float chaseSpeed = 8f;
+    [Tooltip("Segundos que mantiene la persecución tras perder línea de visión.")]
+    public float chaseMemoryDuration = 3.5f;
     private float velocidadOriginalAgent; 
     private bool isImmobilized = false;
 
@@ -79,10 +81,14 @@ public class EnemyAI : MonoBehaviour
     private bool hasVertParam = false;
     private bool hasStateParam = false;
 
-    // Sistema Anti-Stuck / Anti-Stall
+    // Sistema Anti-Stuck / Anti-Stall y memoria de persecución
+    private bool initializedComponents = false;
     private float chaseStuckTimer = 0f;
     private float chaseRepathTimer = 0f;
+    private float chaseLostSightTimer = 0f;
     private Vector3 lastChaseSampledPos = Vector3.zero;
+    private Vector3 lastKnownPlayerPos = Vector3.zero;
+    private bool hasLastKnownPlayerPos = false;
 
     // Estado persistente de ralentización por trampas y materiales del cono visual
     private float trapSpeedMultiplier = 1f;
@@ -114,6 +120,25 @@ public class EnemyAI : MonoBehaviour
 
     private void Start()
     {
+        EnsureInitialized();
+        FindPlayerIfNeeded();
+        SubscribeToTimeManager();
+
+        if (currentState != EnemyState.Chase && currentState != EnemyState.Attack)
+        {
+            if (agent != null)
+            {
+                agent.speed = wanderSpeed;
+            }
+            ChangeState(EnemyState.Wander);
+        }
+    }
+
+    private void EnsureInitialized()
+    {
+        if (initializedComponents) return;
+        initializedComponents = true;
+
         agent = GetComponent<NavMeshAgent>();
         rbEnemigo = GetComponent<Rigidbody>(); 
         if (rbEnemigo != null)
@@ -138,11 +163,6 @@ public class EnemyAI : MonoBehaviour
             // Por defecto, bloquear visión con Default (0), excepto Ignore Raycast (2)
             obstacleMask = ~LayerMask.GetMask("Ignore Raycast", "UI");
         }
-
-        FindPlayerIfNeeded();
-        SubscribeToTimeManager();
-
-        ChangeState(EnemyState.Wander);
     }
 
     private void CacheAnimatorParameters()
@@ -298,7 +318,13 @@ public class EnemyAI : MonoBehaviour
             case EnemyState.Chase:
                 chaseStuckTimer = 0f;
                 chaseRepathTimer = 0f;
+                chaseLostSightTimer = 0f;
                 lastChaseSampledPos = Vector3.zero;
+                if (player != null)
+                {
+                    lastKnownPlayerPos = player.position;
+                    hasLastKnownPlayerPos = true;
+                }
                 if (agent != null && agent.enabled && agent.isOnNavMesh)
                 {
                     agent.speed = GetCurrentMovementSpeed(true);
@@ -321,13 +347,25 @@ public class EnemyAI : MonoBehaviour
 
     public void ForceChasePlayer()
     {
+        EnsureInitialized();
         FindPlayerIfNeeded();
+        chaseLostSightTimer = 0f;
         ChangeState(EnemyState.Chase);
+        if (player != null)
+        {
+            lastKnownPlayerPos = player.position;
+            hasLastKnownPlayerPos = true;
+        }
         if (player != null && agent != null && agent.enabled && agent.isOnNavMesh)
         {
             agent.isStopped = false;
             agent.speed = GetCurrentMovementSpeed(true);
-            agent.SetDestination(player.position);
+            Vector3 targetNavPos = player.position;
+            if (NavMesh.SamplePosition(player.position, out NavMeshHit hit, 4.0f, NavMesh.AllAreas))
+            {
+                targetNavPos = hit.position;
+            }
+            agent.SetDestination(targetNavPos);
         }
     }
 
@@ -337,6 +375,12 @@ public class EnemyAI : MonoBehaviour
         currentWaypointIndex = 0;
         usePatrolWaypoints = waypoints != null && waypoints.Length > 0;
         hasWanderDestination = false;
+        chaseLostSightTimer = 0f;
+        hasLastKnownPlayerPos = false;
+        if (usePatrolWaypoints && currentState != EnemyState.Wander)
+        {
+            ChangeState(EnemyState.Wander);
+        }
     }
 
     // --- LÓGICA DE CADA ESTADO ---
@@ -420,57 +464,77 @@ public class EnemyAI : MonoBehaviour
         }
 
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
+        bool hasLos = HasLineOfSight();
 
-        if (distanceToPlayer <= attackRange && HasLineOfSight())
+        if (distanceToPlayer <= attackRange && hasLos)
         {
             ChangeState(EnemyState.Attack);
             return;
         }
 
-        if (HasLineOfSight() && distanceToPlayer <= visionRadiusNormal)
+        if (hasLos && distanceToPlayer <= visionRadiusNormal)
         {
-            agent.isStopped = false;
-            agent.speed = GetCurrentMovementSpeed(true);
+            chaseLostSightTimer = 0f;
+            lastKnownPlayerPos = player.position;
+            hasLastKnownPlayerPos = true;
+            MoveChaseTowardPosition(lastKnownPlayerPos);
+            return;
+        }
 
-            // Muestreo seguro del destino en el NavMesh (evita enviar al agente fuera de la malla)
-            Vector3 targetNavPos = player.position;
-            if (NavMesh.SamplePosition(player.position, out NavMeshHit navHit, 4.0f, NavMesh.AllAreas))
+        if (chaseLostSightTimer < chaseMemoryDuration)
+        {
+            chaseLostSightTimer += Time.deltaTime;
+            // Rastro cercano inicial (1.25 s) para doblar esquinas sin perder al jugador de golpe
+            if (chaseLostSightTimer <= 1.25f || !hasLastKnownPlayerPos)
             {
-                targetNavPos = navHit.position;
+                lastKnownPlayerPos = player.position;
+                hasLastKnownPlayerPos = true;
             }
+            MoveChaseTowardPosition(lastKnownPlayerPos);
+            return;
+        }
 
-            chaseRepathTimer += Time.deltaTime;
-            if (chaseRepathTimer >= 0.12f || (targetNavPos - lastChaseSampledPos).sqrMagnitude > 1.0f)
-            {
-                chaseRepathTimer = 0f;
-                lastChaseSampledPos = targetNavPos;
-                agent.SetDestination(targetNavPos);
-            }
+        ChangeState(EnemyState.Wander);
+    }
 
-            // DETECCIÓN Y RECUPERACIÓN DE ATASCO (ANTI-STALL)
-            // Si el agente está en persecución pero casi no tiene velocidad y está lejos del jugador
-            bool isStuck = !agent.pathPending && 
-                           agent.velocity.sqrMagnitude < 0.08f && 
-                           distanceToPlayer > attackRange + 0.35f;
+    private void MoveChaseTowardPosition(Vector3 targetWorldPos)
+    {
+        agent.isStopped = false;
+        agent.speed = GetCurrentMovementSpeed(true);
 
-            if (isStuck)
+        // Muestreo seguro del destino en el NavMesh (evita enviar al agente fuera de la malla)
+        Vector3 targetNavPos = targetWorldPos;
+        if (NavMesh.SamplePosition(targetWorldPos, out NavMeshHit navHit, 4.0f, NavMesh.AllAreas))
+        {
+            targetNavPos = navHit.position;
+        }
+
+        chaseRepathTimer += Time.deltaTime;
+        if (chaseRepathTimer >= 0.12f || (targetNavPos - lastChaseSampledPos).sqrMagnitude > 1.0f)
+        {
+            chaseRepathTimer = 0f;
+            lastChaseSampledPos = targetNavPos;
+            agent.SetDestination(targetNavPos);
+        }
+
+        // DETECCIÓN Y RECUPERACIÓN DE ATASCO (ANTI-STALL)
+        float distToTarget = Vector3.Distance(transform.position, targetNavPos);
+        bool isStuck = !agent.pathPending &&
+                       agent.velocity.sqrMagnitude < 0.08f &&
+                       distToTarget > attackRange + 0.35f;
+
+        if (isStuck)
+        {
+            chaseStuckTimer += Time.deltaTime;
+            if (chaseStuckTimer >= 0.8f)
             {
-                chaseStuckTimer += Time.deltaTime;
-                if (chaseStuckTimer >= 0.8f)
-                {
-                    chaseStuckTimer = 0f;
-                    RecoverFromChaseStuck(targetNavPos);
-                }
-            }
-            else
-            {
-                chaseStuckTimer = Mathf.Max(0f, chaseStuckTimer - Time.deltaTime * 2f);
+                chaseStuckTimer = 0f;
+                RecoverFromChaseStuck(targetNavPos);
             }
         }
         else
         {
-            ChangeState(EnemyState.Wander);
-            OnPlayerLostFromChase?.Invoke();
+            chaseStuckTimer = Mathf.Max(0f, chaseStuckTimer - Time.deltaTime * 2f);
         }
     }
 
@@ -611,15 +675,17 @@ public class EnemyAI : MonoBehaviour
     {
         if (player == null) return false;
 
-        Vector3 origin = transform.position + Vector3.up * 0.6f;
-        Vector3 target = player.position + Vector3.up * 0.4f;
+        Vector3 origin = transform.position + Vector3.up * 0.8f;
+        Vector3 target = player.position + Vector3.up * 0.5f;
         Vector3 dir = target - origin;
         float dist = dir.magnitude;
 
         if (dist <= 0.05f) return true;
         dir /= dist;
 
-        // Usamos RaycastAll para ignorar el propio collider del enemigo y triggers (como zonas del tutorial o contenedores)
+        float lowGroundCutoff = Mathf.Min(transform.position.y, player.position.y) + 0.35f;
+
+        // Usamos RaycastAll para ignorar el propio collider del enemigo, suelos/aceras y triggers
         RaycastHit[] hits = Physics.RaycastAll(origin, dir, dist, ~0, QueryTriggerInteraction.Ignore);
         for (int i = 0; i < hits.Length; i++)
         {
@@ -628,7 +694,20 @@ public class EnemyAI : MonoBehaviour
             if (hitTransform == player || hitTransform.IsChildOf(player)) continue;
             if (hitTransform.GetComponentInParent<EnemyAI>() != null) continue;
 
-            // Hay un obstáculo sólido (edificio, muro, esquina, puerta cerrada) bloqueando la línea de visión
+            string objName = hitTransform.name;
+            if (objName.Contains("Road") || objName.Contains("Pavement") ||
+                objName.Contains("Floor") || objName.Contains("Ground") ||
+                objName.StartsWith("Guia_Callejon"))
+            {
+                continue;
+            }
+
+            if (hits[i].collider != null && hits[i].collider.bounds.max.y <= lowGroundCutoff)
+            {
+                continue;
+            }
+
+            // Hay un obstáculo sólido (edificio, muro, esquina, puerta cerrada, cobertura alta) bloqueando la línea de visión
             return false;
         }
 
