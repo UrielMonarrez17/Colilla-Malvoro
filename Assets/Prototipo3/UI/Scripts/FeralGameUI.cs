@@ -16,7 +16,7 @@ namespace Prototipo3.UI
 
         public static FeralGameUI Instance { get; private set; }
         public static bool BlocksGameplay => Instance != null && (Instance.CurrentPage != Page.None || Time.frameCount <= Instance.suppressInputUntilFrame);
-        public static bool Supports(string scene) => !string.IsNullOrEmpty(scene) && (scene == "Prototipo3" || scene.IndexOf("Prototipo3", StringComparison.OrdinalIgnoreCase) >= 0);
+        public static bool Supports(string scene) => !string.IsNullOrEmpty(scene) && !scene.StartsWith("MainMenu", StringComparison.OrdinalIgnoreCase) && scene.IndexOf("Prototipo3", StringComparison.OrdinalIgnoreCase) >= 0;
 
         public Page CurrentPage { get; private set; }
         public Canvas Canvas { get; private set; }
