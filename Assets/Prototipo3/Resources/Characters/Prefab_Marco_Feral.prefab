@@ -51,7 +51,7 @@ CapsuleCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
@@ -120,11 +120,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 812e306565efe60488991dc224b812ab, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Prototipo3.MarcoFeralBossAI
-  basePursuitSpeed: 6.9
-  bullChargeSpeed: 12.2
-  meleeHitRange: 2.05
-  escapeDistanceRequired: 36
-  minPursuitTimeBeforeEscape: 7.5
+  basePursuitSpeed: 6.7
+  bullChargeSpeed: 11.8
+  meleeHitRange: 1.95
+  escapeDistanceRequired: 44
+  minPursuitTimeBeforeEscape: 15
   debrisProjectilePrefab: {fileID: 1122250932806931831, guid: 40e85a54f6049ba4783b9326a83a9c99, type: 3}
 --- !u!1001 &6661367467871284186
 PrefabInstance:

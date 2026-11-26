@@ -5,9 +5,13 @@ namespace Prototipo3
 {
     /// <summary>
     /// Jefe 3 (Final de Demo): RECTOR H. MORALES — "EL SILENCIADOR" (Búho Rector).
-    /// Soporta los dos escenarios de la escuela:
-    /// 1) SchoolFirstEscape: Encuentro inicial en los pasillos de la escuela (invencible, debes huir hasta el agujero).
-    /// 2) BasketballFinalBoss: Pelea final multi-fase en la Cancha de Básquetbol, derrotado con la Pistola Lanza Redes.
+    /// Versión balanceada y retadora sin stunlock:
+    /// 1) SchoolFirstEscape: Persecución intensa en la escuela donde debes escapar tras tomar los papeles confidenciales.
+    /// 2) BasketballFinalBoss: Pelea de 3 fases en el Gimnasio:
+    ///    - En el aire desvía las redes con ráfagas de sus alas (¡no puedes spamearle redes volando!).
+    ///    - Debes cegarlo con un Reflector UV cargado [F] o esquivar sus vuelos rasantes en cadena hasta que aterrice exhausto.
+    ///    - Cada ventana de vulnerabilidad permite exactamente 1 captura de red (-20% HP, 5 capturas totales): tras recibir la red,
+    ///      rompe las cuerdas con una Nova de Plumas de 360° (inmune a stunlock) y vuelve al aire más agresivo.
     /// </summary>
     public class OwlRectorBossAI : MonoBehaviour
     {
@@ -23,10 +27,10 @@ namespace Prototipo3
         public float currentCaptureHealth = 100f;
         public GameObject featherProjectilePrefab;
 
-        [Header("Geometría de la Cancha / Pasillo")]
+        [Header("Geometría de la Cancha")]
         public Vector3 arenaCenter = Vector3.zero;
-        public Vector2 arenaHalfExtents = new Vector2(13.5f, 8.0f);
-        public float cruiseAltitudeY = 3.2f;
+        public Vector2 arenaHalfExtents = new Vector2(13.2f, 7.6f);
+        public float cruiseAltitudeY = 3.35f;
         public float groundAltitudeY = 0.05f;
 
         public bool IsDefeated { get; private set; }
@@ -37,8 +41,8 @@ namespace Prototipo3
             AerialGlide,
             WindupSwoop,
             SwoopDiving,
-            PerchedRecovering,
-            NettedStunned
+            PerchedVulnerable,
+            NettedBreakingFree
         }
 
         private ArenaState state = ArenaState.AerialGlide;
@@ -51,9 +55,10 @@ namespace Prototipo3
         private Vector3 swoopStart;
         private Vector3 swoopEnd;
         private float stateTimer = 0f;
-        private float featherVolleyTimer = 2.0f;
+        private float featherVolleyTimer = 1.6f;
         private float meleeHitCooldown = 0f;
-        private int aerialNetHitsAccumulated = 0;
+        private int remainingSwoopsInCombo = 0;
+        private int glidesUntilSwoopCombo = 2;
 
         private void Awake()
         {
@@ -69,11 +74,11 @@ namespace Prototipo3
             go.transform.SetParent(transform, false);
             swoopTelegraph = go.AddComponent<LineRenderer>();
             swoopTelegraph.positionCount = 2;
-            swoopTelegraph.startWidth = 1.55f;
-            swoopTelegraph.endWidth = 1.55f;
+            swoopTelegraph.startWidth = 1.7f;
+            swoopTelegraph.endWidth = 1.7f;
             Shader sh = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
             Material m = new Material(sh);
-            Color col = new Color(1f, 0.25f, 0.08f, 0.52f);
+            Color col = new Color(1f, 0.22f, 0.06f, 0.58f);
             m.color = col;
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", col);
             swoopTelegraph.material = m;
@@ -92,39 +97,53 @@ namespace Prototipo3
             if (BossHudPrototipo3.Instance != null) BossHudPrototipo3.Instance.HideBoss();
         }
 
-        public Vector3 GetAimCenterWorld() => transform.position + Vector3.up * 1.1f;
+        public Vector3 GetAimCenterWorld() => transform.position + Vector3.up * 1.05f;
+
+        public int CurrentPhaseNumber
+        {
+            get
+            {
+                float r = currentCaptureHealth / Mathf.Max(1f, maxCaptureHealth);
+                return r > 0.60f ? 1 : (r > 0.25f ? 2 : 3);
+            }
+        }
 
         private void HandleTrapDeployed(TipoTrampa tipo)
         {
             if (IsDefeated || player == null) return;
             float distXZ = Vector2.Distance(new Vector2(transform.position.x, transform.position.z), new Vector2(player.transform.position.x, player.transform.position.z));
-            if (distXZ <= 9.5f)
+
+            if (mode == EncounterMode.SchoolFirstEscape)
             {
-                if (mode == EncounterMode.SchoolFirstEscape)
+                if (distXZ <= 8.5f)
                 {
-                    stateTimer = 2.2f;
-                    state = ArenaState.NettedStunned;
+                    state = ArenaState.NettedBreakingFree;
+                    stateTimer = 1.8f;
                     if (UI.FeralGameUI.Instance != null)
-                        UI.FeralGameUI.Instance.ShowLootFeedback("¡Aturdiste un instante al Búho Rector! ¡Huye hacia el agujero!", 2.5f);
+                        UI.FeralGameUI.Instance.ShowLootFeedback("¡Frenaste un instante al Búho Rector! ¡CORRE AL AGUJERO DE SALIDA!", 2.4f);
                 }
-                else
-                {
-                    ForceDazzleGrounding(3.8f, "¡La trampa derribó al Búho Rector! ¡DISPÁRALE CON EL LANZA REDES [CLICK IZQ / E]!");
-                }
+                return;
+            }
+
+            // En la batalla final, solo si usas trampa justo cuando pasa rasante en picada cerca de ti lo derribas!
+            if (state == ArenaState.SwoopDiving && distXZ <= 6.5f)
+            {
+                ForceDazzleGrounding(2.6f, "¡Tu trampa interceptó su vuelo rasante! ¡DISPÁRALE UNA RED AHORA [CLICK IZQ / E]!");
             }
         }
 
-        public void ForceDazzleGrounding(float stunDuration, string feedbackMsg = null)
+        public void ForceDazzleGrounding(float vulnerableDuration, string feedbackMsg = null)
         {
-            if (IsDefeated) return;
+            if (IsDefeated || state == ArenaState.NettedBreakingFree) return;
             if (swoopTelegraph != null) swoopTelegraph.enabled = false;
-            state = ArenaState.PerchedRecovering;
-            stateTimer = Mathf.Max(stateTimer, stunDuration);
+            remainingSwoopsInCombo = 0;
+            state = ArenaState.PerchedVulnerable;
+            stateTimer = vulnerableDuration;
             transform.position = new Vector3(transform.position.x, groundAltitudeY, transform.position.z);
-            SetAnimFlags(flying: false, swooping: false, stunned: true);
+            SetAnimFlags(flying: false, swooping: false, stunned: false);
             if (!string.IsNullOrEmpty(feedbackMsg) && UI.FeralGameUI.Instance != null)
             {
-                UI.FeralGameUI.Instance.ShowLootFeedback(feedbackMsg, 3.2f);
+                UI.FeralGameUI.Instance.ShowLootFeedback(feedbackMsg, 3.0f);
             }
         }
 
@@ -134,52 +153,54 @@ namespace Prototipo3
 
             if (mode == EncounterMode.SchoolFirstEscape)
             {
-                state = ArenaState.NettedStunned;
-                stateTimer = 2.8f;
+                state = ArenaState.NettedBreakingFree;
+                stateTimer = 2.0f;
                 return;
             }
 
-            bool vulnerableOnGround = state == ArenaState.PerchedRecovering || state == ArenaState.NettedStunned || state == ArenaState.SwoopDiving || transform.position.y <= groundAltitudeY + 1.4f;
-
-            if (vulnerableOnGround)
+            // ANTI-STUNLOCK 1: Si ya está envuelto rompiendo la red, es inmune hasta que despegue!
+            if (state == ArenaState.NettedBreakingFree)
             {
-                // Impacto crítico directo: -25% de barra de captura y queda envuelto en red en el piso
-                currentCaptureHealth = Mathf.Max(0f, currentCaptureHealth - 25f);
-                state = ArenaState.NettedStunned;
-                stateTimer = 3.2f;
-                if (swoopTelegraph != null) swoopTelegraph.enabled = false;
-                transform.position = new Vector3(transform.position.x, groundAltitudeY, transform.position.z);
-                EnsureNetWrapVfx(true);
-                SetAnimFlags(flying: false, swooping: false, stunned: true);
-                BossHudPrototipo3.EnsureInstance().TriggerFlash(new Color(0.2f, 0.9f, 1f), 0.30f);
-
                 if (UI.FeralGameUI.Instance != null)
                 {
-                    UI.FeralGameUI.Instance.ShowLootFeedback("¡IMPACTO DIRECTO DE RED! ¡Sigue disparando para inmovilizarlo por completo!", 2.4f);
+                    UI.FeralGameUI.Instance.ShowLootFeedback("¡Está desgarrando la red con sus garras! ¡Aléjate de su onda expansiva!", 1.8f);
                 }
+                return;
             }
-            else
-            {
-                // Impacto en pleno vuelo: daña -12.5% y al segundo impacto aéreo le enreda las alas y lo estrella contra la cancha!
-                currentCaptureHealth = Mathf.Max(0f, currentCaptureHealth - 12.5f);
-                aerialNetHitsAccumulated++;
-                BossHudPrototipo3.EnsureInstance().TriggerFlash(new Color(0.2f, 0.9f, 1f), 0.18f);
 
-                if (aerialNetHitsAccumulated >= 2)
+            // ANTI-STUNLOCK 2: Si está volando alto, sus alas desvían la red! Debes derribarlo con Reflector UV [F] o esperar a que aterrice tras su picada!
+            if (state == ArenaState.AerialGlide || state == ArenaState.WindupSwoop || state == ArenaState.SwoopDiving)
+            {
+                BossHudPrototipo3.EnsureInstance().TriggerFlash(new Color(1f, 0.65f, 0.2f), 0.14f);
+                // Contraataca con una ráfaga rápida de 3 plumas al desviar la red
+                FireFeatherFan(3, 24f, 16.5f);
+                if (UI.FeralGameUI.Instance != null)
                 {
-                    aerialNetHitsAccumulated = 0;
-                    EnsureNetWrapVfx(true);
-                    ForceDazzleGrounding(4.2f, "¡Sus alas quedaron enredadas! ¡Cayó a la duela, remátalo con el Lanza Redes!");
+                    UI.FeralGameUI.Instance.ShowLootFeedback("¡DESVIÓ LA RED CON SUS ALAS! Activa un Reflector UV [F] o esquiva sus picadas hasta que aterrice.", 2.8f);
                 }
-                else if (UI.FeralGameUI.Instance != null)
-                {
-                    UI.FeralGameUI.Instance.ShowLootFeedback("¡Red enganchada en el aire! ¡Un disparo más o usa un reflector [F] para derribarlo!", 2.4f);
-                }
+                return;
             }
+
+            // VENTANA VULNERABLE EN EL SUELO (PerchedVulnerable): ¡Captura exitosa (-20% HP -> 5 capturas en total)!
+            currentCaptureHealth = Mathf.Max(0f, currentCaptureHealth - 20f);
+            BossHudPrototipo3.EnsureInstance().TriggerFlash(new Color(0.2f, 0.92f, 1f), 0.34f);
 
             if (currentCaptureHealth <= 0.01f)
             {
                 CompleteDefeat();
+                return;
+            }
+
+            // Entra a NettedBreakingFree (1.15s) donde sacude la red y al terminar lanza una Nova de 360° de plumas y despega!
+            state = ArenaState.NettedBreakingFree;
+            stateTimer = 1.15f;
+            EnsureNetWrapVfx(true);
+            SetAnimFlags(flying: false, swooping: false, stunned: true);
+
+            int capturesLeft = Mathf.CeilToInt(currentCaptureHealth / 20f);
+            if (UI.FeralGameUI.Instance != null)
+            {
+                UI.FeralGameUI.Instance.ShowLootFeedback($"¡CAPTURA EXITOSA! (Faltan {capturesLeft} redes) · ¡CUIDADO, VA A ROMPER LA RED!", 2.6f);
             }
         }
 
@@ -252,11 +273,11 @@ namespace Prototipo3
         {
             BossHudPrototipo3.EnsureInstance().ShowBoss(
                 "RECTOR H. MORALES  ·  EL SILENCIADOR",
-                "¡Demasiado alto y veloz sin arma antiaérea! ¡Corre de vuelta al agujero de entrada para escapar!",
+                "¡TIENES LOS PAPELES! ¡Corre de regreso por los pasillos hasta el agujero del muro para escapar!",
                 1f,
-                new Color(0.86f, 0.20f, 0.26f, 1f));
+                new Color(0.88f, 0.20f, 0.22f, 1f));
 
-            if (state == ArenaState.NettedStunned)
+            if (state == ArenaState.NettedBreakingFree)
             {
                 stateTimer -= Time.deltaTime;
                 SetAnimFlags(false, false, true);
@@ -265,54 +286,57 @@ namespace Prototipo3
             }
 
             SetAnimFlags(true, false, false);
-            Vector3 desired = new Vector3(player.transform.position.x, 1.35f, player.transform.position.z);
+            Vector3 desired = new Vector3(player.transform.position.x, 1.25f, player.transform.position.z);
             Vector3 toPlayer = desired - transform.position;
             Vector3 flat = new Vector3(toPlayer.x, 0f, toPlayer.z);
             if (flat.sqrMagnitude > 0.02f)
             {
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(flat.normalized, Vector3.up), Time.deltaTime * 6f);
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(flat.normalized, Vector3.up), Time.deltaTime * 7f);
             }
 
-            // Persecución tensa pero justa para permitir la huida por los casilleros
-            transform.position = Vector3.MoveTowards(transform.position, desired, 5.8f * Time.deltaTime);
+            transform.position = Vector3.MoveTowards(transform.position, desired, 6.4f * Time.deltaTime);
 
             float distXZ = flat.magnitude;
-            if (distXZ <= 1.7f && meleeHitCooldown <= 0f)
+            if (distXZ <= 1.65f && meleeHitCooldown <= 0f)
             {
-                meleeHitCooldown = 1.8f;
+                meleeHitCooldown = 1.65f;
                 player.ReceiveDamage();
                 BossHudPrototipo3.EnsureInstance().TriggerFlash(new Color(0.95f, 0.2f, 0.1f), 0.30f);
             }
 
             featherVolleyTimer -= Time.deltaTime;
-            if (featherVolleyTimer <= 0f && distXZ >= 3.5f)
+            if (featherVolleyTimer <= 0f && distXZ >= 3.8f)
             {
-                featherVolleyTimer = 2.6f;
-                FireFeatherFan(3, 22f, 12.5f);
+                featherVolleyTimer = 2.2f;
+                FireFeatherFan(3, 24f, 13.5f);
             }
         }
 
         private void TickBasketballBossArena()
         {
             float hpRatio = Mathf.Clamp01(currentCaptureHealth / Mathf.Max(1f, maxCaptureHealth));
-            int phaseNum = hpRatio > 0.66f ? 1 : (hpRatio > 0.33f ? 2 : 3);
+            int phase = CurrentPhaseNumber;
 
-            string hint = (state == ArenaState.PerchedRecovering || state == ArenaState.NettedStunned)
-                ? "¡ESTÁ EN EL SUELO! ¡Dispárale con la Pistola Lanza Redes [CLICK IZQ / E]!"
-                : $"Fase {phaseNum}/3 · Esquiva sus plumas, activa reflectores [F] o dispárale con el Lanza Redes [CLICK IZQ / E]";
+            string hint;
+            if (state == ArenaState.PerchedVulnerable)
+                hint = $"¡VULNERABLE EN LA DUELA ({stateTimer:F1}s)! ¡DISPÁRALE CON EL LANZA REDES [CLICK IZQ / E]!";
+            else if (state == ArenaState.NettedBreakingFree)
+                hint = "¡ESTÁ ROMPIENDO LA RED! ¡Aléjate con Dash [Q] de su explosión de plumas!";
+            else
+                hint = $"Fase {phase}/3 · En vuelo desvía redes: cégalo con un Reflector UV [F] o esquiva sus {phase} picadas hasta que aterrice";
 
             BossHudPrototipo3.EnsureInstance().ShowBoss(
-                "RECTOR H. MORALES  ·  EL SILENCIADOR",
+                $"RECTOR H. MORALES  ·  FASE {phase}/3",
                 hint,
                 hpRatio,
-                state == ArenaState.NettedStunned ? new Color(0.2f, 0.88f, 1f, 1f) : new Color(0.88f, 0.22f, 0.18f, 1f));
+                state == ArenaState.PerchedVulnerable ? new Color(0.2f, 0.92f, 1f, 1f) : new Color(0.88f, 0.22f, 0.18f, 1f));
 
             switch (state)
             {
                 case ArenaState.AerialGlide:
                     EnsureNetWrapVfx(false);
                     SetAnimFlags(flying: true, swooping: false, stunned: false);
-                    TickAerialGlide(phaseNum);
+                    TickAerialGlide(phase);
                     break;
 
                 case ArenaState.WindupSwoop:
@@ -321,54 +345,81 @@ namespace Prototipo3
 
                 case ArenaState.SwoopDiving:
                     SetAnimFlags(flying: false, swooping: true, stunned: false);
-                    TickSwoopDiving();
+                    TickSwoopDiving(phase);
                     break;
 
-                case ArenaState.PerchedRecovering:
+                case ArenaState.PerchedVulnerable:
                     SetAnimFlags(flying: false, swooping: false, stunned: false);
                     stateTimer -= Time.deltaTime;
                     FacePlayerFlat();
                     if (stateTimer <= 0f)
                     {
+                        glidesUntilSwoopCombo = 2;
                         PickNextAerialPoint();
                         state = ArenaState.AerialGlide;
                     }
                     break;
 
-                case ArenaState.NettedStunned:
+                case ArenaState.NettedBreakingFree:
                     SetAnimFlags(flying: false, swooping: false, stunned: true);
                     stateTimer -= Time.deltaTime;
                     if (stateTimer <= 0f)
                     {
                         EnsureNetWrapVfx(false);
-                        PickNextAerialPoint();
-                        state = ArenaState.AerialGlide;
+                        UnleashBreakFreeNovaAndTakeOff(phase);
                     }
                     break;
             }
         }
 
-        private void TickAerialGlide(int phaseNum)
+        private void UnleashBreakFreeNovaAndTakeOff(int phase)
         {
-            float flySpeed = 7.5f + phaseNum * 1.4f;
+            // Al liberarse de una red, lanza un anillo de plumas 360° y empuja/ralentiza si Kilo se quedó pegado a él
+            int ringCount = 8 + phase * 2;
+            Vector3 origin = transform.position + Vector3.up * 0.65f;
+            for (int i = 0; i < ringCount; i++)
+            {
+                float yaw = (360f / ringCount) * i;
+                Vector3 dir = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
+                SpawnSingleFeather(origin + dir * 0.8f, dir, 13f + phase * 1.5f);
+            }
+
+            if (player != null && Vector3.Distance(player.transform.position, transform.position) <= 4.2f)
+            {
+                if (player is HamsterControllerPrototipo3 hcp) hcp.ApplyExternalSlow(0.55f, 1.5f);
+            }
+
+            BossHudPrototipo3.EnsureInstance().TriggerFlash(new Color(1f, 0.35f, 0.08f), 0.26f);
+            glidesUntilSwoopCombo = 2;
+            PickNextAerialPoint();
+            transform.position = new Vector3(transform.position.x, cruiseAltitudeY * 0.7f, transform.position.z);
+            state = ArenaState.AerialGlide;
+        }
+
+        private void TickAerialGlide(int phase)
+        {
+            float flySpeed = 9.0f + phase * 2.2f;
             transform.position = Vector3.MoveTowards(transform.position, targetHoverPoint, flySpeed * Time.deltaTime);
             FacePlayerFlat();
 
             featherVolleyTimer -= Time.deltaTime;
             if (featherVolleyTimer <= 0f)
             {
-                featherVolleyTimer = Mathf.Max(1.35f, 2.5f - phaseNum * 0.35f);
-                int count = phaseNum == 1 ? 3 : (phaseNum == 2 ? 5 : 7);
-                FireFeatherFan(count, 36f + phaseNum * 6f, 13.5f + phaseNum * 1.5f);
+                featherVolleyTimer = Mathf.Max(0.95f, 1.95f - phase * 0.32f);
+                int count = phase == 1 ? 5 : (phase == 2 ? 7 : 9);
+                FireFeatherFan(count, 42f + phase * 8f, 15.0f + phase * 2.2f);
                 if (anim != null && anim.runtimeAnimatorController != null) anim.SetTrigger("Attack");
             }
 
             stateTimer -= Time.deltaTime;
-            if (Vector3.Distance(transform.position, targetHoverPoint) < 0.6f || stateTimer <= 0f)
+            if (Vector3.Distance(transform.position, targetHoverPoint) < 0.65f || stateTimer <= 0f)
             {
-                if (UnityEngine.Random.value < 0.52f)
+                glidesUntilSwoopCombo--;
+                if (glidesUntilSwoopCombo <= 0)
                 {
-                    StartSwoopDive();
+                    // Fase 1: 1 picada | Fase 2: 2 picadas seguidas | Fase 3: 3 picadas seguidas antes de aterrizar!
+                    remainingSwoopsInCombo = phase;
+                    StartNextSwoopInCombo(phase);
                 }
                 else
                 {
@@ -379,24 +430,28 @@ namespace Prototipo3
 
         private void PickNextAerialPoint()
         {
-            float rx = UnityEngine.Random.Range(-arenaHalfExtents.x * 0.85f, arenaHalfExtents.x * 0.85f);
-            float rz = UnityEngine.Random.Range(-arenaHalfExtents.y * 0.80f, arenaHalfExtents.y * 0.80f);
+            float rx = UnityEngine.Random.Range(-arenaHalfExtents.x * 0.88f, arenaHalfExtents.x * 0.88f);
+            float rz = UnityEngine.Random.Range(-arenaHalfExtents.y * 0.84f, arenaHalfExtents.y * 0.84f);
             targetHoverPoint = arenaCenter + new Vector3(rx, cruiseAltitudeY, rz);
-            stateTimer = 3.2f;
+            stateTimer = 2.4f;
         }
 
-        private void StartSwoopDive()
+        private void StartNextSwoopInCombo(int phase)
         {
             state = ArenaState.WindupSwoop;
-            stateTimer = 0.85f;
+            stateTimer = Mathf.Max(0.46f, 0.78f - phase * 0.10f);
             swoopStart = new Vector3(transform.position.x, groundAltitudeY + 0.55f, transform.position.z);
 
-            Vector3 dir = (player.transform.position - swoopStart);
+            Vector3 predictedTarget = player.transform.position;
+            Rigidbody prb = player.GetComponent<Rigidbody>();
+            if (prb != null) predictedTarget += new Vector3(prb.linearVelocity.x, 0f, prb.linearVelocity.z) * 0.35f;
+
+            Vector3 dir = predictedTarget - swoopStart;
             dir.y = 0f;
             if (dir.sqrMagnitude < 0.1f) dir = transform.forward;
             dir.Normalize();
 
-            swoopEnd = swoopStart + dir * 16f;
+            swoopEnd = swoopStart + dir * 18.5f;
             swoopEnd.x = Mathf.Clamp(swoopEnd.x, arenaCenter.x - arenaHalfExtents.x, arenaCenter.x + arenaHalfExtents.x);
             swoopEnd.z = Mathf.Clamp(swoopEnd.z, arenaCenter.z - arenaHalfExtents.y, arenaCenter.z + arenaHalfExtents.y);
             swoopEnd.y = groundAltitudeY;
@@ -412,31 +467,32 @@ namespace Prototipo3
         private void TickWindupSwoop()
         {
             FacePlayerFlat();
-            transform.position = Vector3.Lerp(transform.position, new Vector3(swoopStart.x, groundAltitudeY + 1.15f, swoopStart.z), Time.deltaTime * 5f);
+            transform.position = Vector3.Lerp(transform.position, new Vector3(swoopStart.x, groundAltitudeY + 1.15f, swoopStart.z), Time.deltaTime * 7f);
             stateTimer -= Time.deltaTime;
             if (stateTimer <= 0f)
             {
                 if (swoopTelegraph != null) swoopTelegraph.enabled = false;
                 state = ArenaState.SwoopDiving;
-                stateTimer = 1.15f;
+                stateTimer = 0.95f;
             }
         }
 
-        private void TickSwoopDiving()
+        private void TickSwoopDiving(int phase)
         {
             Vector3 toEnd = swoopEnd - transform.position;
             Vector3 flat = new Vector3(toEnd.x, 0f, toEnd.z);
             if (flat.sqrMagnitude > 0.02f) transform.rotation = Quaternion.LookRotation(flat.normalized, Vector3.up);
 
-            transform.position = Vector3.MoveTowards(transform.position, swoopEnd, 18.5f * Time.deltaTime);
+            float diveSpeed = 19.5f + phase * 2.5f;
+            transform.position = Vector3.MoveTowards(transform.position, swoopEnd, diveSpeed * Time.deltaTime);
 
             float distToPlayer = Vector2.Distance(
                 new Vector2(transform.position.x, transform.position.z),
                 new Vector2(player.transform.position.x, player.transform.position.z));
 
-            if (distToPlayer <= 1.65f && meleeHitCooldown <= 0f && !player.IsDashing)
+            if (distToPlayer <= 1.70f && meleeHitCooldown <= 0f && !player.IsDashing)
             {
-                meleeHitCooldown = 1.6f;
+                meleeHitCooldown = 1.35f;
                 player.ReceiveDamage();
                 BossHudPrototipo3.EnsureInstance().TriggerFlash(new Color(0.95f, 0.2f, 0.1f), 0.30f);
             }
@@ -444,17 +500,30 @@ namespace Prototipo3
             stateTimer -= Time.deltaTime;
             if (Vector3.Distance(transform.position, swoopEnd) <= 0.35f || stateTimer <= 0f)
             {
-                // Tras el vuelo rasante, el búho aterriza exhausto 3.5 segundos en la duela: ventana clara para dispararle con el Lanza Redes
-                transform.position = new Vector3(transform.position.x, groundAltitudeY, transform.position.z);
-                state = ArenaState.PerchedRecovering;
-                stateTimer = 3.5f;
+                remainingSwoopsInCombo--;
+                if (remainingSwoopsInCombo > 0)
+                {
+                    // Encadena inmediatamente la siguiente picada en Fase 2 y Fase 3!
+                    StartNextSwoopInCombo(phase);
+                }
+                else
+                {
+                    // Tras completar todo el combo de picadas, aterriza brevemente jadeando (ventana justa de habilidad!)
+                    transform.position = new Vector3(transform.position.x, groundAltitudeY, transform.position.z);
+                    state = ArenaState.PerchedVulnerable;
+                    stateTimer = Mathf.Max(1.85f, 2.55f - phase * 0.22f);
+                }
             }
         }
 
         private void FireFeatherFan(int count, float totalSpreadDegrees, float projSpeed)
         {
             Vector3 origin = transform.position + Vector3.up * 0.85f;
-            Vector3 toTarget = (player.transform.position + Vector3.up * 0.35f) - origin;
+            Vector3 targetPos = player.transform.position + Vector3.up * 0.32f;
+            Rigidbody prb = player.GetComponent<Rigidbody>();
+            if (prb != null) targetPos += new Vector3(prb.linearVelocity.x, 0f, prb.linearVelocity.z) * 0.28f;
+
+            Vector3 toTarget = targetPos - origin;
             if (toTarget.sqrMagnitude < 0.05f) toTarget = transform.forward;
             Vector3 baseDir = toTarget.normalized;
 
@@ -485,9 +554,9 @@ namespace Prototipo3
             BossProjectilePrototipo3 bp = go.GetComponent<BossProjectilePrototipo3>();
             if (bp == null) bp = go.AddComponent<BossProjectilePrototipo3>();
             bp.dealsDirectHitDamage = true;
-            bp.slowDuration = 1.0f;
-            bp.slowMultiplier = 0.7f;
-            bp.hitRadius = 0.65f;
+            bp.slowDuration = 1.1f;
+            bp.slowMultiplier = 0.68f;
+            bp.hitRadius = 0.68f;
             bp.InitLinear(BossProjectileKind.OwlRazorFeather, dir, spd, transform);
         }
 
@@ -498,7 +567,7 @@ namespace Prototipo3
             d.y = 0f;
             if (d.sqrMagnitude > 0.02f)
             {
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(d.normalized, Vector3.up), Time.deltaTime * 7f);
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(d.normalized, Vector3.up), Time.deltaTime * 8f);
             }
         }
 

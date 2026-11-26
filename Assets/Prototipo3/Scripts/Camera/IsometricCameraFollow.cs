@@ -150,14 +150,35 @@ namespace Prototipo3
 
             RaycastHit[] hits = Physics.SphereCastAll(camPos, sphereCastRadius, direction.normalized, maxDist, occlusionLayers, QueryTriggerInteraction.Ignore);
 
+            // Cuando Kilo está dentro de la casita del Refugio Seguro, transparentar automáticamente sus muros frontales/laterales
+            // (sin tocar jamás el suelo, alfombras ni la mesa de crafteo) para que el interior y el hámster se vean nítidos!
+            if (SafeRefugeZone.ActiveZone != null && SafeRefugeZone.IsPointOrPlayerInRefuge(activeTarget.position))
+            {
+                Transform refugeRoot = SafeRefugeZone.ActiveZone.transform;
+                Transform frontFacade = refugeRoot.Find("FrontFacadeWalls");
+                if (frontFacade != null) FadeHierarchyWallsOnly(frontFacade, 0.14f);
+
+                Transform interiorWalls = refugeRoot.Find("InteriorModel/Layout/Walls");
+                if (interiorWalls != null) FadeHierarchyWallsOnly(interiorWalls, 0.16f);
+            }
+
             for (int i = 0; i < hits.Length; i++)
             {
                 RaycastHit hit = hits[i];
                 if (hit.collider == null || hit.collider.isTrigger) continue;
                 if (hit.transform == activeTarget || hit.transform.IsChildOf(activeTarget)) continue;
 
-                // Si impacta con el suelo directamente muy cerca del hamster, ignorar
-                if (hit.point.y <= 0.05f && Vector3.Distance(hit.point, targetCenter) < 1.0f) continue;
+                // Ignorar siempre cualquier piso, calle, cancha o losa debajo de la cintura del jugador para que jamás desaparezca el suelo
+                if (hit.point.y <= activeTarget.position.y + 0.25f || hit.collider.bounds.max.y <= activeTarget.position.y + 0.35f) continue;
+                string hitName = hit.transform.name;
+                if (hitName.StartsWith("Pole", System.StringComparison.OrdinalIgnoreCase)) continue;
+                if (hitName.IndexOf("Floor", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    hitName.IndexOf("Ground", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    hitName.IndexOf("Road", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    hitName.IndexOf("Pavement", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    hitName.IndexOf("Court", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    hitName.IndexOf("Duela", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    hitName.IndexOf("Foundation", System.StringComparison.OrdinalIgnoreCase) >= 0) continue;
 
                 // Ignorar objetos interactivos, jugadores, enemigos, conos de visión, NPCs, mesas de crafteo, contenedores, etc.
                 if (hit.transform.CompareTag("Interactable") || hit.transform.CompareTag("Player") || hit.transform.CompareTag("Enemy") || hit.transform.CompareTag("Respawn")) continue;
@@ -275,6 +296,47 @@ namespace Prototipo3
             for (int i = 0; i < toRemoveKeys.Count; i++)
             {
                 activeFadedObjects.Remove(toRemoveKeys[i]);
+            }
+        }
+
+        private void FadeHierarchyWallsOnly(Transform wallGroup, float alphaTarget)
+        {
+            Renderer[] rens = wallGroup.GetComponentsInChildren<Renderer>();
+            for (int r = 0; r < rens.Length; r++)
+            {
+                Renderer ren = rens[r];
+                if (ren == null || !ren.enabled) continue;
+                if (ren.name.IndexOf("Floor", System.StringComparison.OrdinalIgnoreCase) >= 0) continue;
+
+                if (!activeFadedObjects.TryGetValue(ren, out FadedRendererData data))
+                {
+                    Material[] orig = ren.sharedMaterials;
+                    if (orig == null || orig.Length == 0) continue;
+                    bool hasNull = false;
+                    for (int m = 0; m < orig.Length; m++) if (orig[m] == null) { hasNull = true; break; }
+                    if (hasNull) continue;
+
+                    Material[] inst = new Material[orig.Length];
+                    for (int m = 0; m < orig.Length; m++) inst[m] = new Material(orig[m]);
+                    ren.sharedMaterials = inst;
+
+                    data = new FadedRendererData
+                    {
+                        renderer = ren,
+                        originalMaterials = orig,
+                        instancedMaterials = inst,
+                        currentAlpha = 1.0f,
+                        targetAlpha = alphaTarget,
+                        isOccluding = true
+                    };
+                    ConfigurarModoTransparente(data.instancedMaterials);
+                    activeFadedObjects.Add(ren, data);
+                }
+                else
+                {
+                    data.isOccluding = true;
+                    data.targetAlpha = alphaTarget;
+                }
             }
         }
 

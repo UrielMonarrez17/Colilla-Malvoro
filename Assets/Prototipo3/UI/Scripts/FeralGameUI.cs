@@ -35,6 +35,9 @@ namespace Prototipo3.UI
         bool ownsPause, previousPlayerEnabled, previousCursorVisible, dirty, lastCinematic;
         CursorLockMode previousCursor;
         float previousScale, nextRefresh;
+        float lastHealthBarW = -1f, lastStaminaBarW = -1f;
+        CinematicaManager[] cachedCinematics;
+        bool cinematicsSearched;
         int inventoryTab, selectedItem;
         int suppressInputUntilFrame = -1;
         string speaker, dialogue;
@@ -66,6 +69,11 @@ namespace Prototipo3.UI
                 Destroy(child.gameObject);
             }
 
+            if (QualitySettings.globalTextureMipmapLimit > 0)
+            {
+                QualitySettings.globalTextureMipmapLimit = 0;
+            }
+
             var root = new GameObject("Feral Canvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             root.transform.SetParent(transform, false);
             Canvas = root.GetComponent<Canvas>();
@@ -74,7 +82,8 @@ namespace Prototipo3.UI
             var scaler = root.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1600, 900);
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
 
             BuildHud();
 
@@ -115,17 +124,33 @@ namespace Prototipo3.UI
                 if (inventory == null) inventory = new GameObject("InventoryManager").AddComponent<InventoryManager>();
                 inventory.Changed += OnInventoryChanged;
             }
+            if (!cinematicsSearched)
+            {
+                cinematicsSearched = true;
+                cachedCinematics = FindObjectsByType<CinematicaManager>(FindObjectsSortMode.None);
+            }
         }
 
         void OnInventoryChanged() { dirty = true; }
         void Crafted(TipoTrampa type) { dirty = true; }
+
+        bool HasActiveLegacyCinematic()
+        {
+            if (cachedCinematics == null || cachedCinematics.Length == 0) return false;
+            for (int i = 0; i < cachedCinematics.Length; i++)
+            {
+                var c = cachedCinematics[i];
+                if (c != null && c.isActiveAndEnabled && !c.CinematicaTerminada) return true;
+            }
+            return false;
+        }
 
         bool Cinematic =>
             PortraitDialogueUIPrototipo3.IsConversationActive ||
             StoryDirectorPrototipo3.IsDemoVictoryOpen ||
             (RespawnManagerPrototipo3.Instance != null && RespawnManagerPrototipo3.Instance.IsRespawning) ||
             (TutorialPipelineManager.Instance != null && TutorialPipelineManager.Instance.enCinematica) ||
-            FindObjectsByType<CinematicaManager>(FindObjectsSortMode.None).Any(c => c.isActiveAndEnabled && !c.CinematicaTerminada);
+            HasActiveLegacyCinematic();
 
         void Update()
         {
@@ -161,7 +186,8 @@ namespace Prototipo3.UI
             {
                 nextRefresh = Time.unscaledTime + .2f;
                 BindData();
-                SuppressLegacy();
+                if (player && player.staminaSlider && player.staminaSlider.gameObject.activeSelf)
+                    player.staminaSlider.gameObject.SetActive(false);
                 RefreshHud();
 
                 if (player && player.IsDead && RespawnManagerPrototipo3.Instance == null && TutorialPipelineManager.Instance == null && CurrentPage == Page.None)
@@ -347,11 +373,23 @@ namespace Prototipo3.UI
             if (player)
             {
                 int hp = Mathf.Max(0, player.maxHitsAllowed - player.HitsReceived);
-                health.text = "VIDA   " + hp + " / " + player.maxHitsAllowed + (hp == 1 ? "   ¡CUIDADO!" : "");
-                healthFill.rectTransform.sizeDelta = new Vector2(290 * hp / Mathf.Max(1f, player.maxHitsAllowed), 26);
+                string hpStr = "VIDA   " + hp + " / " + player.maxHitsAllowed + (hp == 1 ? "   ¡CUIDADO!" : "");
+                if (health.text != hpStr) health.text = hpStr;
+                float hpW = 290f * hp / Mathf.Max(1f, player.maxHitsAllowed);
+                if (Mathf.Abs(hpW - lastHealthBarW) >= 0.5f)
+                {
+                    lastHealthBarW = hpW;
+                    healthFill.rectTransform.sizeDelta = new Vector2(hpW, 26f);
+                }
                 health.color = hp <= 1 ? new Color(1, .48f, .35f) : FeralTheme.Cream;
-                staminaFill.rectTransform.sizeDelta = new Vector2(290 * Mathf.Clamp01(player.currentStamina / Mathf.Max(1, player.maxStamina)), 20);
-                staminaText.text = (player.IsExhausted ? "AGOTADO" : player.IsAdrenalineActive ? "ADRENALINA" : player.isCrouching ? "SIGILO" : "ESTAMINA") + "   " + Mathf.RoundToInt(player.currentStamina) + " / " + Mathf.RoundToInt(player.maxStamina);
+                float stW = 290f * Mathf.Clamp01(player.currentStamina / Mathf.Max(1f, player.maxStamina));
+                if (Mathf.Abs(stW - lastStaminaBarW) >= 0.5f)
+                {
+                    lastStaminaBarW = stW;
+                    staminaFill.rectTransform.sizeDelta = new Vector2(stW, 20f);
+                }
+                string stStr = (player.IsExhausted ? "AGOTADO" : player.IsAdrenalineActive ? "ADRENALINA" : player.isCrouching ? "SIGILO" : "ESTAMINA") + "   " + Mathf.RoundToInt(player.currentStamina) + " / " + Mathf.RoundToInt(player.maxStamina);
+                if (staminaText.text != stStr) staminaText.text = stStr;
 
                 var target = player.CurrentInteractable;
                 if (target == null)

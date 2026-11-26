@@ -369,14 +369,25 @@ namespace Prototipo3.Editor
             interior.transform.localRotation = Quaternion.identity;
             interior.transform.localScale = Vector3.one;
 
+            Transform pav = interior.transform.Find("Pavement");
+            if (pav != null) UnityEngine.Object.DestroyImmediate(pav.gameObject);
+
+            foreach (Transform t in interior.GetComponentsInChildren<Transform>(true))
+            {
+                if (t != null && t.name.IndexOf("Mesh_Hamster", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    UnityEngine.Object.DestroyImmediate(t.gameObject);
+                }
+            }
+
             Transform layout = interior.transform.Find("Layout");
             Material wallsMat = null;
             if (layout != null)
             {
                 layout.localScale = new Vector3(0.64f, 0.64f, 0.64f);
-                layout.localPosition = new Vector3(0f, 0.70f, 0f);
+                layout.localPosition = Vector3.zero;
 
-                // Alinear altura superior del Floor justo en y = 0.04f para entrar desde la calle sin tropiezos
+                // Alinear altura superior del Floor justo en y = 0.02f y reemplazar MeshCollider plano por BoxCollider sólido
                 Transform floorTr = layout.Find("Floor");
                 if (floorTr != null)
                 {
@@ -384,12 +395,18 @@ namespace Prototipo3.Editor
                     if (floorRen != null)
                     {
                         float floorTopY = floorRen.bounds.max.y;
-                        layout.localPosition += new Vector3(0f, 0.04f - floorTopY, 0f);
+                        layout.position += new Vector3(0f, 0.02f - floorTopY, 0f);
                     }
                     MeshCollider floorCol = floorTr.GetComponent<MeshCollider>();
-                    if (floorCol == null) floorCol = floorTr.gameObject.AddComponent<MeshCollider>();
-                    floorCol.enabled = true;
+                    if (floorCol != null) floorCol.enabled = false;
                 }
+
+                GameObject solidFloor = new GameObject("RefugeSolidFloorCollider");
+                solidFloor.transform.SetParent(root.transform, false);
+                BoxCollider floorBox = solidFloor.AddComponent<BoxCollider>();
+                floorBox.isTrigger = false;
+                floorBox.center = new Vector3(0f, -0.23f, 0.05f);
+                floorBox.size = new Vector3(8.8f, 0.50f, 8.9f);
 
                 Transform wallsTr = layout.Find("Walls");
                 if (wallsTr != null)
@@ -496,11 +513,11 @@ namespace Prototipo3.Editor
             outsideAnchor.transform.SetParent(root.transform, false);
             outsideAnchor.transform.localPosition = new Vector3(0f, 0.05f, -6.5f);
 
-            // Zona segura (Trigger BoxCollider en el interior + SafeRefugeZone)
+            // Zona segura (Trigger BoxCollider en el interior + umbral de la puerta + SafeRefugeZone)
             BoxCollider safeTrigger = root.AddComponent<BoxCollider>();
             safeTrigger.isTrigger = true;
-            safeTrigger.center = new Vector3(0f, 1.5f, 0.25f);
-            safeTrigger.size = new Vector3(8.3f, 3.0f, 8.1f);
+            safeTrigger.center = new Vector3(0f, 1.4f, -0.15f);
+            safeTrigger.size = new Vector3(9.2f, 3.6f, 9.4f);
 
             SafeRefugeZone safeZone = root.AddComponent<SafeRefugeZone>();
             safeZone.safeTrigger = safeTrigger;
