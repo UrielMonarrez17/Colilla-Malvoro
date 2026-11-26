@@ -41,6 +41,8 @@ public class TimeManager : MonoBehaviour
 
     // Eventos opcionales por si otros scripts necesitan reaccionar a cambios de estado
     public event Action<CycleState> OnCycleStateChanged;
+    public event Action OnDayStart;
+    public event Action OnNightStart;
     private CycleState previousState;
 
     [Header("Debug")]
@@ -108,6 +110,14 @@ public class TimeManager : MonoBehaviour
         {
             previousState = currentState;
             OnCycleStateChanged?.Invoke(currentState);
+            if (currentState == CycleState.Day)
+            {
+                OnDayStart?.Invoke();
+            }
+            else
+            {
+                OnNightStart?.Invoke();
+            }
         }
     }
 
@@ -119,6 +129,14 @@ public class TimeManager : MonoBehaviour
     {
         currentInGameHour = Mathf.Repeat(hour24, 24f);
         CheckCycleChange();
+    }
+
+    public void ForceDawnSunrise()
+    {
+        currentInGameHour = sunriseHour;
+        previousState = CycleState.Day;
+        OnCycleStateChanged?.Invoke(CycleState.Day);
+        OnDayStart?.Invoke();
     }
 
     public void SetDayDuration(float realMinutes) {

@@ -1,11 +1,12 @@
 {
     "schema_version": 2,
-    "commit": "41b16bafb937a347f21e1fedec87fef37a02aa9d",
-    "indexed_at": "2026-10-22T18:34:34Z",
+    "commit": "b73183fbf13b218d2fc687dd050f7ff15b00e339",
+    "indexed_at": "2026-11-05T00:10:03Z",
     "project": "C-Users-CIAC-Documents-Colilla-Malvoro",
-    "nodes": 1259,
-    "edges": 4447,
-    "original_size": 8650752,
-    "compressed_size": 1438095,
-    "compression_level": 3
+    "nodes": 3983,
+    "edges": 15430,
+    "original_size": 87097344,
+    "compressed_size": 2929239,
+    "compression_level": 9,
+    "reconcile_basis": "git-clean-head"
 }

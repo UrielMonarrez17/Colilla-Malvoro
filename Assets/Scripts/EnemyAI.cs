@@ -84,6 +84,13 @@ public class EnemyAI : MonoBehaviour
     private float chaseRepathTimer = 0f;
     private Vector3 lastChaseSampledPos = Vector3.zero;
 
+    // Estado persistente de ralentización por trampas y materiales del cono visual
+    private float trapSpeedMultiplier = 1f;
+    private float trapSlowRemaining = 0f;
+    private GameObject spikeSlowVfxObj;
+    private Material visionConeMaterial;
+    private Material radiusRingMaterial;
+
     protected virtual void Awake()
     {
         // Desactivar AnimationShowcase o MovePlayerInput si vienen del paquete Animals_FREE
@@ -161,6 +168,7 @@ public class EnemyAI : MonoBehaviour
 
     private void Update()
     {
+        TickTrapSpeedModifier();
         UpdateAnimatorFromMovement();
         UpdateVisionConeVisual();
 
@@ -278,7 +286,7 @@ public class EnemyAI : MonoBehaviour
             case EnemyState.Wander:
                 if (agent != null && agent.enabled && agent.isOnNavMesh)
                 {
-                    agent.speed = wanderSpeed;
+                    agent.speed = GetCurrentMovementSpeed(false);
                     agent.isStopped = false;
                 }
                 if (previous == EnemyState.Chase || previous == EnemyState.Attack)
@@ -293,7 +301,7 @@ public class EnemyAI : MonoBehaviour
                 lastChaseSampledPos = Vector3.zero;
                 if (agent != null && agent.enabled && agent.isOnNavMesh)
                 {
-                    agent.speed = chaseSpeed;
+                    agent.speed = GetCurrentMovementSpeed(true);
                     velocidadOriginalAgent = chaseSpeed;
                     agent.isStopped = false;
                 }
@@ -318,7 +326,7 @@ public class EnemyAI : MonoBehaviour
         if (player != null && agent != null && agent.enabled && agent.isOnNavMesh)
         {
             agent.isStopped = false;
-            agent.speed = chaseSpeed;
+            agent.speed = GetCurrentMovementSpeed(true);
             agent.SetDestination(player.position);
         }
     }
@@ -337,7 +345,7 @@ public class EnemyAI : MonoBehaviour
     {
         if (agent == null || !agent.enabled || !agent.isOnNavMesh) return;
 
-        agent.speed = wanderSpeed;
+        agent.speed = GetCurrentMovementSpeed(false);
 
         if (usePatrolWaypoints && patrolWaypoints != null && patrolWaypoints.Length > 0)
         {
@@ -422,6 +430,7 @@ public class EnemyAI : MonoBehaviour
         if (HasLineOfSight() && distanceToPlayer <= visionRadiusNormal)
         {
             agent.isStopped = false;
+            agent.speed = GetCurrentMovementSpeed(true);
 
             // Muestreo seguro del destino en el NavMesh (evita enviar al agente fuera de la malla)
             Vector3 targetNavPos = player.position;
@@ -462,7 +471,6 @@ public class EnemyAI : MonoBehaviour
         {
             ChangeState(EnemyState.Wander);
             OnPlayerLostFromChase?.Invoke();
-            Prototipo3.Narrative.QuestCompiler.Instance?.AdvanceActionIfMatches("romper_linea_vision");
         }
     }
 
@@ -649,37 +657,113 @@ public class EnemyAI : MonoBehaviour
 
     private void EnsureVisionConeObjects()
     {
-        if (visionConeObj != null) return;
+        if (visionConeObj != null && visionConeMaterial != null && radiusRingMaterial != null) return;
 
-        visionConeObj = new GameObject("VisionCone_Visual");
-        visionConeObj.transform.SetParent(transform, false);
-        visionConeObj.transform.localPosition = Vector3.zero;
-        visionConeObj.transform.localRotation = Quaternion.identity;
+        int ignoreRaycastLayer = LayerMask.NameToLayer("Ignore Raycast");
+        if (ignoreRaycastLayer < 0) ignoreRaycastLayer = 2;
 
-        visionConeMeshFilter = visionConeObj.AddComponent<MeshFilter>();
-        visionConeRenderer = visionConeObj.AddComponent<MeshRenderer>();
-        coneMesh = new Mesh { name = "EnemyVisionConeMesh" };
-        visionConeMeshFilter.mesh = coneMesh;
+        if (visionConeObj == null)
+        {
+            visionConeObj = new GameObject("VisionCone_Visual");
+            visionConeObj.layer = ignoreRaycastLayer;
+            visionConeObj.transform.SetParent(transform, false);
+            visionConeObj.transform.localPosition = Vector3.zero;
+            visionConeObj.transform.localRotation = Quaternion.identity;
 
-        Shader unlitShader = Shader.Find("Sprites/Default");
-        if (unlitShader == null) unlitShader = Shader.Find("Universal Render Pipeline/Unlit");
-        Material coneMat = new Material(unlitShader);
-        coneMat.color = new Color(1f, 0.85f, 0.1f, 0.25f);
-        visionConeRenderer.material = coneMat;
-        visionConeRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        visionConeRenderer.receiveShadows = false;
+            visionConeMeshFilter = visionConeObj.AddComponent<MeshFilter>();
+            visionConeRenderer = visionConeObj.AddComponent<MeshRenderer>();
+            coneMesh = new Mesh { name = "EnemyVisionConeMesh" };
+            visionConeMeshFilter.mesh = coneMesh;
+        }
 
-        GameObject ringObj = new GameObject("DetectionRadiusRing");
-        ringObj.transform.SetParent(visionConeObj.transform, false);
-        radiusCircleRenderer = ringObj.AddComponent<LineRenderer>();
-        radiusCircleRenderer.useWorldSpace = true;
-        radiusCircleRenderer.loop = true;
-        radiusCircleRenderer.startWidth = 0.12f;
-        radiusCircleRenderer.endWidth = 0.12f;
-        Material lineMat = new Material(unlitShader);
-        lineMat.color = new Color(1f, 0.55f, 0.1f, 0.7f);
-        radiusCircleRenderer.material = lineMat;
+        if (visionConeMaterial == null)
+        {
+            visionConeMaterial = CreateVisionTransparentMaterial(new Color(1f, 0.85f, 0.1f, 0.30f), 3600);
+        }
+        if (visionConeRenderer != null)
+        {
+            visionConeRenderer.sharedMaterial = visionConeMaterial;
+            visionConeRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            visionConeRenderer.receiveShadows = false;
+        }
+
+        if (radiusCircleRenderer == null)
+        {
+            GameObject ringObj = new GameObject("DetectionRadiusRing");
+            ringObj.layer = ignoreRaycastLayer;
+            ringObj.transform.SetParent(visionConeObj.transform, false);
+            radiusCircleRenderer = ringObj.AddComponent<LineRenderer>();
+            radiusCircleRenderer.useWorldSpace = true;
+            radiusCircleRenderer.loop = true;
+            radiusCircleRenderer.startWidth = 0.12f;
+            radiusCircleRenderer.endWidth = 0.12f;
+        }
+
+        if (radiusRingMaterial == null)
+        {
+            radiusRingMaterial = CreateVisionTransparentMaterial(new Color(1f, 0.58f, 0.12f, 0.72f), 3602);
+        }
+        radiusCircleRenderer.sharedMaterial = radiusRingMaterial;
         radiusCircleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        radiusCircleRenderer.receiveShadows = false;
+    }
+
+    private static Material CreateVisionTransparentMaterial(Color initialColor, int renderQueue)
+    {
+        Shader unlitShader = Shader.Find("Universal Render Pipeline/Unlit");
+        if (unlitShader == null) unlitShader = Shader.Find("Sprites/Default");
+        Material mat = new Material(unlitShader);
+        ConfigureVisionMaterial(mat, initialColor, renderQueue);
+        return mat;
+    }
+
+    private static void ConfigureVisionMaterial(Material mat, Color color, int renderQueue)
+    {
+        if (mat == null) return;
+        if (mat.HasProperty("_Surface"))
+        {
+            mat.SetFloat("_Surface", 1f);
+            if (mat.HasProperty("_Blend")) mat.SetFloat("_Blend", 0f);
+            mat.SetOverrideTag("RenderType", "Transparent");
+            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            if (mat.HasProperty("_SrcBlendAlpha")) mat.SetInt("_SrcBlendAlpha", (int)UnityEngine.Rendering.BlendMode.One);
+            if (mat.HasProperty("_DstBlendAlpha")) mat.SetInt("_DstBlendAlpha", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            mat.SetInt("_ZWrite", 0);
+            if (mat.HasProperty("_Cull")) mat.SetFloat("_Cull", 0f);
+        }
+        mat.renderQueue = renderQueue;
+        SetMaterialColor(mat, color);
+    }
+
+    private static void SetMaterialColor(Material mat, Color color)
+    {
+        if (mat == null) return;
+        mat.color = color;
+        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+        if (mat.HasProperty("_Color")) mat.SetColor("_Color", color);
+    }
+
+    public void ResetVisionConeVisual()
+    {
+        trapSpeedMultiplier = 1f;
+        trapSlowRemaining = 0f;
+        EnsureSpikeSlowVfx(false);
+
+        displayedVisionRadius = visionRadiusNormal;
+        hasWanderDestination = false;
+        wanderWaitTimer = 0f;
+        wanderTimeoutTimer = 0f;
+        ChangeState(EnemyState.Wander);
+
+        EnsureVisionConeObjects();
+        ConfigureVisionMaterial(visionConeMaterial, new Color(1f, 0.85f, 0.15f, 0.30f), 3600);
+        ConfigureVisionMaterial(radiusRingMaterial, new Color(1f, 0.58f, 0.12f, 0.72f), 3602);
+        if (visionConeRenderer != null) visionConeRenderer.sharedMaterial = visionConeMaterial;
+        if (radiusCircleRenderer != null) radiusCircleRenderer.sharedMaterial = radiusRingMaterial;
+        UpdateVisionConeVisual();
     }
 
     private void UpdateVisionConeVisual()
@@ -707,14 +791,16 @@ public class EnemyAI : MonoBehaviour
         bool isChasing = currentState == EnemyState.Chase || currentState == EnemyState.Attack;
         bool isCrouched = playerController != null && playerController.isCrouching;
 
-        Color coneColor = isChasing 
-            ? new Color(1f, 0.18f, 0.18f, 0.34f) 
-            : (isCrouched ? new Color(0.2f, 0.9f, 0.55f, 0.26f) : new Color(1f, 0.82f, 0.15f, 0.28f));
+        Color coneColor = isChasing
+            ? new Color(1f, 0.22f, 0.18f, 0.36f)
+            : (isCrouched ? new Color(0.2f, 0.92f, 0.55f, 0.28f) : new Color(1f, 0.84f, 0.18f, 0.30f));
 
-        if (visionConeRenderer != null && visionConeRenderer.material != null)
-        {
-            visionConeRenderer.material.color = coneColor;
-        }
+        Color ringColor = isChasing
+            ? new Color(1f, 0.28f, 0.2f, 0.78f)
+            : new Color(1f, 0.58f, 0.12f, 0.72f);
+
+        SetMaterialColor(visionConeMaterial, coneColor);
+        SetMaterialColor(radiusRingMaterial, ringColor);
 
         // Construir geometría del cono con Raycasts para que se recorte contra las paredes/esquinas
         int segments = 28;
@@ -763,10 +849,10 @@ public class EnemyAI : MonoBehaviour
         {
             int ringSteps = 40;
             radiusCircleRenderer.positionCount = ringSteps;
-            Color ringColor = isChasing 
-                ? new Color(1f, 0.2f, 0.2f, 0.85f) 
+            Color ringCol = isChasing
+                ? new Color(1f, 0.2f, 0.2f, 0.85f)
                 : (isCrouched ? new Color(0.25f, 0.95f, 0.6f, 0.8f) : new Color(1f, 0.65f, 0.15f, 0.75f));
-            radiusCircleRenderer.material.color = ringColor;
+            SetMaterialColor(radiusRingMaterial, ringCol);
 
             for (int i = 0; i < ringSteps; i++)
             {
@@ -846,12 +932,7 @@ public class EnemyAI : MonoBehaviour
     public void RecibirTrampa(TipoTrampa tipo, Vector3 posicionPuerta)
     {
         OnTrapEffectApplied?.Invoke(tipo);
-        ApplyTrapEffect(tipo, posicionPuerta);
-    }
 
-    // Permite especializar los efectos sin cambiar las puertas ni los otros prototipos.
-    protected virtual void ApplyTrapEffect(TipoTrampa tipo, Vector3 posicionPuerta)
-    {
         switch (tipo)
         {
             case TipoTrampa.Puas:
@@ -866,19 +947,105 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
+    private float GetCurrentMovementSpeed(bool chasing)
+    {
+        return (chasing ? chaseSpeed : wanderSpeed) * trapSpeedMultiplier;
+    }
+
+    private void TickTrapSpeedModifier()
+    {
+        if (trapSlowRemaining <= 0f) return;
+
+        trapSlowRemaining -= Time.deltaTime;
+        if (trapSlowRemaining <= 0f)
+        {
+            trapSlowRemaining = 0f;
+            trapSpeedMultiplier = 1f;
+            EnsureSpikeSlowVfx(false);
+        }
+
+        if (agent != null && agent.enabled && agent.isOnNavMesh)
+        {
+            agent.speed = GetCurrentMovementSpeed(currentState == EnemyState.Chase);
+        }
+    }
+
+    private void EnsureSpikeSlowVfx(bool active)
+    {
+        if (!active)
+        {
+            if (spikeSlowVfxObj != null) spikeSlowVfxObj.SetActive(false);
+            return;
+        }
+
+        if (spikeSlowVfxObj == null)
+        {
+            spikeSlowVfxObj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            spikeSlowVfxObj.name = "SpikeSlowAura_VFX";
+            spikeSlowVfxObj.transform.SetParent(transform, false);
+            spikeSlowVfxObj.transform.localPosition = new Vector3(0f, 0.25f, 0f);
+            float invScale = 1f / Mathf.Max(0.01f, transform.lossyScale.x);
+            spikeSlowVfxObj.transform.localScale = new Vector3(1.5f * invScale, 0.08f * invScale, 1.5f * invScale);
+            Collider col = spikeSlowVfxObj.GetComponent<Collider>();
+            if (col != null) Destroy(col);
+            Renderer ren = spikeSlowVfxObj.GetComponent<Renderer>();
+            if (ren != null)
+            {
+                ren.sharedMaterial = CreateVisionTransparentMaterial(new Color(0.25f, 0.78f, 1f, 0.52f), 3605);
+                ren.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+        }
+
+        spikeSlowVfxObj.SetActive(true);
+    }
+
+    private void SpawnTrapImpactParticles(Color color)
+    {
+        GameObject fx = new GameObject("TrapImpactSparks");
+        fx.transform.position = transform.position + Vector3.up * 0.45f;
+        ParticleSystem ps = fx.AddComponent<ParticleSystem>();
+        var main = ps.main;
+        main.duration = 0.6f;
+        main.loop = false;
+        main.startLifetime = 0.45f;
+        main.startSpeed = 4.2f;
+        main.startSize = 0.22f;
+        main.startColor = color;
+        main.stopAction = ParticleSystemStopAction.Destroy;
+        var emission = ps.emission;
+        emission.rateOverTime = 0f;
+        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 18) });
+        var shape = ps.shape;
+        shape.shapeType = ParticleSystemShapeType.Sphere;
+        shape.radius = 0.4f;
+        ParticleSystemRenderer pr = ps.GetComponent<ParticleSystemRenderer>();
+        if (pr != null)
+        {
+            Shader s = Shader.Find("Universal Render Pipeline/Particles/Unlit") ?? Shader.Find("Universal Render Pipeline/Unlit");
+            if (s != null)
+            {
+                Material m = new Material(s);
+                SetMaterialColor(m, color);
+                pr.sharedMaterial = m;
+            }
+        }
+        ps.Play();
+        Destroy(fx, 1.5f);
+    }
+
     private IEnumerator EfectoPuas()
     {
         Debug.Log("Enemigo pisó Púas. Velocidad reducida un 45%.");
-        if (agent != null)
+        trapSpeedMultiplier = 0.55f;
+        trapSlowRemaining = 5f;
+        EnsureSpikeSlowVfx(true);
+        SpawnTrapImpactParticles(new Color(0.25f, 0.82f, 1f, 1f));
+
+        if (agent != null && agent.enabled && agent.isOnNavMesh)
         {
-            float baseSpd = currentState == EnemyState.Chase ? chaseSpeed : wanderSpeed;
-            agent.speed = baseSpd * 0.55f; 
+            agent.speed = GetCurrentMovementSpeed(currentState == EnemyState.Chase);
         }
-        yield return new WaitForSeconds(4f); 
-        if (agent != null)
-        {
-            agent.speed = currentState == EnemyState.Chase ? chaseSpeed : wanderSpeed;
-        }
+        yield break;
     }
 
     private IEnumerator EfectoRed()

@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
@@ -15,10 +14,6 @@ namespace Prototipo3
     public class TrapSystemPrototipo3 : MonoBehaviour
     {
         public static TrapSystemPrototipo3 Instance { get; private set; }
-        public const float SpikeSpeedMultiplier = 0.5f;
-        public const float SpikeDuration = 6f;
-        public const float NetDuration = 5f;
-        public const float BarricadeDuration = 10f;
 
         [Header("Prefabs Opcionales de Trampas")]
         public GameObject acousticDecoyPrefab;
@@ -203,12 +198,6 @@ namespace Prototipo3
             Debug.Log($"[TrapSystemPrototipo3] ¡Fabricado con éxito: {GetTrapDisplayName(t)}!");
             OnProto3TrapCrafted?.Invoke(t);
 
-            if (Prototipo3.Narrative.QuestCompiler.Instance != null)
-            {
-                string actionName = t == TipoTrampa.Madera ? "fabricar_trampa_madera" : (t == TipoTrampa.Red ? "fabricar_trampa_red" : "fabricar_trampa_puas");
-                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches(actionName);
-            }
-
             return true;
         }
 
@@ -247,12 +236,6 @@ namespace Prototipo3
 
             OnProto3TrapDeployed?.Invoke(tipo);
 
-            if (Prototipo3.Narrative.QuestCompiler.Instance != null)
-            {
-                string actionName = tipo == TipoTrampa.Madera ? "colocar_trampa_madera" : (tipo == TipoTrampa.Red ? "colocar_trampa_red" : "colocar_trampa_puas");
-                Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches(actionName);
-            }
-
             return true;
         }
 
@@ -263,73 +246,51 @@ namespace Prototipo3
         public void DeployWoodBarricade(Transform playerTransform)
         {
             Vector3 spawnPos = playerTransform.position + playerTransform.forward * 1.5f;
-            CreateWoodBarricade(spawnPos, playerTransform.rotation);
-        }
-
-        public GameObject CreateWoodBarricade(Vector3 groundPosition, Quaternion rotation)
-        {
-            Vector3 spawnPos = groundPosition;
             if (CityGeneratorPrototipo3.Instance != null)
             {
-                spawnPos.y = CityGeneratorPrototipo3.Instance.roadHeightY;
+                spawnPos.y = CityGeneratorPrototipo3.Instance.roadHeightY + 0.5f;
             }
-            else if (NavMesh.SamplePosition(spawnPos, out NavMeshHit ground, 3f, NavMesh.AllAreas))
-            {
-                spawnPos.y = ground.position.y;
-            }
-            spawnPos.y += 0.6f;
 
             GameObject barricade = GameObject.CreatePrimitive(PrimitiveType.Cube);
             barricade.name = "Barricada_Madera_Activa_10s";
             barricade.transform.position = spawnPos;
-            barricade.transform.rotation = rotation;
+            barricade.transform.rotation = playerTransform.rotation;
             barricade.transform.localScale = new Vector3(2.4f, 1.2f, 0.45f);
 
             Renderer r = barricade.GetComponent<Renderer>();
             if (r != null)
             {
-                Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard") ?? Shader.Find("Sprites/Default");
-                Material m = new Material(sh) { color = new Color(0.48f, 0.28f, 0.12f) };
-                r.material = m;
+                Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Universal Render Pipeline/Unlit");
+                if (sh != null)
+                {
+                    Material m = new Material(sh);
+                    Color c = new Color(0.48f, 0.28f, 0.12f, 1f);
+                    m.color = c;
+                    if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+                    r.material = m;
+                }
             }
 
             NavMeshObstacle obstacle = barricade.AddComponent<NavMeshObstacle>();
             obstacle.shape = NavMeshObstacleShape.Box;
-            // El tamaño es local: la escala del objeto ya contiene las dimensiones.
-            obstacle.size = Vector3.one;
+            obstacle.size = new Vector3(2.4f, 1.2f, 0.45f);
             obstacle.carving = true;
             obstacle.carveOnlyStationary = false;
 
-            RefreshBarricadePaths(spawnPos);
-            Destroy(barricade, BarricadeDuration);
-            StartCoroutine(RefreshPathsAfterCarving(barricade, spawnPos));
-            Debug.Log("[TrapSystemPrototipo3] ¡TRAMPA DE MADERA desplegada! Barricada física activa con NavMeshObstacle durante 10 s.");
-            return barricade;
-        }
-
-        private IEnumerator RefreshPathsAfterCarving(GameObject barricade, Vector3 position)
-        {
-            // El agujero del NavMesh no está disponible en el mismo frame de creación.
-            yield return null;
-            yield return null;
-            RefreshBarricadePaths(position);
-            while (barricade != null) yield return null;
-            yield return null;
-            RefreshBarricadePaths(position);
-        }
-
-        private static void RefreshBarricadePaths(Vector3 position)
-        {
+            // Recalcular ruta de todos los enemigos cercanos (radio 14m)
             EnemyAIPrototipo3[] enemies = FindObjectsByType<EnemyAIPrototipo3>(FindObjectsSortMode.None);
             for (int i = 0; i < enemies.Length; i++)
             {
                 EnemyAIPrototipo3 e = enemies[i];
-                if (e != null && e.isActiveAndEnabled && Vector3.Distance(position, e.transform.position) <= 14f)
+                if (e != null && e.isActiveAndEnabled && Vector3.Distance(spawnPos, e.transform.position) <= 14f)
                 {
-                    e.ApplyWoodBarricadeRepath(position);
+                    e.ApplyWoodBarricadeRepath(spawnPos, 10f);
                 }
             }
 
+            // Destruir la barricada tras 10 segundos
+            Destroy(barricade, 10f);
+            Debug.Log("[TrapSystemPrototipo3] ¡TRAMPA DE MADERA desplegada! Barricada física activa con NavMeshObstacle durante 10 s.");
         }
 
         public void DeployNetTrap(Transform playerTransform)
@@ -344,7 +305,7 @@ namespace Prototipo3
                 EnemyAIPrototipo3 e = enemies[i];
                 if (e != null && e.isActiveAndEnabled && Vector3.Distance(center, e.transform.position) <= radius)
                 {
-                    e.ApplyNetImmobilization(NetDuration);
+                    e.ApplyNetImmobilization(5f);
                     Debug.Log($"[TrapSystemPrototipo3] ¡TRAMPA DE RED inmovilizó a {e.name} por 5 segundos y anuló su proximidad extrema!");
                 }
             }
@@ -365,25 +326,12 @@ namespace Prototipo3
                 EnemyAIPrototipo3 e = enemies[i];
                 if (e != null && e.isActiveAndEnabled && Vector3.Distance(center, e.transform.position) <= radius)
                 {
-                    e.ApplySpikeSlowAndSparks(SpikeSpeedMultiplier, SpikeDuration);
+                    e.ApplySpikeSlowAndSparks(0.5f, 6f);
                     Debug.Log($"[TrapSystemPrototipo3] ¡TRAMPA DE PÚAS ralentizó a {e.name} al 50% por 6 s con chispas eléctricas!");
                 }
             }
 
-            // 2. Sobrecargar paneles y mecanismos en la arena
-            StoryMechanismPrototipo3[] mechanisms = FindObjectsByType<StoryMechanismPrototipo3>(FindObjectsSortMode.None);
-            for (int i = 0; i < mechanisms.Length; i++)
-            {
-                StoryMechanismPrototipo3 mech = mechanisms[i];
-                if (mech == null || !mech.gameObject.activeInHierarchy) continue;
-                float d = Vector3.Distance(center, mech.transform.position);
-                if (d <= radius)
-                {
-                    mech.OnStaticDischargeHit();
-                }
-            }
-
-            // 3. Emitir el señuelo acústico de distracción por compatibilidad
+            // 2. Emitir el señuelo acústico de distracción por compatibilidad
             DeployAcousticDecoy(playerTransform);
         }
 
@@ -445,9 +393,20 @@ namespace Prototipo3
                 Renderer ren = sphere.GetComponent<Renderer>();
                 if (ren != null)
                 {
-                    Shader sh = Shader.Find("Sprites/Default") ?? Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Standard");
+                    Shader sh = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
                     Material m = new Material(sh);
-                    m.color = new Color(0.2f, 0.95f, 0.35f, 0.32f);
+                    Color colPollen = new Color(0.2f, 0.95f, 0.35f, 0.32f);
+                    m.color = colPollen;
+                    if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", colPollen);
+                    if (m.HasProperty("_Surface"))
+                    {
+                        m.SetFloat("_Surface", 1f);
+                        m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                        m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                        m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                        m.SetInt("_ZWrite", 0);
+                        m.renderQueue = 3600;
+                    }
                     ren.material = m;
                     ren.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 }
@@ -499,18 +458,6 @@ namespace Prototipo3
             if (closestEnemy != null)
             {
                 closestEnemy.ApplyStaticParalysis(5f);
-            }
-
-            StoryMechanismPrototipo3[] mechanisms = FindObjectsByType<StoryMechanismPrototipo3>(FindObjectsSortMode.None);
-            for (int i = 0; i < mechanisms.Length; i++)
-            {
-                StoryMechanismPrototipo3 mech = mechanisms[i];
-                if (mech == null || !mech.gameObject.activeInHierarchy) continue;
-                float d = Vector3.Distance(center, mech.transform.position);
-                if (d <= radius)
-                {
-                    mech.OnStaticDischargeHit();
-                }
             }
         }
     }

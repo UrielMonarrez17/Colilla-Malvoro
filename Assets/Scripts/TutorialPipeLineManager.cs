@@ -1057,6 +1057,7 @@ public class TutorialPipelineManager : MonoBehaviour
             "Busca los contenedores en la calle principal y presiona [F] para saquearlos antes de que caiga la tarde.",
             primerContenedor
         );
+        ActualizarContadorLootCiudad();
     }
 
     private void ActualizarContadorLootCiudad()
@@ -1771,24 +1772,162 @@ public class TutorialPipelineManager : MonoBehaviour
         StartCoroutine(SecuenciaDemostracionTrampaYFinal(puerta, tipo));
     }
 
+    private Vector3 EncontrarSpawnDespejadoDemoTrampa(Vector3 candidatoPrincipal, Vector3 candidatoRespaldo)
+    {
+        Vector3[] candidatos = { candidatoPrincipal, candidatoRespaldo };
+        for (int i = 0; i < candidatos.Length; i++)
+        {
+            Vector3 ajustado = AjustarANavMesh(candidatos[i]);
+            Collider[] hits = Physics.OverlapSphere(ajustado + Vector3.up * 0.6f, 0.65f, ~0, QueryTriggerInteraction.Ignore);
+            bool bloqueado = false;
+            for (int c = 0; c < hits.Length; c++)
+            {
+                Collider col = hits[c];
+                if (col == null) continue;
+                string n = col.gameObject.name;
+                if (n.Contains("Road") || n.Contains("Pavement") || n.Contains("Floor") || n.Contains("Ground")) continue;
+                if (col.bounds.size.y < 0.4f) continue;
+                bloqueado = true;
+                break;
+            }
+            if (!bloqueado) return ajustado;
+        }
+        return AjustarANavMesh(candidatoPrincipal);
+    }
+
     private IEnumerator SecuenciaDemostracionTrampaYFinal(PuertaTrampa puerta, TipoTrampa tipo)
     {
         ConfigurarTextosEstado(
             TutorialState.DemostracionTrampaActiva,
-            "FASE 3: ¡TRAMPA INSTALADA EN LA ENTRADA!",
-            $"¡Excelente! Has colocado la trampa de {tipo} en el pasillo del refugio. La entrada está preparada para la siguiente noche.",
-            "La trampa se activará cuando un enemigo cruce el pasillo.",
+            "FASE 3: ¡TRAMPA EN ACCIÓN!",
+            $"Has instalado la trampa de {tipo}. Un depredador se aproxima por el pasillo del refugio...",
+            "Observa cómo la trampa de púas frena al depredador un 45% en cuanto cruza la entrada.",
             puerta != null ? puerta.transform : null
         );
 
-        yield return new WaitForSeconds(3.5f);
+        GameObject demoEnemyObj = null;
+        bool trapTriggered = false;
+        PuertaTrampa triggeredDoor = null;
+
+        void OnDoorTrapHit(PuertaTrampa p, TipoTrampa t, EnemyAI e)
+        {
+            if (p == puerta || puerta == null)
+            {
+                trapTriggered = true;
+                triggeredDoor = p;
+            }
+        }
+
+        PuertaTrampa.OnTrapTriggeredByEnemy += OnDoorTrapHit;
+        try
+        {
+            if (puerta != null)
+            {
+                Vector3 doorPos = puerta.transform.position;
+                Vector3 spawnPos = EncontrarSpawnDespejadoDemoTrampa(
+                    new Vector3(225.0f, 0.15f, 227.0f),
+                    new Vector3(233.0f, 0.15f, 235.0f));
+                Vector3 alleyEntry = AjustarANavMesh(POS_SALIDA_CALLEJON);
+                Vector3 destPastDoor = AjustarANavMesh(new Vector3(225.0f, 0.15f, 241.5f));
+                Vector3 lookDir = (alleyEntry - spawnPos);
+                lookDir.y = 0f;
+                if (lookDir.sqrMagnitude < 0.01f) lookDir = Vector3.forward;
+
+                GameObject prefabDemo = prefabEnemigoTigre != null ? prefabEnemigoTigre : prefabEnemigoPerro;
+                if (prefabDemo != null)
+                {
+                    demoEnemyObj = Instantiate(prefabDemo, spawnPos, Quaternion.LookRotation(lookDir.normalized));
+                    demoEnemyObj.name = "DepredadorDemoTrampa";
+                    demoEnemyObj.tag = "Enemy";
+
+                    EnemyOnCollision colDmg = demoEnemyObj.GetComponent<EnemyOnCollision>();
+                    if (colDmg != null) colDmg.enabled = false;
+
+                    Rigidbody rb = demoEnemyObj.GetComponent<Rigidbody>();
+                    if (rb == null) rb = demoEnemyObj.AddComponent<Rigidbody>();
+                    rb.isKinematic = true;
+                    rb.useGravity = false;
+
+                    EnemyAI demoAi = demoEnemyObj.GetComponent<EnemyAI>();
+                    if (demoAi == null) demoAi = demoEnemyObj.AddComponent<EnemyAI>();
+                    demoAi.player = null;
+                    demoAi.showVisionCone = false;
+                    demoAi.wanderSpeed = 4.8f;
+                    demoAi.chaseSpeed = 4.8f;
+                    demoAi.SetPatrolWaypoints(new[] { alleyEntry, doorPos, destPastDoor });
+
+                    NavMeshAgent demoAgent = demoEnemyObj.GetComponent<NavMeshAgent>();
+                    if (demoAgent != null && demoAgent.enabled)
+                    {
+                        demoAgent.Warp(spawnPos);
+                        demoAgent.speed = 4.8f;
+                        demoAgent.SetDestination(alleyEntry);
+                    }
+
+                    bool passedAlleyEntry = Vector3.Distance(
+                        new Vector3(spawnPos.x, 0f, spawnPos.z),
+                        new Vector3(alleyEntry.x, 0f, alleyEntry.z)) < 2.2f;
+                    float waitTimer = 0f;
+                    while (!trapTriggered && waitTimer < 8.5f && demoEnemyObj != null)
+                    {
+                        Vector3 enemyXZ = new Vector3(demoEnemyObj.transform.position.x, 0f, demoEnemyObj.transform.position.z);
+                        if (!passedAlleyEntry && Vector3.Distance(enemyXZ, new Vector3(alleyEntry.x, 0f, alleyEntry.z)) <= 1.8f)
+                        {
+                            passedAlleyEntry = true;
+                        }
+
+                        float distToDoor = Vector3.Distance(enemyXZ, new Vector3(doorPos.x, 0f, doorPos.z));
+                        if (distToDoor <= 1.25f)
+                        {
+                            demoAi.RecibirTrampa(tipo, doorPos);
+                            trapTriggered = true;
+                            break;
+                        }
+                        if (demoAgent != null && demoAgent.enabled && demoAgent.isOnNavMesh)
+                        {
+                            demoAgent.SetDestination(passedAlleyEntry ? destPastDoor : alleyEntry);
+                        }
+                        waitTimer += Time.deltaTime;
+                        yield return null;
+                    }
+
+                    if (!trapTriggered && demoEnemyObj != null)
+                    {
+                        demoAi.RecibirTrampa(tipo, doorPos);
+                    }
+                }
+                else
+                {
+                    yield return new WaitForSeconds(1.5f);
+                }
+            }
+            else
+            {
+                yield return new WaitForSeconds(1.5f);
+            }
+
+            ConfigurarTextosEstado(
+                TutorialState.DemostracionTrampaActiva,
+                "FASE 3: ¡TRAMPA ACTIVADA!",
+                "¡Efecto confirmado! La trampa de Púas redujo un 45% la velocidad del enemigo.",
+                "Usa las trampas en accesos clave y puntos de estrangulamiento durante la noche.",
+                puerta != null ? puerta.transform : null
+            );
+
+            yield return new WaitForSeconds(3.5f);
+        }
+        finally
+        {
+            PuertaTrampa.OnTrapTriggeredByEnemy -= OnDoorTrapHit;
+            if (demoEnemyObj != null) Destroy(demoEnemyObj);
+        }
 
         ReproducirSfx(clipSfxAmanecer);
         ConfigurarTextosEstado(
             TutorialState.FinTutorial,
             "¡TUTORIAL COMPLETADO!",
-            "¡TUTORIAL COMPLETADO! Presiona [ESPACIO] o [ENTER] para entrar a la Ciudad (o espera 4 segundos)...",
-            "Has dominado todos los fundamentos. La ciudad de FERAL te espera...",
+            "Has dominado el sigilo, recolección, crafteo y trampas tácticas.",
+            "Elige ahora cómo quieres generar tu ciudad en Prototipo 3.",
             null
         );
 
@@ -1798,45 +1937,128 @@ public class TutorialPipelineManager : MonoBehaviour
             TimeManager.Instance.SetDayDuration(6f);
         }
 
-        StartCoroutine(TransicionarAPrototipo2Routine());
+        yield return new WaitForSeconds(1.0f);
+        MostrarSelectorCiudadPostTutorial();
     }
 
-    private IEnumerator TransicionarAPrototipo2Routine()
+    private void MostrarSelectorCiudadPostTutorial()
     {
-        float timer = 4.0f;
-        while (timer > 0f)
-        {
-            if (Prototipo2.UI.FeralGameUI.BlocksGameplay) { yield return null; continue; }
-            if (FeralInput.Pressed(KeyCode.Space) || FeralInput.Pressed(KeyCode.Return) ||
-                Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
-            {
-                break;
-            }
-            timer -= Time.unscaledDeltaTime;
-            yield return null;
-        }
+        Time.timeScale = 0f;
+        if (hamster != null) hamster.enabled = false;
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
 
-        if (textoSubtituloGuia != null)
-        {
-            textoSubtituloGuia.text = "Cargando Prototipo2...";
-        }
+        Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        GameObject canvasObj = new GameObject("PostTutorialCitySelectorCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        Canvas c = canvasObj.GetComponent<Canvas>();
+        c.renderMode = RenderMode.ScreenSpaceOverlay;
+        c.sortingOrder = 500;
+        CanvasScaler cs = canvasObj.GetComponent<CanvasScaler>();
+        cs.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        cs.referenceResolution = new Vector2(1600f, 900f);
+        cs.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
-        if (Application.CanStreamedLevelBeLoaded("Prototipo2"))
+        GameObject backdrop = CreateUiRect("Backdrop", canvasObj.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        backdrop.AddComponent<Image>().color = new Color(0.03f, 0.025f, 0.02f, 0.88f);
+
+        GameObject card = CreateUiRect("Card", backdrop.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 560f));
+        card.AddComponent<Image>().color = new Color(0.09f, 0.08f, 0.07f, 0.98f);
+
+        CreateUiText("Title", card.transform, font, "¡TUTORIAL COMPLETADO! ELIGE TU CIUDAD", 28, FontStyle.Bold, new Color(0.95f, 0.78f, 0.35f), new Vector2(0f, 225f), new Vector2(700f, 44f));
+        CreateUiText("Sub", card.transform, font, "Genera una ciudad procedural al azar o define tu propia semilla y tamaño.", 18, FontStyle.Normal, new Color(0.82f, 0.78f, 0.72f), new Vector2(0f, 180f), new Vector2(680f, 34f));
+
+        Button btnRandom = CreateUiButton("BtnRandomCity", card.transform, font, "Ciudad Aleatoria (Prototipo 3)", new Color(0.66f, 0.23f, 0.14f), new Vector2(0f, 110f), new Vector2(640f, 62f));
+
+        GameObject customBox = CreateUiRect("CustomBox", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -75f), new Vector2(640f, 250f));
+        customBox.AddComponent<Image>().color = new Color(0.15f, 0.13f, 0.11f, 1f);
+
+        CreateUiText("CustomLbl", customBox.transform, font, "Personalizar Ciudad", 21, FontStyle.Bold, new Color(0.95f, 0.78f, 0.35f), new Vector2(0f, 92f), new Vector2(580f, 32f));
+        CreateUiText("SeedLbl", customBox.transform, font, "Semilla:", 18, FontStyle.Normal, Color.white, new Vector2(-210f, 38f), new Vector2(140f, 32f));
+        InputField seedField = CreateUiInputField("SeedInput", customBox.transform, font, UnityEngine.Random.Range(100000, 999999).ToString(), new Vector2(-20f, 38f), new Vector2(210f, 38f));
+        Button btnRoll = CreateUiButton("BtnRollSeed", customBox.transform, font, "Azar", new Color(0.28f, 0.25f, 0.22f), new Vector2(165f, 38f), new Vector2(120f, 38f));
+        btnRoll.onClick.AddListener(() => seedField.text = UnityEngine.Random.Range(100000, 999999).ToString());
+
+        CreateUiText("SizeLbl", customBox.transform, font, "Tamaño (20-60):", 18, FontStyle.Normal, Color.white, new Vector2(-190f, -18f), new Vector2(180f, 32f));
+        InputField wField = CreateUiInputField("WidthInput", customBox.transform, font, "30", new Vector2(-35f, -18f), new Vector2(100f, 38f));
+        CreateUiText("XLbl", customBox.transform, font, "x", 18, FontStyle.Bold, Color.white, new Vector2(30f, -18f), new Vector2(28f, 32f));
+        InputField lField = CreateUiInputField("LengthInput", customBox.transform, font, "30", new Vector2(95f, -18f), new Vector2(100f, 38f));
+
+        Button btnCustom = CreateUiButton("BtnCustomCity", customBox.transform, font, "Generar Ciudad y Entrar a Prototipo 3", new Color(0.20f, 0.52f, 0.30f), new Vector2(0f, -84f), new Vector2(580f, 54f));
+
+        btnRandom.onClick.AddListener(() =>
         {
-            SceneManager.LoadScene("Prototipo2");
-        }
-        else if (Application.CanStreamedLevelBeLoaded("Assets/Prototipo2/Prototipo2.unity"))
+            int randSeed = UnityEngine.Random.Range(100000, 999999);
+            LoadPrototipo3WithConfig(randSeed, 30, 30);
+        });
+
+        btnCustom.onClick.AddListener(() =>
         {
-            SceneManager.LoadScene("Assets/Prototipo2/Prototipo2.unity");
-        }
-        else if (SceneManager.sceneCountInBuildSettings > 2)
-        {
-            SceneManager.LoadScene(2);
-        }
-        else
-        {
-            SceneManager.LoadScene("Prototipo2");
-        }
+            int s = int.TryParse(seedField.text.Trim(), out int ps) ? Mathf.Abs(ps) : UnityEngine.Random.Range(100000, 999999);
+            int w = int.TryParse(wField.text.Trim(), out int pw) ? Mathf.Clamp(pw, 20, 60) : 30;
+            int l = int.TryParse(lField.text.Trim(), out int pl) ? Mathf.Clamp(pl, 20, 60) : 30;
+            LoadPrototipo3WithConfig(s, w, l);
+        });
+    }
+
+    private void LoadPrototipo3WithConfig(int seedValue, int width, int length)
+    {
+        Prototipo3.CityGeneratorPrototipo3.SetPendingCityConfig(seedValue, width, length);
+        if (InventoryManager.Instance != null) InventoryManager.Instance.Clear();
+        PlayerPrefs.Save();
+        Time.timeScale = 1f;
+
+        if (Application.CanStreamedLevelBeLoaded("Prototipo3")) SceneManager.LoadScene("Prototipo3");
+        else if (Application.CanStreamedLevelBeLoaded("Assets/Prototipo3/Prototipo3.unity")) SceneManager.LoadScene("Assets/Prototipo3/Prototipo3.unity");
+        else SceneManager.LoadScene("Prototipo3");
+    }
+
+    private static GameObject CreateUiRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 pos, Vector2 size)
+    {
+        GameObject go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = anchorMin;
+        rt.anchorMax = anchorMax;
+        rt.anchoredPosition = pos;
+        rt.sizeDelta = size;
+        return go;
+    }
+
+    private static Text CreateUiText(string name, Transform parent, Font font, string content, int size, FontStyle style, Color color, Vector2 pos, Vector2 box)
+    {
+        GameObject go = CreateUiRect(name, parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, box);
+        Text t = go.AddComponent<Text>();
+        t.font = font;
+        t.text = content;
+        t.fontSize = size;
+        t.fontStyle = style;
+        t.color = color;
+        t.alignment = TextAnchor.MiddleCenter;
+        return t;
+    }
+
+    private static Button CreateUiButton(string name, Transform parent, Font font, string label, Color bgCol, Vector2 pos, Vector2 box)
+    {
+        GameObject go = CreateUiRect(name, parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, box);
+        Image img = go.AddComponent<Image>();
+        img.color = bgCol;
+        Button b = go.AddComponent<Button>();
+        Text t = CreateUiText("Label", go.transform, font, label, 20, FontStyle.Bold, Color.white, Vector2.zero, box);
+        t.raycastTarget = false;
+        return b;
+    }
+
+    private static InputField CreateUiInputField(string name, Transform parent, Font font, string initial, Vector2 pos, Vector2 box)
+    {
+        GameObject go = CreateUiRect(name, parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, box);
+        go.AddComponent<Image>().color = new Color(0.08f, 0.07f, 0.06f, 1f);
+        Text t = CreateUiText("Text", go.transform, font, "", 19, FontStyle.Bold, Color.white, Vector2.zero, box - new Vector2(16f, 8f));
+        t.supportRichText = false;
+        InputField f = go.AddComponent<InputField>();
+        f.textComponent = t;
+        f.contentType = InputField.ContentType.IntegerNumber;
+        f.text = initial;
+        return f;
     }
 
     // ===================================================================================
@@ -1872,12 +2094,22 @@ public class TutorialPipelineManager : MonoBehaviour
             hamster.RespawnOrHeal(checkpointPosicion);
         }
 
+        EnemyAI[] allEnemies = FindObjectsByType<EnemyAI>(FindObjectsSortMode.None);
+        for (int i = 0; i < allEnemies.Length; i++)
+        {
+            if (allEnemies[i] != null)
+            {
+                allEnemies[i].ResetVisionConeVisual();
+            }
+        }
+
         if (currentState == TutorialState.EscapeDash && enemigoFeralPrincipal != null)
         {
             NavMeshAgent ag = enemigoFeralPrincipal.GetComponent<NavMeshAgent>();
             Vector3 resetEnemyPos = AjustarANavMesh(POS_VIA_FERAL_SPAWN);
             if (ag != null && ag.enabled) ag.Warp(resetEnemyPos);
             enemigoFeralPrincipal.ForceChasePlayer();
+            enemigoFeralPrincipal.ResetVisionConeVisual();
         }
     }
 

@@ -12,6 +12,7 @@ public class LuluNPC : MonoBehaviour
     public int desperdiciosRequeridos = 3;
 
     private bool hablando = false;
+    private float nextInteractUnscaledTime = 0f;
     public bool Hablando => hablando;
 
     void Start()
@@ -21,18 +22,17 @@ public class LuluNPC : MonoBehaviour
 
     public void InteractuarConLulu()
     {
-        if (hablando || TutorialPipelineManager.Instance == null) return; 
+        if (hablando || Time.unscaledTime < nextInteractUnscaledTime || TutorialPipelineManager.Instance == null) return; 
 
         var estado = TutorialPipelineManager.Instance.currentState;
 
         if (estado == TutorialPipelineManager.TutorialState.BuscarLulu)
         {
-            StartCoroutine(MostrarDialogo(
+            StartCoroutine(MostrarDialogoInicialYNotificar(
                 "Lulú: ¡Hola nuevecito! Qué bueno verte fuera de la madriguera.\n" +
                 "¿Me ayudas antes de que caiga el sol? Busca en los contenedores de la calle y tráeme 3 Desperdicios.\n" +
                 "[Presiona ESPACIO o F para continuar]"
             ));
-            TutorialPipelineManager.Instance.NotificarDialogoInicialLulu();
         }
         else if (estado == TutorialPipelineManager.TutorialState.RegresarLulu)
         {
@@ -71,13 +71,14 @@ public class LuluNPC : MonoBehaviour
             ui.ShowDialogue("Lulú", mensaje.Replace("Lulú: ", "").Replace("[Presiona ESPACIO o F para continuar]", "").Trim());
             yield return null;
             while (ui != null && ui.DialogueOpen) yield return null;
+            nextInteractUnscaledTime = Time.unscaledTime + 0.45f;
             hablando = false;
             yield break;
         }
         if (panelDialogo != null) panelDialogo.SetActive(true);
         if (textoDialogo != null) textoDialogo.text = mensaje;
 
-        yield return new WaitForSeconds(0.35f); 
+        yield return new WaitForSecondsRealtime(0.35f); 
         
         while (!FeralInput.Pressed(KeyCode.Space) && !FeralInput.Pressed(KeyCode.F) && !Input.GetMouseButtonDown(0))
         {
@@ -85,7 +86,17 @@ public class LuluNPC : MonoBehaviour
         }
 
         if (panelDialogo != null) panelDialogo.SetActive(false);
+        nextInteractUnscaledTime = Time.unscaledTime + 0.45f;
         hablando = false;
+    }
+
+    private IEnumerator MostrarDialogoInicialYNotificar(string mensaje)
+    {
+        yield return StartCoroutine(MostrarDialogo(mensaje));
+        if (TutorialPipelineManager.Instance != null)
+        {
+            TutorialPipelineManager.Instance.NotificarDialogoInicialLulu();
+        }
     }
 
     private IEnumerator MostrarDialogoYAnochecer(string mensaje)

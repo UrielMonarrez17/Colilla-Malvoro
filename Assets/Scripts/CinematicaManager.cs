@@ -22,13 +22,38 @@ public class CinematicaManager : MonoBehaviour
     void Awake()
     {
         if (reproductorVideo == null) reproductorVideo = GetComponent<VideoPlayer>();
-        if (reproductorVideo != null) reproductorVideo.playOnAwake = false;
+        if (reproductorVideo != null)
+        {
+            reproductorVideo.playOnAwake = false;
+
+            // Priorizar videos MP4 de Assets/Prototipo3/Scripts/Cinematics
+            string clipName = reproductorVideo.clip != null ? reproductorVideo.clip.name : "01_Intro_Sofia";
+            string preferredFile = clipName.EndsWith(".mp4", System.StringComparison.OrdinalIgnoreCase) ? clipName : (clipName + ".mp4");
+            string folder = System.IO.Path.Combine(Application.dataPath, "Prototipo3", "Scripts", "Cinematics");
+            string fullPath = System.IO.Path.Combine(folder, preferredFile);
+            if (!System.IO.File.Exists(fullPath))
+            {
+                fullPath = System.IO.Path.Combine(folder, "01_Intro_Sofia.mp4");
+            }
+
+            if (System.IO.File.Exists(fullPath))
+            {
+                reproductorVideo.source = VideoSource.Url;
+                reproductorVideo.url = fullPath;
+                Debug.Log($"[CinematicaManager] Priorizando video MP4 de Prototipo3/Scripts/Cinematics: {fullPath}");
+            }
+        }
     }
 
     IEnumerator Start()
     {
         if (hamster == null) hamster = FindAnyObjectByType<HamsterController>();
-        if (reproductorVideo == null || reproductorVideo.clip == null)
+        bool hasSource = reproductorVideo != null && (
+            (reproductorVideo.source == VideoSource.Url && !string.IsNullOrEmpty(reproductorVideo.url)) ||
+            (reproductorVideo.source == VideoSource.VideoClip && reproductorVideo.clip != null)
+        );
+
+        if (!hasSource)
         {
             IniciarGameplay(null);
             yield break;
@@ -70,7 +95,8 @@ public class CinematicaManager : MonoBehaviour
             yield break;
         }
         reproductorVideo.Play();
-        deadline = Time.realtimeSinceStartup + (float)reproductorVideo.length + 15f;
+        float videoDuration = reproductorVideo.length > 0 ? (float)reproductorVideo.length : 30f;
+        deadline = Time.realtimeSinceStartup + videoDuration + 15f;
         while (!cinematicaFinalizada && Time.realtimeSinceStartup < deadline)
             yield return null;
         if (!cinematicaFinalizada) IniciarGameplay(reproductorVideo);

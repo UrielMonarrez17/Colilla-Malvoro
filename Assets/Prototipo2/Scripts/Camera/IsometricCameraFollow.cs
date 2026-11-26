@@ -126,15 +126,26 @@ namespace Prototipo2
                 kvp.Value.isOccluding = false;
             }
 
-            RaycastHit[] hits = Physics.SphereCastAll(camPos, sphereCastRadius, direction.normalized, maxDist, occlusionLayers);
+            RaycastHit[] hits = Physics.SphereCastAll(camPos, sphereCastRadius, direction.normalized, maxDist, occlusionLayers, QueryTriggerInteraction.Ignore);
 
             for (int i = 0; i < hits.Length; i++)
             {
                 RaycastHit hit = hits[i];
+                if (hit.collider == null || hit.collider.isTrigger) continue;
                 if (hit.transform == target || hit.transform.IsChildOf(target)) continue;
 
                 // Si impacta con el suelo directamente muy cerca del hamster, ignorar
                 if (hit.point.y <= 0.05f && Vector3.Distance(hit.point, targetCenter) < 1.0f) continue;
+
+                // Ignorar jugador, enemigos, conos de visión, NPCs e interactivos
+                if (hit.transform.CompareTag("Interactable") || hit.transform.CompareTag("Player") || hit.transform.CompareTag("Enemy") || hit.transform.CompareTag("Respawn")) continue;
+                if (hit.transform.name.Contains("VisionCone") || hit.transform.name.Contains("DetectionRadius")) continue;
+                if (hit.transform.GetComponentInParent<HamsterController>() != null) continue;
+                if (hit.transform.GetComponentInParent<EnemyAI>() != null) continue;
+                if (hit.transform.GetComponentInParent<LuluNPC>() != null) continue;
+                if (hit.transform.GetComponentInParent<LootContainer>() != null) continue;
+                if (hit.transform.GetComponentInParent<CraftingTable>() != null) continue;
+                if (hit.transform.GetComponentInParent<PuertaTrampa>() != null) continue;
 
                 Renderer[] renderers = hit.transform.GetComponentsInChildren<Renderer>();
                 for (int r = 0; r < renderers.Length; r++)
@@ -142,7 +153,13 @@ namespace Prototipo2
                     Renderer ren = renderers[r];
                     if (ren == null || !ren.enabled) continue;
 
-                    // Ignorar emisores de partículas
+                    // Ignorar emisores de partículas, sprites, carteles, conos de visión y UI
+                    if (ren is ParticleSystemRenderer || ren is SpriteRenderer || ren is BillboardRenderer || ren is LineRenderer) continue;
+                    if (ren.name.Contains("VisionCone") || ren.name.Contains("DetectionRadius")) continue;
+                    if (ren.GetComponent<TMPro.TMP_Text>() != null || ren.GetComponent<TextMesh>() != null || ren.GetComponentInParent<Canvas>() != null) continue;
+                    if (ren.CompareTag("Interactable") || ren.CompareTag("Player") || ren.CompareTag("Enemy")) continue;
+                    if (ren.GetComponentInParent<EnemyAI>() != null || ren.GetComponentInParent<LuluNPC>() != null || ren.GetComponentInParent<PuertaTrampa>() != null) continue;
+                    if (ren.GetComponentInParent<LootContainer>() != null || ren.GetComponentInParent<CraftingTable>() != null) continue;
                     if (ren is ParticleSystemRenderer) continue;
 
                     if (!activeFadedObjects.TryGetValue(ren, out FadedRendererData data))
@@ -237,25 +254,33 @@ namespace Prototipo2
                 Material m = mats[i];
                 if (m == null) continue;
 
-                // Soporte para shader Standard
-                if (m.HasProperty("_Mode"))
-                {
-                    m.SetFloat("_Mode", 2f); // Fade
-                }
-
-                // Soporte para URP Lit
+                // Soporte para shader URP Lit / Unlit / SimpleLit
                 if (m.HasProperty("_Surface"))
                 {
                     m.SetFloat("_Surface", 1f); // Transparent
+                    if (m.HasProperty("_Blend")) m.SetFloat("_Blend", 0f);
+                    m.SetOverrideTag("RenderType", "Transparent");
                     m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                    m.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                    m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                    m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                    if (m.HasProperty("_SrcBlendAlpha")) m.SetInt("_SrcBlendAlpha", (int)UnityEngine.Rendering.BlendMode.One);
+                    if (m.HasProperty("_DstBlendAlpha")) m.SetInt("_DstBlendAlpha", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                    m.SetInt("_ZWrite", 0);
+                    m.DisableKeyword("_ALPHATEST_ON");
+                    m.EnableKeyword("_ALPHABLEND_ON");
+                    m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
                 }
-
-                m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-                m.SetInt("_ZWrite", 0);
-                m.DisableKeyword("_ALPHATEST_ON");
-                m.EnableKeyword("_ALPHABLEND_ON");
-                m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+                else if (m.HasProperty("_Mode"))
+                {
+                    m.SetFloat("_Mode", 2f); // Fade legacy
+                    m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                    m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                    m.SetInt("_ZWrite", 0);
+                    m.DisableKeyword("_ALPHATEST_ON");
+                    m.EnableKeyword("_ALPHABLEND_ON");
+                    m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+                }
             }
         }
 

@@ -8,18 +8,22 @@ namespace Prototipo2
         public Transform playerTransform;
         public Camera targetCamera;
 
-        [Header("Shader de Niebla Direccional")]
+        [Header("Shader de Smog Atmosférico")]
         public Shader fogShader;
-        public Color dayFogColor = new Color(0.65f, 0.72f, 0.80f, 0.35f);
-        public Color nightFogColor = new Color(0.04f, 0.06f, 0.11f, 0.95f);
+        public Color dayFogColor = new Color(0.70f, 0.76f, 0.82f, 0.24f);
+        public Color nightFogColor = new Color(0.06f, 0.09f, 0.14f, 0.82f);
         [Range(0.001f, 0.1f)] public float fogDensity = 0.022f;
-        [Range(0.0f, 3.0f)] public float directionalForwardBoost = 1.6f;
-        public float nearDistance = 2.0f;
-        public float farDistance = 35.0f;
+        [Range(0.0f, 3.0f)] public float directionalForwardBoost = 1.25f;
+        public float nearDistance = 11.5f;
+        public float farDistance = 32.0f;
+        [Range(0.01f, 0.25f)] public float noiseScale = 0.065f;
+        [Range(0.0f, 2.0f)] public float noiseSpeed = 0.35f;
+        [Range(0.1f, 0.95f)] public float maxSmogAlpha = 0.80f;
         public float fogTransitionSpeed = 1.8f;
 
         [Header("Horizonte Global")]
-        public bool controlGlobalFog = true;
+        [Tooltip("Desactivado por defecto para evitar doble niebla con el shader URP.")]
+        public bool controlGlobalFog = false;
 
         private Material fogMaterial;
         private GameObject fogQuadObj;
@@ -29,31 +33,33 @@ namespace Prototipo2
         {
             if (fogShader == null)
             {
-                fogShader = Shader.Find("Prototipo2/CityDirectionalFog");
+                fogShader = Shader.Find("Prototipo2/CityDirectionalFog") ?? Shader.Find("Prototipo3/CityDirectionalFog");
             }
         }
 
         private void Start()
         {
-            if (playerTransform == null)
+            ResolvePlayerAndCamera();
+            CrearFrustumFogQuad();
+            RenderSettings.fog = controlGlobalFog;
+            if (controlGlobalFog)
+            {
+                RenderSettings.fogMode = FogMode.ExponentialSquared;
+                RenderSettings.fogDensity = 0.004f;
+                RenderSettings.fogColor = dayFogColor;
+            }
+        }
+
+        private void ResolvePlayerAndCamera()
+        {
+            if (playerTransform == null || !playerTransform.gameObject.activeInHierarchy)
             {
                 HamsterController hc = FindAnyObjectByType<HamsterController>();
                 if (hc != null) playerTransform = hc.transform;
             }
-
             if (targetCamera == null)
             {
                 targetCamera = Camera.main;
-            }
-
-            CrearFrustumFogQuad();
-
-            if (controlGlobalFog)
-            {
-                RenderSettings.fog = true;
-                RenderSettings.fogMode = FogMode.ExponentialSquared;
-                RenderSettings.fogDensity = 0.005f;
-                RenderSettings.fogColor = dayFogColor;
             }
         }
 
@@ -62,10 +68,10 @@ namespace Prototipo2
             if (targetCamera == null) return;
             if (fogShader == null)
             {
-                fogShader = Shader.Find("Prototipo2/CityDirectionalFog");
+                fogShader = Shader.Find("Prototipo2/CityDirectionalFog") ?? Shader.Find("Prototipo3/CityDirectionalFog");
                 if (fogShader == null)
                 {
-                    Debug.LogWarning("[DirectionalNightFog] Shader 'Prototipo2/CityDirectionalFog' no encontrado. Asegúrate de que compila correctamente.");
+                    Debug.LogWarning("[DirectionalNightFog] Shader 'Prototipo2/CityDirectionalFog' no encontrado.");
                     return;
                 }
             }
@@ -75,32 +81,29 @@ namespace Prototipo2
                 fogMaterial = new Material(fogShader);
                 fogMaterial.name = "Mat_CityDirectionalFog_Instance";
             }
+            fogMaterial.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent + 400;
 
-            // Destruir quad previo si existiera
             Transform existing = targetCamera.transform.Find("ScreenDirectionalFogQuad");
             if (existing != null) Destroy(existing.gameObject);
 
-            // Crear quad acoplado a la cámara para renderizar el shader a pantalla completa
             fogQuadObj = GameObject.CreatePrimitive(PrimitiveType.Quad);
             fogQuadObj.name = "ScreenDirectionalFogQuad";
+            int ignoreLayer = LayerMask.NameToLayer("Ignore Raycast");
+            fogQuadObj.layer = ignoreLayer >= 0 ? ignoreLayer : 2;
             fogQuadObj.transform.SetParent(targetCamera.transform, false);
 
-            // Eliminar colisionador del quad para que no interfiera con raycasts
             Collider col = fogQuadObj.GetComponent<Collider>();
             if (col != null) Destroy(col);
 
-            // Colocar justo delante del plano cercano de la cámara
             float distanceInFront = targetCamera.nearClipPlane + 0.15f;
             fogQuadObj.transform.localPosition = new Vector3(0, 0, distanceInFront);
             fogQuadObj.transform.localRotation = Quaternion.identity;
-
-            // Escalar para cubrir exactamente el frustum de la cámara
             ActualizarEscalaQuad(distanceInFront);
 
             MeshRenderer mr = fogQuadObj.GetComponent<MeshRenderer>();
             if (mr != null)
             {
-                mr.material = fogMaterial;
+                mr.sharedMaterial = fogMaterial;
                 mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 mr.receiveShadows = false;
                 mr.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
@@ -124,26 +127,17 @@ namespace Prototipo2
                 frustumWidth = frustumHeight * targetCamera.aspect;
             }
 
-            // Margen adicional del 15% para garantizar cobertura completa en rotaciones
             fogQuadObj.transform.localScale = new Vector3(frustumWidth * 1.15f, frustumHeight * 1.15f, 1.0f);
         }
 
         private void Update()
         {
-            if (playerTransform == null)
-            {
-                HamsterController hc = FindAnyObjectByType<HamsterController>();
-                if (hc != null) playerTransform = hc.transform;
-                if (playerTransform == null) return;
-            }
+            ResolvePlayerAndCamera();
+            if (playerTransform == null) return;
 
-            if (targetCamera == null)
+            if (fogQuadObj == null && targetCamera != null)
             {
-                targetCamera = Camera.main;
-                if (fogQuadObj == null && targetCamera != null)
-                {
-                    CrearFrustumFogQuad();
-                }
+                CrearFrustumFogQuad();
             }
 
             bool isNight = DeterminarSiEsNoche();
@@ -151,24 +145,35 @@ namespace Prototipo2
             currentNightIntensity = Mathf.MoveTowards(currentNightIntensity, targetNight, Time.deltaTime * (fogTransitionSpeed * 0.5f));
 
             Color currentColor = Color.Lerp(dayFogColor, nightFogColor, currentNightIntensity);
+            float effectiveClearRadius = Mathf.Max(8.5f, nearDistance);
+            float effectiveFar = Mathf.Max(effectiveClearRadius + 8f, farDistance);
 
             if (fogMaterial != null)
             {
+                fogMaterial.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent + 400;
                 fogMaterial.SetVector("_PlayerPosition", playerTransform.position);
                 fogMaterial.SetVector("_PlayerForward", playerTransform.forward);
                 fogMaterial.SetFloat("_NightIntensity", currentNightIntensity);
                 fogMaterial.SetColor("_FogColor", currentColor);
                 fogMaterial.SetFloat("_FogDensity", fogDensity);
                 fogMaterial.SetFloat("_DirectionalIntensity", directionalForwardBoost);
-                fogMaterial.SetFloat("_NearDistance", nearDistance);
-                fogMaterial.SetFloat("_FarDistance", farDistance);
+                fogMaterial.SetFloat("_NearDistance", effectiveClearRadius);
+                fogMaterial.SetFloat("_FarDistance", effectiveFar);
+                fogMaterial.SetFloat("_NoiseScale", noiseScale);
+                fogMaterial.SetFloat("_NoiseSpeed", noiseSpeed);
+                fogMaterial.SetFloat("_MaxAlpha", maxSmogAlpha);
             }
 
             if (controlGlobalFog)
             {
-                float targetGlobalDensity = isNight ? 0.035f : 0.005f;
+                RenderSettings.fog = true;
+                float targetGlobalDensity = isNight ? 0.025f : 0.004f;
                 RenderSettings.fogDensity = Mathf.MoveTowards(RenderSettings.fogDensity, targetGlobalDensity, Time.deltaTime * 0.01f);
                 RenderSettings.fogColor = currentColor;
+            }
+            else if (RenderSettings.fog)
+            {
+                RenderSettings.fog = false;
             }
         }
 
@@ -195,14 +200,8 @@ namespace Prototipo2
 
         private void OnDestroy()
         {
-            if (fogQuadObj != null)
-            {
-                Destroy(fogQuadObj);
-            }
-            if (fogMaterial != null)
-            {
-                Destroy(fogMaterial);
-            }
+            if (fogQuadObj != null) Destroy(fogQuadObj);
+            if (fogMaterial != null) Destroy(fogMaterial);
         }
     }
 }

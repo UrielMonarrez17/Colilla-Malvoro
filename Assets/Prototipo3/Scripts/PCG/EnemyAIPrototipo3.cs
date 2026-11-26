@@ -17,35 +17,16 @@ namespace Prototipo3
         [Tooltip("Distancia de chequeo frontal para evitar atravesar colliders de edificios.")]
         public float buildingCheckDistance = 1.6f;
 
-        [Header("Perfil de Jefe y Mecánicas Tácticas (Prototipo 3)")]
-        public BossProfileType bossProfile = BossProfileType.None;
-
-        [Header("Patrulla Territorial de Jefes")]
-        [Tooltip("Radio máximo de patrulla alrededor del spawner/homeAnchor para Jefes.")]
-        public float bossTerritoryRadius = 15f;
-        [Tooltip("Distancia máxima de persecución antes de que el Jefe rompa la persecución y regrese a su territorio.")]
-        public float bossLeashDistance = 26f;
-
-        [Tooltip("Rector Morales: Detecta carreras ruidosas (Shift sin agacharse C) a gran distancia.")]
-        public bool sensitiveToNoisySprint = false;
-        public float noisySprintDetectionRadius = 25f;
+        [Header("Ajustes Tácticos (Prototipo 3)")]
         public float acousticDecoyVulnerabilityMultiplier = 1.0f;
-
-        [Tooltip("Sultán el Lobo: Multiplicador de olfato (proximidad extrema x2.5).")]
         public float baseSmellRadius = 2.5f;
         public float smellMultiplier = 1.0f;
-
-        [Tooltip("Clara Valdés: Deja un rastro temporal de nubes de gas anestésico.")]
-        public bool leavesAnestheticGasTrail = false;
-        public float gasSpawnInterval = 1.6f;
-        public GameObject anestheticGasCloudPrefab;
 
         private NavMeshAgent protoAgent;
         private Rigidbody protoRb;
         private float obstacleRedirectCooldown = 0f;
+        private float refugeRepelCooldown = 0f;
         private Vector3 lastValidCityPosition;
-
-        private DualRoleCharacter dualRole;
 
         private static readonly MethodInfo MiUpdateAnimator = typeof(EnemyAI).GetMethod("UpdateAnimatorFromMovement", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly MethodInfo MiUpdateVisionCone = typeof(EnemyAI).GetMethod("UpdateVisionConeVisual", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -62,49 +43,31 @@ namespace Prototipo3
         private static readonly FieldInfo FiPlayerController = typeof(EnemyAI).GetField("playerController", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo FiVisionConeObj = typeof(EnemyAI).GetField("visionConeObj", BindingFlags.Instance | BindingFlags.NonPublic);
 
-        // Valores base cacheados para restaurar tras efectos de trampas
         private bool baseValuesCached = false;
         private float baseVisionNormal = 15f;
         private float baseVisionCrouched = 5f;
-        private float baseBackDetectionRadius;
-        private bool detectionModifiedByTrap;
-        private bool movementModifiedByTrap;
-        private bool stoppedByTrap;
 
-        // Estado de Trampa 1 (Señuelo Acústico)
         private float acousticDecoyTimer = 0f;
         private Vector3 acousticDecoyPos;
 
-        // Estado de Trampa 3 (Parálisis por Descargador Estático)
         private float staticParalysisTimer = 0f;
         private GameObject paralysisVfxObj;
 
-        // Estado de Trampa 2 (Red Inmovilizadora por 5s)
         private float netImmobilizationTimer = 0f;
         private GameObject netVfxObj;
 
-        // Estado de Trampa 1/3 (Púas: ralentización al 50% por 6s con chispas)
         private float spikeSlowTimer = 0f;
         private float spikeSlowMultiplier = 0.5f;
         private GameObject sparksVfxObj;
-
-        private float gasTrailTimer = 0f;
 
         public bool IsDistractedByDecoy => acousticDecoyTimer > 0f;
         public bool IsParalyzedByStatic => staticParalysisTimer > 0f;
         public bool IsNetImmobilized => netImmobilizationTimer > 0f;
         public bool IsSpikeSlowed => spikeSlowTimer > 0f;
-        private bool IsImmobilizedByTrap => IsNetImmobilized || IsParalyzedByStatic;
 
-        public bool IsFeralActiveNow()
-        {
-            if (dualRole == null) dualRole = GetComponent<DualRoleCharacter>();
-            if (dualRole != null)
-            {
-                return dualRole.IsCurrentlyFeral;
-            }
-            return IsNight();
-        }
+        public void CancelActiveBossAttacks() { }
+
+        public bool IsFeralActiveNow() => StoryDirectorPrototipo3.AllowFeralGlobally && IsNight();
 
         private void ForceBaseState(EnemyState targetState)
         {
@@ -121,7 +84,6 @@ namespace Prototipo3
         protected override void Awake()
         {
             base.Awake();
-            dualRole = GetComponent<DualRoleCharacter>();
 
             MonoBehaviour[] scripts = GetComponents<MonoBehaviour>();
             for (int i = 0; i < scripts.Length; i++)
@@ -137,11 +99,7 @@ namespace Prototipo3
             if (CityGeneratorPrototipo3.Instance != null)
             {
                 SetPatrolWaypoints(null);
-                if (IsBossCharacter())
-                {
-                    wanderRadius = bossTerritoryRadius;
-                }
-                else if (wanderRadius < 30f)
+                if (wanderRadius < 30f)
                 {
                     wanderRadius = 35f;
                 }
@@ -154,7 +112,6 @@ namespace Prototipo3
 
             protoAgent = GetComponent<NavMeshAgent>();
             protoRb = GetComponent<Rigidbody>();
-            dualRole = GetComponent<DualRoleCharacter>();
 
             CacheBaseDetectionValues();
 
@@ -173,52 +130,12 @@ namespace Prototipo3
 
         public void CacheBaseDetectionValues()
         {
-            // Los perfiles de jefe pueden configurarse después de OnEnable.
-            // Nunca guardar como base los radios reducidos por una trampa.
-            if (!baseValuesCached || !detectionModifiedByTrap)
+            if (!baseValuesCached)
             {
                 baseVisionNormal = visionRadiusNormal;
                 baseVisionCrouched = visionRadiusCrouched;
-                baseBackDetectionRadius = backDetectionRadius;
+                if (baseSmellRadius <= 0.1f) baseSmellRadius = backDetectionRadius;
                 baseValuesCached = true;
-            }
-        }
-
-        protected override void OnDisable()
-        {
-            ClearTrapEffects();
-            base.OnDisable();
-        }
-
-        private void ClearTrapEffects()
-        {
-            acousticDecoyTimer = staticParalysisTimer = netImmobilizationTimer = spikeSlowTimer = 0f;
-            EnsureParalysisVfx(false);
-            EnsureNetVfx(false);
-            EnsureSparksVfx(false);
-            RestoreBaseDetection();
-            ApplyTrapMovement();
-            baseValuesCached = false;
-        }
-
-        protected override void ApplyTrapEffect(TipoTrampa tipo, Vector3 posicionPuerta)
-        {
-            // PuertaTrampa llega por EnemyAI. Usar los mismos efectos de Prototipo3
-            // sin iniciar las corutinas antiguas de velocidad, red o empuje físico.
-            switch (tipo)
-            {
-                case TipoTrampa.Puas:
-                    ApplySpikeSlowAndSparks(TrapSystemPrototipo3.SpikeSpeedMultiplier, TrapSystemPrototipo3.SpikeDuration);
-                    break;
-                case TipoTrampa.Red:
-                    ApplyNetImmobilization(TrapSystemPrototipo3.NetDuration);
-                    break;
-                case TipoTrampa.Madera:
-                    Vector3 direction = transform.position - posicionPuerta;
-                    direction.y = 0f;
-                    Quaternion rotation = direction.sqrMagnitude > 0.01f ? Quaternion.LookRotation(direction) : transform.rotation;
-                    TrapSystemPrototipo3.EnsureInstance().CreateWoodBarricade(posicionPuerta, rotation);
-                    break;
             }
         }
 
@@ -252,14 +169,18 @@ namespace Prototipo3
         /// </summary>
         public void AttractToAcousticDecoy(Vector3 decoyPos, float duration)
         {
-            if (!isActiveAndEnabled || duration <= 0f) return;
             CacheBaseDetectionValues();
+            CancelActiveBossAttacks();
             acousticDecoyPos = decoyPos;
             acousticDecoyTimer = Mathf.Max(acousticDecoyTimer, duration);
             ForceBaseState(EnemyState.Wander);
 
-            RefreshTrapDetection();
-            ApplyTrapMovement();
+            if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh && staticParalysisTimer <= 0f)
+            {
+                protoAgent.isStopped = false;
+                protoAgent.speed = Mathf.Max(wanderSpeed * 1.2f, chaseSpeed * 0.75f);
+                protoAgent.SetDestination(decoyPos);
+            }
         }
 
         /// <summary>
@@ -267,13 +188,17 @@ namespace Prototipo3
         /// </summary>
         public void ApplyStaticParalysis(float seconds)
         {
-            if (!isActiveAndEnabled || seconds <= 0f) return;
             CacheBaseDetectionValues();
+            CancelActiveBossAttacks();
             staticParalysisTimer = Mathf.Max(staticParalysisTimer, seconds);
             ForceBaseState(EnemyState.Wander);
 
-            RefreshTrapDetection();
-            ApplyTrapMovement();
+            if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+            {
+                protoAgent.isStopped = true;
+                protoAgent.velocity = Vector3.zero;
+            }
+
             EnsureParalysisVfx(true);
         }
 
@@ -298,30 +223,44 @@ namespace Prototipo3
                 Renderer r = paralysisVfxObj.GetComponent<Renderer>();
                 if (r != null)
                 {
-                    Material m = new Material(Shader.Find("Sprites/Default") ?? Shader.Find("Standard"));
-                    m.color = new Color(0.25f, 0.85f, 1f, 0.45f);
-                    r.material = m;
+                    r.material = CreateTransparentVfxMaterial(new Color(0.25f, 0.85f, 1f, 0.45f));
                 }
             }
 
             paralysisVfxObj.SetActive(true);
         }
 
+        private static Material CreateTransparentVfxMaterial(Color color)
+        {
+            Shader sh = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+            Material m = new Material(sh);
+            m.color = color;
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", color);
+            if (m.HasProperty("_Surface"))
+            {
+                m.SetFloat("_Surface", 1f);
+                m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                m.SetInt("_ZWrite", 0);
+                m.renderQueue = 3600;
+            }
+            return m;
+        }
+
         /// <summary>
         /// Trampa de Madera: Barricada física por 10s. Fuerza el recálculo de ruta del NavMeshAgent evitando la barricada.
         /// </summary>
-        public void ApplyWoodBarricadeRepath(Vector3 barricadePos)
+        public void ApplyWoodBarricadeRepath(Vector3 barricadePos, float duration = 10f)
         {
+            CancelActiveBossAttacks();
             if (protoAgent == null) protoAgent = GetComponent<NavMeshAgent>();
-            if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh &&
-                (protoAgent.hasPath || protoAgent.pathPending))
+            if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
             {
-                Vector3 destination = protoAgent.destination;
                 protoAgent.ResetPath();
-                protoAgent.SetDestination(destination);
+                RedirectAwayFromBuilding(barricadePos);
             }
-            // Recalcular la ruta no cancela una red ni cambia una persecución a patrulla.
-            ApplyTrapMovement();
+            ForceBaseState(EnemyState.Wander);
         }
 
         /// <summary>
@@ -329,13 +268,17 @@ namespace Prototipo3
         /// </summary>
         public void ApplyNetImmobilization(float duration = 5f)
         {
-            if (!isActiveAndEnabled || duration <= 0f) return;
             CacheBaseDetectionValues();
+            CancelActiveBossAttacks();
             netImmobilizationTimer = Mathf.Max(netImmobilizationTimer, duration);
             ForceBaseState(EnemyState.Wander);
 
-            RefreshTrapDetection();
-            ApplyTrapMovement();
+            if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+            {
+                protoAgent.isStopped = true;
+                protoAgent.velocity = Vector3.zero;
+            }
+
             EnsureNetVfx(true);
         }
 
@@ -360,9 +303,7 @@ namespace Prototipo3
                 Renderer r = netVfxObj.GetComponent<Renderer>();
                 if (r != null)
                 {
-                    Material m = new Material(Shader.Find("Sprites/Default") ?? Shader.Find("Standard"));
-                    m.color = new Color(0.85f, 0.85f, 0.25f, 0.5f);
-                    r.material = m;
+                    r.material = CreateTransparentVfxMaterial(new Color(0.85f, 0.85f, 0.25f, 0.5f));
                 }
             }
 
@@ -374,12 +315,15 @@ namespace Prototipo3
         /// </summary>
         public void ApplySpikeSlowAndSparks(float slowMultiplier = 0.5f, float duration = 6f)
         {
-            if (!isActiveAndEnabled || duration <= 0f) return;
             CacheBaseDetectionValues();
             spikeSlowTimer = Mathf.Max(spikeSlowTimer, duration);
             spikeSlowMultiplier = Mathf.Clamp(slowMultiplier, 0.2f, 0.8f);
 
-            ApplyTrapMovement();
+            if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+            {
+                protoAgent.speed *= spikeSlowMultiplier;
+            }
+
             EnsureSparksVfx(true);
         }
 
@@ -404,67 +348,17 @@ namespace Prototipo3
                 Renderer r = sparksVfxObj.GetComponent<Renderer>();
                 if (r != null)
                 {
-                    Material m = new Material(Shader.Find("Sprites/Default") ?? Shader.Find("Standard"));
-                    m.color = new Color(0.2f, 0.6f, 1f, 0.65f);
-                    r.material = m;
+                    r.material = CreateTransparentVfxMaterial(new Color(0.2f, 0.6f, 1f, 0.65f));
                 }
             }
 
             sparksVfxObj.SetActive(true);
         }
 
-        public bool IsBossCharacter()
-        {
-            if (bossProfile != BossProfileType.None) return true;
-            if (dualRole == null) dualRole = GetComponent<DualRoleCharacter>();
-            if (dualRole != null && (dualRole.roleType == CharacterRoleType.PacifiableBoss || dualRole.bossProfile != BossProfileType.None)) return true;
-            return false;
-        }
-
-        private void EnforceBossTerritoryPatrol()
-        {
-            if (!IsBossCharacter()) return;
-            if (dualRole == null) dualRole = GetComponent<DualRoleCharacter>();
-            Vector3 home = dualRole != null ? dualRole.HomeAnchorPosition : transform.position;
-            if (home == Vector3.zero) return;
-
-            float distFromHome = Vector3.Distance(transform.position, home);
-            if (distFromHome > bossTerritoryRadius)
-            {
-                if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh && staticParalysisTimer <= 0f && netImmobilizationTimer <= 0f)
-                {
-                    protoAgent.isStopped = false;
-                    protoAgent.speed = wanderSpeed;
-                    protoAgent.SetDestination(home);
-                }
-            }
-        }
-
-        private void EnforceBossChaseLeash()
-        {
-            if (!IsBossCharacter()) return;
-            if (dualRole == null) dualRole = GetComponent<DualRoleCharacter>();
-            Vector3 home = dualRole != null ? dualRole.HomeAnchorPosition : transform.position;
-            if (home == Vector3.zero) return;
-
-            float distFromHome = Vector3.Distance(transform.position, home);
-            if (distFromHome > bossLeashDistance)
-            {
-                // El jugador abandonó el territorio del jefe: romper persecución y regresar a su ancla
-                ForceBaseState(EnemyState.Wander);
-                if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
-                {
-                    protoAgent.ResetPath();
-                    protoAgent.speed = wanderSpeed;
-                    protoAgent.SetDestination(home);
-                }
-            }
-        }
-
         private void Update()
         {
             CacheBaseDetectionValues();
-            UpdateTrapAndBossModifiers();
+            UpdateTrapModifiers();
 
             MiUpdateAnimator?.Invoke(this, null);
             UpdateFeralVisionConeVisual();
@@ -489,7 +383,6 @@ namespace Prototipo3
             {
                 ForceBaseState(EnemyState.Wander);
                 MiUpdateWander?.Invoke(this, null);
-                EnforceBossTerritoryPatrol();
                 return;
             }
 
@@ -500,7 +393,19 @@ namespace Prototipo3
             {
                 ForceBaseState(EnemyState.Wander);
                 MiUpdateWander?.Invoke(this, null);
-                EnforceBossTerritoryPatrol();
+                return;
+            }
+
+            if (SafeRefugeZone.IsPlayerInsideSafeRefuge)
+            {
+                ForceBaseState(EnemyState.Wander);
+                if (SafeRefugeZone.ActiveZone != null &&
+                    ((protoAgent.hasPath && SafeRefugeZone.ActiveZone.ContainsPoint(protoAgent.destination, 0.4f)) ||
+                     SafeRefugeZone.ActiveZone.ContainsPoint(transform.position, 0.35f)))
+                {
+                    RepelFromSafeRefuge(SafeRefugeZone.ActiveZone.GetRepelOrigin());
+                }
+                MiUpdateWander?.Invoke(this, null);
                 return;
             }
 
@@ -508,7 +413,6 @@ namespace Prototipo3
             {
                 case EnemyState.Wander:
                     MiUpdateWander?.Invoke(this, null);
-                    EnforceBossTerritoryPatrol();
                     bool detected = MiCanDetectInitial != null && (bool)MiCanDetectInitial.Invoke(this, null);
                     if (detected)
                     {
@@ -518,33 +422,17 @@ namespace Prototipo3
 
                 case EnemyState.Chase:
                     MiUpdateChase?.Invoke(this, null);
-                    EnforceBossChaseLeash();
                     break;
 
                 case EnemyState.Attack:
                     MiUpdateAttack?.Invoke(this, null);
-                    EnforceBossChaseLeash();
                     break;
             }
         }
 
         private void UpdateFeralVisionConeVisual()
         {
-            bool isFeral = IsFeralActiveNow();
-            if (IsNight() || !isFeral || !showVisionCone)
-            {
-                MiUpdateVisionCone?.Invoke(this, null);
-                return;
-            }
-
-            // Si es de día pero el jefe está en estado Feral forzado (ej. Morales en el apagón o Kross en la Torre),
-            // aseguramos que su cono de visión también se dibuje.
-            MiEnsureVisionCone?.Invoke(this, null);
-            GameObject coneObj = FiVisionConeObj != null ? FiVisionConeObj.GetValue(this) as GameObject : null;
-            if (coneObj != null && !coneObj.activeSelf)
-            {
-                coneObj.SetActive(true);
-            }
+            MiUpdateVisionCone?.Invoke(this, null);
         }
 
         private void LateUpdate()
@@ -556,160 +444,121 @@ namespace Prototipo3
 
             EnforceCitySurfaceHeight();
             PreventBuildingPenetration();
-            // La patrulla, los cambios de estado y los pulsos del señuelo escriben
-            // la velocidad durante Update. El modificador se aplica al final, una sola vez.
-            ApplyTrapMovement();
-            MiUpdateAnimator?.Invoke(this, null);
         }
 
-        private void RestoreBaseDetection()
+        private void UpdateTrapModifiers()
         {
-            if (!baseValuesCached || !detectionModifiedByTrap) return;
-            visionRadiusNormal = baseVisionNormal;
-            visionRadiusCrouched = baseVisionCrouched;
-            backDetectionRadius = baseBackDetectionRadius;
-            detectionModifiedByTrap = false;
-        }
-
-        private void RefreshTrapDetection()
-        {
-            if (IsImmobilizedByTrap || IsDistractedByDecoy)
+            // 0. Inmovilización por Red (Trampa de Red - 5 segundos)
+            if (netImmobilizationTimer > 0f)
             {
-                detectionModifiedByTrap = true;
+                netImmobilizationTimer -= Time.deltaTime;
                 visionRadiusNormal = 0.05f;
                 visionRadiusCrouched = 0.05f;
                 backDetectionRadius = 0f;
-            }
-            else if (TrapSystemPrototipo3.IsPollenCloudActive)
-            {
-                detectionModifiedByTrap = true;
-                visionRadiusNormal = baseVisionNormal * 0.5f;
-                visionRadiusCrouched = baseVisionCrouched * 0.5f;
-                backDetectionRadius = bossProfile == BossProfileType.Sultan_Lobo ? 0.4f : 0f;
-            }
-            else
-            {
-                RestoreBaseDetection();
-            }
-        }
-
-        private void ApplyTrapMovement()
-        {
-            if (protoAgent == null) protoAgent = GetComponent<NavMeshAgent>();
-            bool active = IsImmobilizedByTrap || IsDistractedByDecoy || IsSpikeSlowed;
-            if (active) movementModifiedByTrap = true;
-            if (!movementModifiedByTrap || protoAgent == null || !protoAgent.enabled || !protoAgent.isOnNavMesh) return;
-
-            float speed = IsDistractedByDecoy
-                ? Mathf.Max(wanderSpeed * 1.2f, 4.5f)
-                : (CurrentState == EnemyState.Wander ? wanderSpeed : chaseSpeed);
-            protoAgent.speed = speed * (IsSpikeSlowed ? spikeSlowMultiplier : 1f);
-
-            if (IsImmobilizedByTrap)
-            {
-                protoAgent.isStopped = true;
-                protoAgent.velocity = Vector3.zero;
-                stoppedByTrap = true;
-            }
-            else if (IsDistractedByDecoy)
-            {
-                bool arrived = Vector3.Distance(transform.position, acousticDecoyPos) <= 1.35f;
-                protoAgent.isStopped = arrived;
-                stoppedByTrap = true;
-                if (!arrived) protoAgent.SetDestination(acousticDecoyPos);
-            }
-            else if (stoppedByTrap)
-            {
-                protoAgent.isStopped = false;
-                stoppedByTrap = false;
-            }
-
-            if (IsSpikeSlowed && protoAgent.velocity.sqrMagnitude > protoAgent.speed * protoAgent.speed)
-            {
-                protoAgent.velocity = Vector3.ClampMagnitude(protoAgent.velocity, protoAgent.speed);
-            }
-            movementModifiedByTrap = active;
-        }
-
-        private void UpdateTrapAndBossModifiers()
-        {
-            // Los efectos simultáneos vencen por tiempo transcurrido, no en cadena.
-            float delta = Time.deltaTime;
-            netImmobilizationTimer = Mathf.Max(0f, netImmobilizationTimer - delta);
-            staticParalysisTimer = Mathf.Max(0f, staticParalysisTimer - delta);
-            spikeSlowTimer = Mathf.Max(0f, spikeSlowTimer - delta);
-            acousticDecoyTimer = Mathf.Max(0f, acousticDecoyTimer - delta);
-            EnsureNetVfx(IsNetImmobilized);
-            EnsureParalysisVfx(IsParalyzedByStatic);
-            EnsureSparksVfx(IsSpikeSlowed);
-            RefreshTrapDetection();
-            ApplyTrapMovement();
-
-            if (IsImmobilizedByTrap || IsDistractedByDecoy)
-            {
                 ForceBaseState(EnemyState.Wander);
-                ApplyTrapMovement();
+
+                if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+                {
+                    protoAgent.isStopped = true;
+                    protoAgent.velocity = Vector3.zero;
+                }
+
+                if (netImmobilizationTimer <= 0f)
+                {
+                    EnsureNetVfx(false);
+                    if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+                    {
+                        protoAgent.isStopped = false;
+                    }
+                }
                 return;
             }
 
+            // 1. Parálisis eléctrica (Trampa 3)
+            if (staticParalysisTimer > 0f)
+            {
+                staticParalysisTimer -= Time.deltaTime;
+                visionRadiusNormal = 0.01f;
+                visionRadiusCrouched = 0.01f;
+                backDetectionRadius = 0.01f;
+                ForceBaseState(EnemyState.Wander);
+
+                if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+                {
+                    protoAgent.isStopped = true;
+                    protoAgent.velocity = Vector3.zero;
+                }
+
+                if (staticParalysisTimer <= 0f)
+                {
+                    EnsureParalysisVfx(false);
+                    if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+                    {
+                        protoAgent.isStopped = false;
+                    }
+                }
+                return;
+            }
+
+            // Ralentización por Púas (Trampa de Púas - 50% por 6s con chispas)
+            if (spikeSlowTimer > 0f)
+            {
+                spikeSlowTimer -= Time.deltaTime;
+                if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+                {
+                    protoAgent.speed = (CurrentState == EnemyState.Chase ? chaseSpeed : wanderSpeed) * spikeSlowMultiplier;
+                }
+
+                if (spikeSlowTimer <= 0f)
+                {
+                    EnsureSparksVfx(false);
+                    if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+                    {
+                        protoAgent.speed = (CurrentState == EnemyState.Chase ? chaseSpeed : wanderSpeed);
+                    }
+                }
+            }
+
+            // 2. Distracción por Señuelo Acústico (Trampa 1)
+            if (acousticDecoyTimer > 0f)
+            {
+                acousticDecoyTimer -= Time.deltaTime;
+                // Suprimir visión hacia el jugador para que vaya al señuelo
+                visionRadiusNormal = 0.05f;
+                visionRadiusCrouched = 0.05f;
+                backDetectionRadius = 0.05f;
+                ForceBaseState(EnemyState.Wander);
+
+                if (protoAgent != null && protoAgent.enabled && protoAgent.isOnNavMesh)
+                {
+                    float distToDecoy = Vector3.Distance(transform.position, acousticDecoyPos);
+                    if (distToDecoy > 1.35f)
+                    {
+                        protoAgent.isStopped = false;
+                        protoAgent.speed = Mathf.Max(wanderSpeed * 1.2f, 4.5f);
+                        protoAgent.SetDestination(acousticDecoyPos);
+                    }
+                    else
+                    {
+                        protoAgent.isStopped = true;
+                    }
+                }
+                return;
+            }
+
+            // 3. Efecto de Bomba de Polen (Trampa 2): desactiva olfato y reduce al 50% visión
             bool pollenActive = TrapSystemPrototipo3.IsPollenCloudActive;
-
-            bool isFeral = IsFeralActiveNow();
-
-            // 4. Sensibilidad a carrera ruidosa del Búho Morales (Shift sin C)
-            if (sensitiveToNoisySprint && isFeral && player != null && !pollenActive)
+            if (pollenActive)
             {
-                HamsterController hc = player.GetComponent<HamsterController>();
-                if (hc != null && hc.IsSprinting && !hc.isCrouching && !hc.IsDead)
-                {
-                    float dist = Vector3.Distance(transform.position, player.position);
-                    if (dist <= noisySprintDetectionRadius)
-                    {
-                        ForceChasePlayer();
-                    }
-                }
-            }
-
-            if (player != null && CurrentState == EnemyState.Wander && Prototipo3.Narrative.QuestCompiler.Instance != null && !Prototipo3.Narrative.QuestCompiler.Instance.IsCurrentQuestComplete)
-            {
-                var cur = Prototipo3.Narrative.QuestCompiler.Instance.CurrentAction;
-                if (cur != null && cur.actionType == "espiar_rutina")
-                {
-                    HamsterController hc = player.GetComponent<HamsterController>();
-                    if (hc != null && hc.isCrouching && Vector3.Distance(transform.position, player.position) <= 22f)
-                    {
-                        Prototipo3.Narrative.QuestCompiler.Instance.AdvanceActionIfMatches("espiar_rutina", "", transform);
-                    }
-                }
-            }
-
-            // 5. Rastro de gas anestésico de Clara Valdés ("La Dama de Gas")
-            if (leavesAnestheticGasTrail && (isFeral || CurrentState == EnemyState.Chase))
-            {
-                gasTrailTimer += Time.deltaTime;
-                if (gasTrailTimer >= gasSpawnInterval)
-                {
-                    gasTrailTimer = 0f;
-                    SpawnAnestheticGasCloud();
-                }
-            }
-        }
-
-        private void SpawnAnestheticGasCloud()
-        {
-            Vector3 spawnPos = transform.position;
-            spawnPos.y = minCitySurfaceY;
-
-            GameObject cloudObj;
-            if (anestheticGasCloudPrefab != null)
-            {
-                cloudObj = Instantiate(anestheticGasCloudPrefab, spawnPos, Quaternion.identity);
+                visionRadiusNormal = baseVisionNormal * 0.5f;
+                visionRadiusCrouched = baseVisionCrouched * 0.5f;
+                backDetectionRadius = 0f;
             }
             else
             {
-                cloudObj = new GameObject("Clara_AnestheticGasCloud");
-                cloudObj.transform.position = spawnPos;
-                cloudObj.AddComponent<AnestheticGasCloud>();
+                visionRadiusNormal = baseVisionNormal;
+                visionRadiusCrouched = baseVisionCrouched;
+                backDetectionRadius = baseSmellRadius * Mathf.Max(1f, smellMultiplier);
             }
         }
 
@@ -817,6 +666,16 @@ namespace Prototipo3
             {
                 obstacleRedirectCooldown -= Time.deltaTime;
             }
+            if (refugeRepelCooldown > 0f)
+            {
+                refugeRepelCooldown -= Time.deltaTime;
+            }
+
+            if (SafeRefugeZone.ActiveZone != null && SafeRefugeZone.ActiveZone.ContainsPoint(transform.position, 0.25f))
+            {
+                RepelFromSafeRefuge(SafeRefugeZone.ActiveZone.GetRepelOrigin());
+                return;
+            }
 
             Vector3 checkCenter = transform.position + Vector3.up * 0.6f;
             float checkRadius = Mathf.Max(0.45f, protoAgent.radius);
@@ -906,10 +765,56 @@ namespace Prototipo3
 
                     if (NavMesh.SamplePosition(candidate, out NavMeshHit hit, 6.0f, NavMesh.AllAreas) && hit.position.y >= minCitySurfaceY - 0.2f)
                     {
+                        if (SafeRefugeZone.ActiveZone != null && SafeRefugeZone.ActiveZone.ContainsPoint(hit.position, 1.5f)) continue;
                         protoAgent.SetDestination(hit.position);
                         break;
                     }
                 }
+            }
+        }
+
+        public void RepelFromSafeRefuge(Vector3 refugeCenter)
+        {
+            ForceBaseState(EnemyState.Wander);
+            if (protoAgent == null) protoAgent = GetComponent<NavMeshAgent>();
+            if (protoAgent == null || !protoAgent.enabled || !protoAgent.isOnNavMesh) return;
+
+            SafeRefugeZone zone = SafeRefugeZone.ActiveZone;
+            if (zone != null && zone.ContainsPoint(transform.position, 0.35f) && refugeRepelCooldown <= 0f)
+            {
+                refugeRepelCooldown = 0.35f;
+                Vector3 outsideTarget = zone.GetSafeOutsidePosition();
+                Vector3 pushDir = transform.position - refugeCenter;
+                pushDir.y = 0f;
+                if (pushDir.sqrMagnitude < 0.04f) pushDir = outsideTarget - refugeCenter;
+                pushDir.y = 0f;
+                if (pushDir.sqrMagnitude < 0.01f) pushDir = -zone.transform.forward;
+                pushDir.Normalize();
+
+                Vector3 candidateExit = outsideTarget;
+                for (int step = 0; step < 4; step++)
+                {
+                    Vector3 probe = refugeCenter + pushDir * (6.2f + step * 1.5f);
+                    probe.y = minCitySurfaceY;
+                    if (NavMesh.SamplePosition(probe, out NavMeshHit exitHit, 4.0f, NavMesh.AllAreas) &&
+                        !zone.ContainsPoint(exitHit.position, 0.5f))
+                    {
+                        candidateExit = exitHit.position;
+                        break;
+                    }
+                }
+
+                if (NavMesh.SamplePosition(candidateExit, out NavMeshHit validExit, 5.0f, NavMesh.AllAreas) &&
+                    !zone.ContainsPoint(validExit.position, 0.5f))
+                {
+                    protoAgent.Warp(validExit.position);
+                    lastValidCityPosition = validExit.position;
+                }
+            }
+
+            if (obstacleRedirectCooldown <= 0f)
+            {
+                RedirectAwayFromBuilding(refugeCenter);
             }
         }
     }

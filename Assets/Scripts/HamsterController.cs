@@ -163,7 +163,8 @@ public class HamsterController : MonoBehaviour
     private void HandleStealthAndSpeedManagement()
     {
         // --- Mecánica de Sigilo (Crouch) ---
-        isCrouching = FeralInput.Held(KeyCode.C);
+        bool crouching = FeralInput.Held(KeyCode.C);
+        isCrouching = crouching;
         
         if (isCrouching) 
         {
@@ -306,6 +307,7 @@ public class HamsterController : MonoBehaviour
     public virtual void ReceiveDamage()
     {
         if (isDead) return;
+        // Inmunidad durante cinemáticas de tutorial para evitar daño indebido
         // The first hit teaches adrenaline; give the player its full escape window.
         if (TutorialPipelineManager.Instance != null && isAdrenalineActive) return;
 

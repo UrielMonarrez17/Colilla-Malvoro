@@ -46,13 +46,13 @@ public class CraftingTable : MonoBehaviour
     {
         if (InventoryManager.Instance == null) return;
 
-        // Trampa de Púas: 1 Madera, 1 Metal
-        if (InventoryManager.Instance.HasEnoughItem(ItemType.Madera, 1) && 
-            InventoryManager.Instance.HasEnoughItem(ItemType.Metal, 1))
+        // Trampa de Púas: 1 Metal, 1 Madera
+        if (InventoryManager.Instance.HasEnoughItem(ItemType.Metal, 1) && 
+            InventoryManager.Instance.HasEnoughItem(ItemType.Madera, 1))
         {
             // Descontamos los materiales
-            InventoryManager.Instance.RemoveItem(ItemType.Madera, 1);
             InventoryManager.Instance.RemoveItem(ItemType.Metal, 1);
+            InventoryManager.Instance.RemoveItem(ItemType.Madera, 1);
             
             // Añadimos la trampa al inventario
             InventoryManager.Instance.AddTrampa(TipoTrampa.Puas);
@@ -61,7 +61,7 @@ public class CraftingTable : MonoBehaviour
         }
         else
         {
-            Debug.Log("❌ Faltan materiales. Necesitas: 1 Madera, 1 Metal.");
+            Debug.Log("❌ Faltan materiales. Necesitas: 1 Metal, 1 Madera.");
         }
     }
 
